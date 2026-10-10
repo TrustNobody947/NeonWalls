@@ -1,0 +1,409 @@
+<title>Broken Screen Glitch</title>
+<style>
+/* Layout: one full-screen canvas, single dark look; tap reveals a small control sheet */
+:root{
+  --bg:#000;
+  --panel:rgba(12,14,18,.88);
+  --fg:#e8ecf2;
+  --muted:#8a93a3;
+  --accent:#19e619;
+  --line:rgba(255,255,255,.12);
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden}
+:root{padding:0!important}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:manipulation}
+.hint{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  font:500 12px/1 var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase;
+  background:var(--panel);padding:10px 14px;border-radius:999px;border:1px solid var(--line);
+  transition:opacity .6s;pointer-events:none;white-space:nowrap;z-index:5}
+.hint.msg{white-space:normal;text-transform:none;letter-spacing:0;font:500 13px/1.45 var(--font);color:var(--fg);
+  width:max-content;max-width:calc(100vw - 32px);text-align:center;border-radius:14px}
+.hint.gone{opacity:0}
+.sheet{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;
+  background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:16px;
+  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px)}
+.sheet h2{margin:0;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.row{display:grid;gap:6px}
+.row label{display:flex;justify-content:space-between;color:var(--muted);font-size:13px}
+.row output{font:12px var(--mono);color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--fg);font-size:14px;cursor:pointer}
+.toggle input{appearance:none;-webkit-appearance:none;flex:none;width:44px;height:26px;border-radius:999px;
+  background:rgba(255,255,255,.15);position:relative;cursor:pointer;transition:background .2s;margin:0}
+.toggle input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;
+  background:var(--fg);transition:transform .2s}
+.toggle input:checked{background:var(--accent)}
+.toggle input:checked::after{transform:translateX(18px);background:#000}
+button.primary{background:var(--accent);color:#000;border-color:transparent}
+</style>
+
+<canvas id="c" aria-label="Animierter Glitch-Hintergrund mit flackernden Farbstreifen"></canvas>
+<div class="hint" id="hint">Tippen für Einstellungen</div>
+
+<div class="sheet" id="sheet" hidden>
+  <h2>Glitch-Einstellungen</h2>
+  <div class="row">
+    <label for="calm">Grundflackern <output id="calmOut">mittel</output></label>
+    <input id="calm" type="range" min="0" max="10" value="4">
+  </div>
+  <div class="row">
+    <label for="burst">Glitch-Ausbrüche <output id="burstOut">mittel</output></label>
+    <input id="burst" type="range" min="0" max="10" value="5">
+  </div>
+  <div class="row">
+    <label for="count">Anzahl Streifen <output id="countOut">30</output></label>
+    <input id="count" type="range" min="0" max="100" value="59">
+  </div>
+  <div class="row">
+    <label for="shear">Versatz unten <output id="shearOut">mittel</output></label>
+    <input id="shear" type="range" min="0" max="10" value="5">
+  </div>
+  <label class="toggle" for="rnd">
+    <span>Neues Muster bei jedem Einschalten</span>
+    <input id="rnd" type="checkbox">
+  </label>
+  <label class="toggle" for="mutate">
+    <span>Glitches verändern das Muster</span>
+    <input id="mutate" type="checkbox">
+  </label>
+  <div class="btns">
+    <button id="newBtn" class="primary">Neues Muster</button>
+    <button id="burstBtn">Glitch jetzt</button>
+    <button id="fsBtn">Vollbild</button>
+    <button id="closeBtn">Schließen</button>
+  </div>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById('c');
+const mutateBox = document.getElementById('mutate');
+const ctx = cv.getContext('2d');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Farben aus allen vier Screenshots
+const PAL = [
+  [25,230,25],   // Neongrün
+  [40,210,40],   // Grün
+  [200,20,200],  // Magenta
+  [170,0,170],   // Lila-Pink
+  [255,20,20],   // Rot
+  [45,95,255],   // Blau
+  [20,170,230],  // Cyan
+  [120,40,255],  // Violett
+  [30,190,120],  // Türkisgrün
+  [255,0,220]    // Pink
+];
+const rnd = (a,b)=>a+Math.random()*(b-a);
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+let W=0,H=0,dpr=1;
+function resize(){
+  dpr = Math.min(window.devicePixelRatio||1, 4);   // volle Display-Auflösung
+  W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize', resize); resize();
+
+const settings = { calm:4, burst:5, countPos:59, shear:5 };
+// Regler-Position 0..100 -> Anzahl Streifen 3..150 (exponentiell, damit man unten fein und oben krass regeln kann)
+const countFromPos = v => Math.round(3 * Math.pow(50, v/100));
+let lines = [];
+
+function makeLine(x){
+  const col = Math.random()<.5 ? pick(PAL.slice(0,4)) : pick(PAL);
+  return {
+    x: x ?? rnd(0,1),
+    tilt: Math.random()<.3 ? rnd(-.012,.012) : 0,   // leicht schräg wie im Original
+    // ein Teil haarfein, die meisten dünn, wenige etwas breiter
+    w: (q => q<.3 ? rnd(.22,.4) : q<.87 ? rnd(.5,1.1) : rnd(1.4,2.2))(Math.random()),
+    col, base: rnd(.55,1),
+    phase: rnd(0,6.28), speed: rnd(.4,2.2),
+    flash: 0, flashCol: null,
+    off: 0,              // >0 = ausgefallen
+    frag: null,          // abgerissenes Stück {y0,y1,t}
+    dotted: Math.random()<.45
+  };
+}
+// Neues Muster = neue Streifen + neue Risse
+function newPattern(){
+  newLines();
+  if(typeof makeShear==='function') makeShear();
+}
+// Nur die Streifen neu (Risse bleiben)
+function newLines(){
+  lines = [];
+  // Cluster wie bei echtem Displayschaden
+  const clusters = Array.from({length: Math.round(rnd(2,4))}, () => ({c:rnd(.1,.95), s:rnd(.03,.12)}));
+  const n0 = countFromPos(settings.countPos);
+  for(let i=0;i<n0;i++){
+    let x;
+    if(Math.random()<.65){ const cl=pick(clusters); x = cl.c + (Math.random()-.5)*2*cl.s; }
+    else x = Math.random();
+    lines.push(makeLine(Math.min(.995,Math.max(.005,x))));
+  }
+  // Ab und zu Doppellinien (Rot neben Grün), Anzahl wächst mit
+  for(let i=0;i<Math.round(n0*.12);i++){ const L=pick(lines); const n=makeLine(Math.min(.995, L.x+rnd(.004,.01))); n.col=pick(PAL); lines.push(n); }
+}
+newPattern();
+
+let burstT = 0, nextBurst = 8;
+// Ausbruch: zufällige Dauer, Stärke und Bereich (ganzer Screen oder nur über/zwischen/unter den Rissen)
+let burstZone = 'all', burstPow = 1;
+function triggerBurst(zone){
+  burstT = Math.random()<.2 ? rnd(1.2,2.4) : rnd(.15,1.1);
+  burstPow = rnd(.5,1.5);
+  const r = Math.random();
+  burstZone = zone || (r<.35 ? 'all' : r<.65 ? 'bottom' : r<.85 ? 'top' : 'mid');
+}
+function scheduleBurst(bur){
+  // meist lange Pausen, ab und zu ein schneller Nachschlag
+  if(Math.random() < .18*bur) return rnd(.3,1.6);
+  const p = Math.random()<.3 ? rnd(25,60) : rnd(8,25);
+  // Regler: ganz links sehr selten (Pausen bis mehrere Minuten), ganz rechts wie bisher
+  return p * (0.5 + Math.pow(1 - bur, 2) * 4);
+}
+
+// Versatz-Zone: auf einer Bildschirmhälfte unten eine schräg nach oben laufende Bruchkante,
+// an der die Streifen seitlich versetzt weiterlaufen (1–3 Stufen)
+var shear = null;
+function makeShear(){
+  const s = {
+    side: Math.random()<.5 ? 'L' : 'R',
+    yOuter: rnd(.82,.9), yInner: rnd(.74,.8),   // Hauptriss: leicht schräg über die ganze Breite
+    f1: (Math.random()<.5 ? -1 : 1) * rnd(.8,1.2)
+  };
+  s.y1 = xn => s.yInner + (s.side==='L' ? 1-xn : xn) * (s.yOuter - s.yInner);
+  // Zweiter Riss: zweigt vom Hauptriss ab und läuft steiler nach oben
+  const bx = rnd(.3,.7), by = s.y1(bx);
+  const ex = Math.min(.98, Math.max(.02, bx + (Math.random()<.5?-1:1)*rnd(.18,.32)));
+  s.branch = { bx, by, ex, ey: by - rnd(.22,.38), f: (Math.random()<.5 ? -1 : 1) * rnd(.7,1.2) };
+  shear = s;
+}
+makeShear();
+
+function linePoints(L, x){
+  const xn = x / W;
+  // Liste von Teilstücken: an jedem Riss gekappt und versetzt weiter
+  const segs = [];
+  let pts = [[x,0]];
+  const s = shear, base = settings.shear*1.2;
+  const jit = () => burstT>0 && Math.random()<.3 ? rnd(.6,1.8) : 1;
+  const cuts = [];
+  if(s && base>0){
+    cuts.push({ y: s.y1(xn)*H, d: s.f1*base*jit() });
+    const b = s.branch, lo = Math.min(b.bx,b.ex), hi = Math.max(b.bx,b.ex);
+    if(xn > lo && xn < hi){
+      const k = (xn - b.bx)/(b.ex - b.bx);
+      cuts.push({ y: (b.by + k*(b.ey - b.by))*H, d: b.f*base*jit() });
+    }
+    cuts.sort((a,c)=>a.y-c.y);
+  }
+  let cum = 0;
+  for(const c of cuts){
+    if(c.y >= H - 2) continue;
+    pts.push([x+cum, c.y]); segs.push(pts);
+    cum += c.d;
+    pts = [[x+cum, c.y]];
+  }
+  pts.push([x+cum, H]);
+  segs.push(pts);
+  // leichte Schräglage
+  for(const sg of segs) for(const p of sg) p[0] += L.tilt*W*(p[1]/H - .5);
+  // senkrechte Streifen exakt auf das Pixelraster legen: gestochen scharfe Kanten
+  if(!L.tilt) for(const sg of segs) for(const p of sg) p[0] = (Math.round(p[0]*dpr - .5) + .5)/dpr;
+  return segs;
+}
+function strokePts(segs){
+  ctx.beginPath();
+  for(const sg of segs){ ctx.moveTo(sg[0][0],sg[0][1]); for(let i=1;i<sg.length;i++) ctx.lineTo(sg[i][0],sg[i][1]); }
+  ctx.stroke();
+}
+
+// Laufzeitwerte für die Teilstück-Logik
+let curDt = 0.016, curBursting = false, curCalm = .4, curG = .25;
+// Wahrscheinlichkeit für "rate mal pro Sekunde", unabhängig von der Bildrate
+const P = rate => 1 - Math.exp(-rate*curDt);
+
+// Jedes Teilstück zwischen den Rissen flackert / fällt unabhängig aus
+function drawLine(L, x, alpha, col, y0, y1){
+  const segs = linePoints(L, x);
+  const clip = y0 > 0 || y1 < H;
+  if(clip){ ctx.save(); ctx.beginPath(); ctx.rect(0,y0,W,y1-y0); ctx.clip(); }
+  if(!L.zones) L.zones = [];
+  const n = segs.length;
+  segs.forEach((sg, i) => {
+    const z = L.zones[i] || (L.zones[i] = {flash:0, col:null, off:0});
+    // Gilt der aktuelle Ausbruch für dieses Teilstück?
+    const sb = curBursting && n > 1 && (burstZone==='all' || (burstZone==='top' && i===0) ||
+      (burstZone==='bottom' && i===n-1) || (burstZone==='mid' && n===3 && i===1));
+    if(n > 1){
+      if(z.off > 0){ z.off -= curDt; if(z.off > 0) return; }
+      else if(Math.random() < (sb ? .035*burstPow : P(.05*curG))){ z.off = rnd(.05, sb ? .5 : 1.2); return; }
+      if(z.flash > 0) z.flash -= curDt;
+      else if(Math.random() < (sb ? .3*burstPow : P(.18*curG))){
+        z.flash = rnd(.03,.18); z.col = Math.random()<.6 ? pick(PAL) : col;
+      }
+    }
+    let a = alpha, c = col;
+    if(L.flash > 0 && (!L.mask || L.mask[i] !== false)){ a = Math.random()<.5 ? rnd(1,1.6) : rnd(.05,.3); c = L.flashCol || col; }
+    else if(segs.length > 1 && z.flash > 0){ a = Math.random()<.5 ? rnd(1,1.6) : rnd(.05,.3); c = z.col; }
+    paintSegs(L, [sg], Math.max(0,Math.min(1,a)), c);
+  });
+  if(clip) ctx.restore();
+}
+
+function paintSegs(L, pts, alpha, col){
+  const [r,g,b] = col;
+  ctx.lineCap='butt'; ctx.lineJoin='miter';
+  // Glow
+  ctx.strokeStyle=`rgba(${r},${g},${b},${alpha*.10})`;
+  ctx.lineWidth=Math.max(L.w*2.5, 1.5/dpr); ctx.setLineDash([]);
+  strokePts(pts);
+  // heller, haarfeiner Mittelstrich für Schärfe
+  ctx.strokeStyle=`rgba(${Math.min(255,r+120)},${Math.min(255,g+120)},${Math.min(255,b+120)},${alpha*.55})`;
+  ctx.lineWidth=Math.max(1/dpr, L.w*.35);
+  strokePts(pts);
+  // Kern
+  ctx.strokeStyle=`rgba(${r},${g},${b},${alpha})`;
+  ctx.lineWidth=Math.max(1, Math.round(L.w*dpr))/dpr;   // ganze Pixel = scharf
+  strokePts(pts);
+  // Pixelraster (gepunktete Subpixel-Struktur)
+  if(L.dotted){
+    ctx.strokeStyle=`rgba(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+80)},${alpha*.35})`;
+    ctx.lineWidth=Math.max(1/dpr,L.w*.5); ctx.setLineDash([1,1.5]);
+    strokePts(pts);
+    ctx.setLineDash([]);
+  }
+}
+
+let last = performance.now(), t = 0;
+function frame(now){
+  const dt = Math.min(.05,(now-last)/1000); last=now; t+=dt;
+  const calm = settings.calm/10, bur = settings.burst/10;
+
+  // Burst-Steuerung
+  if(burstT>0){
+    burstT-=dt;
+    // Option: nach einem Glitch-Ausbruch manchmal ein neues Streifenmuster (Risse bleiben gleich)
+    if(burstT<=0 && mutateBox.checked && Math.random()<.5) newLines();
+  }
+  else if(bur>0){ nextBurst-=dt; if(nextBurst<=0){ triggerBurst(); nextBurst = scheduleBurst(bur); } }
+  curDt = dt; curBursting = burstT>0; curCalm = calm;
+  // Glitch-Stärke: ganz links aus, bei "leicht" schon spürbar, rechts viele
+  curG = bur > 0 ? 0.02 + 0.98*Math.pow(bur, 1.6) : 0;
+  const bursting = burstT>0 && burstZone==='all';   // ganzer Screen
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  // leichter Farbschleier
+  ctx.fillStyle = bursting && Math.random()<.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)';
+  ctx.fillRect(0,0,W,H);
+
+  ctx.globalCompositeOperation='lighter';
+  for(const L of lines){
+    // Ausfall / Wiederkehr
+    if(L.off>0){ L.off-=dt; if(L.off>0) continue; }
+    else if(Math.random() < (bursting? .02 : P(.03*curG))){ L.off = rnd(.05, bursting? .4 : 1.5); continue; }
+
+    // Glitch-Flash (Farbwechsel) – nur über den Glitch-Regler
+    if(L.flash>0) L.flash-=dt;
+    else if(Math.random() < (bursting ? .25*burstPow : P(.12*curG))){
+      L.flash = rnd(.03,.15);
+      L.flashCol = Math.random()<.5 ? pick(PAL) : L.col;
+      // nur manche Teilstücke machen den Flash mit (oben, unten oder beide)
+      L.mask = [Math.random()<.55, Math.random()<.55, Math.random()<.55];
+      if(!L.mask.some(Boolean)) L.mask[Math.floor(Math.random()*3)] = true;
+    }
+    if(bursting && mutateBox.checked && Math.random()<.01) L.col = pick(PAL);
+
+    // Grundflackern: jeder Streifen flimmert unabhängig in kleinen, schnellen Helligkeitsschritten
+    // (kein Farbwechsel, keine Wellen, die durchs Bild laufen)
+    if(!(L.flT > 0)){ L.flT = rnd(.03,.09); L.fl = 1 - calm*rnd(0,.45); }
+    else L.flT -= dt;
+    let a = L.base*L.fl;
+    let col = L.col;
+    a = Math.max(0,Math.min(1,a));
+    let x = L.x*W;
+    if(bursting && Math.random()<.15) x += rnd(-3,3);
+
+    // abgerissene Fragmente (wie unten im 3. Bild)
+    if(!L.frag && Math.random() < (bursting? .02 : P(.02*curG))){
+      const y0 = rnd(.55,.9)*H; L.frag = {y0, t: rnd(.3,3)};
+    }
+    if(L.frag){
+      L.frag.t-=dt;
+      drawLine(L, x, a, col, L.frag.y0, H);
+      if(Math.random()<.2) drawLine(L, x, a*.7, col, L.frag.y0-rnd(10,60), L.frag.y0-rnd(2,8));
+      if(L.frag.t<=0) L.frag=null;
+    } else {
+      drawLine(L, x, a, col, 0, H);
+    }
+  }
+
+  // während Bursts: kurze neue Streifen tauchen auf
+  if(bursting && Math.random()<.35){
+    const tmp = makeLine(); tmp.w = rnd(.5,1.2);
+    drawLine(tmp, tmp.x*W, rnd(.6,1), tmp.col, Math.random()<.5?0:rnd(.3,.8)*H, H);
+  }
+  ctx.globalCompositeOperation='source-over';
+  requestAnimationFrame(frame);
+}
+if(reduce){ settings.calm=1; settings.burst=0; }
+requestAnimationFrame(frame);
+
+// UI
+const sheet=document.getElementById('sheet'), hint=document.getElementById('hint');
+setTimeout(()=>hint.classList.add('gone'),3500);
+cv.addEventListener('click',()=>{ sheet.hidden=!sheet.hidden; hint.classList.add('gone'); });
+const lvl=v=>v==0?'aus':v<4?'leicht':v<7?'mittel':'stark';
+const bind=(id,key,fmt,cb)=>{const el=document.getElementById(id),out=document.getElementById(id+'Out');
+  el.value=settings[key]; out.textContent=fmt(+el.value);
+  el.addEventListener('input',()=>{settings[key]=+el.value; out.textContent=fmt(+el.value); cb&&cb();});};
+bind('calm','calm',lvl); bind('burst','burst',lvl,()=>{ nextBurst = scheduleBurst(settings.burst/10); burstT = 0; });
+nextBurst = scheduleBurst(settings.burst/10); bind('count','countPos',countFromPos,newPattern); bind('shear','shear',lvl);
+// Zufallsmuster: bei jedem Einschalten (Seite wieder sichtbar) ein neues Muster
+const rndBox = document.getElementById('rnd');
+try{ mutateBox.checked = localStorage.getItem('bs_mut') === '1'; }catch(e){}
+mutateBox.addEventListener('change',()=>{ try{ localStorage.setItem('bs_mut', mutateBox.checked?'1':'0'); }catch(e){} });
+try{ rndBox.checked = localStorage.getItem('bs_rnd') === '1'; }catch(e){}
+rndBox.addEventListener('change',()=>{ try{ localStorage.setItem('bs_rnd', rndBox.checked?'1':'0'); }catch(e){} });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && rndBox.checked) newPattern(); });
+document.getElementById('newBtn').onclick=newPattern;
+document.getElementById('burstBtn').onclick=()=>triggerBurst();
+document.getElementById('closeBtn').onclick=()=>{sheet.hidden=true;};
+
+// Vollbild: immer echtes Vollbild versuchen. Klappt es in einer Ansicht nicht,
+// bleiben wenigstens die Bedienelemente ausgeblendet und ein Hinweis erscheint.
+const fsBtn = document.getElementById('fsBtn');
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let toastTimer = 0;
+function toast(msg){
+  hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>hint.classList.add('gone'), 4000);
+}
+const fsBlocked = () => { if(!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Karte „Broken Screen Glitch“, dort geht es. Antippen holt die Einstellungen zurück.'); };
+fsBtn.onclick = () => {
+  sheet.hidden = true;
+  try{
+    if(isFs()){ const x = document.exitFullscreen||document.webkitExitFullscreen; if(x) x.call(document); return; }
+    const el = document.documentElement, req = el.requestFullscreen||el.webkitRequestFullscreen;
+    if(!req){ fsBlocked(); return; }
+    const r = req.call(el, {navigationUI:'hide'});
+    if(r && r.then) r.then(()=>setTimeout(fsBlocked, 300), fsBlocked);
+    else setTimeout(fsBlocked, 500);
+  }catch(e){ fsBlocked(); }
+};
+const fsLabel = () => { fsBtn.textContent = isFs() ? 'Vollbild beenden' : 'Vollbild'; };
+document.addEventListener('fullscreenchange', fsLabel);
+document.addEventListener('webkitfullscreenchange', fsLabel);
+})();
+</script>
