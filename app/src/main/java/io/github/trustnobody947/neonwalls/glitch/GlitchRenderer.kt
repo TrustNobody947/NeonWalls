@@ -368,16 +368,9 @@ class GlitchRenderer(private val density: Float) {
             }
             if (bursting && chance(0.01f)) l.col = pickCol()
 
-            // Grundflackern: sanftes Pulsieren plus kurzes Helligkeitszucken, Stärke = Regler
-            var a = l.base * (1f - calmF * 0.3f + sin(t * l.speed * 2.5f + l.phase) * 0.3f * calmF)
-            if (l.dim > 0f) {
-                l.dim -= dt
-                a *= l.dimF
-            } else if (chance(p(calmF * calmF * 1.5f))) {
-                l.dim = r(0.03f, 0.12f)
-                l.dimF = r(0.25f, 0.7f)
-            }
-            a = a.coerceIn(0f, 1f)
+            // Grundflackern: nur gleichmäßiges Pulsieren/Schimmern, keine plötzlichen Ereignisse
+            val a = (l.base * (1f - calmF * 0.3f + sin(t * l.speed * 2.5f + l.phase) * 0.3f * calmF +
+                sin(t * l.speed * 11f + l.phase * 3f) * 0.08f * calmF)).coerceIn(0f, 1f)
             var x = l.x * w
             if (bursting && chance(0.15f)) x += r(-3f, 3f) * density
 
