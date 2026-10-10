@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -13,7 +14,7 @@ val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 val testKeystore = file("debug.keystore")
 val testKeystoreB64 = file("debug.keystore.b64")
 if (!testKeystore.exists() && testKeystoreB64.exists()) {
-    testKeystore.writeBytes(java.util.Base64.getMimeDecoder().decode(testKeystoreB64.readText().trim()))
+    testKeystore.writeBytes(Base64.getMimeDecoder().decode(testKeystoreB64.readText().trim()))
 }
 
 android {
