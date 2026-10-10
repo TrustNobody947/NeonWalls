@@ -7,7 +7,9 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import java.util.Random
+import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.round
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
@@ -21,7 +23,7 @@ class GlitchRenderer(private val density: Float) {
 
     // Einstellungen (0..10, Anzahl 10..60)
     var calm = 4
-    var burst = 5
+    var burst = -1
     var shearAmt = 5
     private var count = 30
     private var seed = 0L
@@ -79,7 +81,12 @@ class GlitchRenderer(private val density: Float) {
 
     fun configure(calm: Int, burst: Int, count: Int, shear: Int, seed: Long) {
         this.calm = calm
-        this.burst = burst
+        if (burst != this.burst || lines.isEmpty()) {
+            // Regler geändert: nächsten Ausbruch neu planen, damit "seltener" sofort wirkt
+            this.burst = burst
+            burstT = 0f
+            nextBurst = scheduleBurst(burst / 10f)
+        }
         this.shearAmt = shear
         if (count != this.count || seed != this.seed || lines.isEmpty()) {
             this.count = count
@@ -94,7 +101,8 @@ class GlitchRenderer(private val density: Float) {
         return Line(
             x = x,
             tilt = if (pr.nextFloat() < 0.3f) p(-0.012f, 0.012f) else 0f,
-            w = if (pr.nextFloat() < 0.15f) p(1.4f, 2.2f) else p(0.5f, 1.2f),
+            // ein Teil haarfein, die meisten dünn, wenige etwas breiter
+            w = pr.nextFloat().let { q -> if (q < 0.3f) p(0.22f, 0.4f) else if (q < 0.87f) p(0.5f, 1.1f) else p(1.4f, 2.2f) },
             col = col,
             base = p(0.55f, 1f),
             phase = p(0f, 6.28f),
@@ -215,6 +223,13 @@ class GlitchRenderer(private val density: Float) {
             sx0[i] += l.tilt * w * (sy0[i] / h - 0.5f)
             sx1[i] += l.tilt * w * (sy1[i] / h - 0.5f)
         }
+        // senkrechte Streifen exakt aufs Pixelraster legen: gestochen scharf
+        if (l.tilt == 0f) {
+            for (i in 0 until segN) {
+                sx0[i] = floor(sx0[i]) + 0.5f
+                sx1[i] = floor(sx1[i]) + 0.5f
+            }
+        }
     }
 
     // ---------- Zeichnen ----------
@@ -244,7 +259,7 @@ class GlitchRenderer(private val density: Float) {
         val lw = l.w * density
         // Glow
         pGlow.color = argb(a * 0.10f, r, g, b)
-        pGlow.strokeWidth = lw * 3f
+        pGlow.strokeWidth = max(lw * 2.5f, 1.5f)
         c.drawLine(x0, y0, x1, y1, pGlow)
         // heller, haarfeiner Mittelstrich
         pMid.color = argb(a * 0.55f, r + 120, g + 120, b + 120)
@@ -252,7 +267,7 @@ class GlitchRenderer(private val density: Float) {
         c.drawLine(x0, y0, x1, y1, pMid)
         // Kern
         pCore.color = argb(a, r, g, b)
-        pCore.strokeWidth = lw
+        pCore.strokeWidth = max(1f, round(lw))   // ganze Pixel = scharf
         c.drawLine(x0, y0, x1, y1, pCore)
         // Pixelraster
         if (l.dotted) {
