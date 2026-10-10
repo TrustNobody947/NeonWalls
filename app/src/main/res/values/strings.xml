@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Neon Walls</string>
+    <string name="wp_glitch_name">Broken Screen</string>
+    <string name="wp_glitch_desc">Flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss und zufälligen Glitch-Ausbrüchen.</string>
+    <string name="hint_tap">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
+    <string name="s_calm">Grundflackern</string>
+    <string name="s_burst">Glitch-Ausbrüche</string>
+    <string name="s_count">Anzahl Streifen</string>
+    <string name="s_shear">Versatz am Riss</string>
+    <string name="l_off">aus</string>
+    <string name="l_low">leicht</string>
+    <string name="l_mid">mittel</string>
+    <string name="l_high">stark</string>
+    <string name="b_new">Neues Muster</string>
+    <string name="b_glitch">Glitch jetzt</string>
+    <string name="b_set">Als Hintergrund festlegen</string>
+    <string name="err_picker">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe „Broken Screen“ wählen.</string>
+</resources>

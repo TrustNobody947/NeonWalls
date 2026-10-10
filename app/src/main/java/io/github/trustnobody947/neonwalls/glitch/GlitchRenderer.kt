@@ -1,0 +1,397 @@
+package io.github.trustnobody947.neonwalls.glitch
+
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.DashPathEffect
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import java.util.Random
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.sin
+
+/**
+ * "Broken Screen": flackernde Farbstreifen wie bei einem kaputten Display,
+ * mit Haarriss (plus Abzweig), an dem die Streifen gekappt und versetzt weiterlaufen.
+ * Jedes Teilstück zwischen den Rissen flackert unabhängig.
+ */
+class GlitchRenderer(private val density: Float) {
+
+    // Einstellungen (0..10, Anzahl 10..60)
+    var calm = 4
+    var burst = 5
+    var shearAmt = 5
+    private var count = 30
+    private var seed = 0L
+
+    private val rnd = Random()
+    private fun r(a: Float, b: Float) = a + rnd.nextFloat() * (b - a)
+    private fun chance(p: Float) = rnd.nextFloat() < p
+    private fun pickCol(): Int = PAL[rnd.nextInt(PAL.size)]
+
+    private var w = 1f
+    private var h = 1f
+    private var t = 0f
+    private var dt = 0.016f
+    private var calmF = 0.4f
+
+    private val lines = ArrayList<Line>()
+
+    // Glitch-Ausbrüche
+    private var burstT = 0f
+    private var nextBurst = 6f
+    private var burstZone = ZONE_ALL
+    private var burstPow = 1f
+
+    // Hauptriss (leicht schräg über die ganze Breite) und Abzweig (steiler nach oben)
+    private var sideLeft = true
+    private var yOuter = 0.86f
+    private var yInner = 0.77f
+    private var f1 = 1f
+    private var bx = 0.5f
+    private var by = 0.8f
+    private var ex = 0.7f
+    private var ey = 0.5f
+    private var bf = 1f
+
+    class Zone {
+        var flash = 0f
+        var col = 0
+        var off = 0f
+    }
+
+    class Line(
+        val x: Float, val tilt: Float, val w: Float, var col: Int,
+        val base: Float, val phase: Float, val speed: Float, val dotted: Boolean
+    ) {
+        var flash = 0f
+        var flashCol = 0
+        var off = 0f
+        var fragY = -1f
+        var fragT = 0f
+        val mask = booleanArrayOf(true, true, true)
+        val zones = arrayOf(Zone(), Zone(), Zone())
+    }
+
+    // ---------- Einstellungen / Muster ----------
+
+    fun configure(calm: Int, burst: Int, count: Int, shear: Int, seed: Long) {
+        this.calm = calm
+        this.burst = burst
+        this.shearAmt = shear
+        if (count != this.count || seed != this.seed || lines.isEmpty()) {
+            this.count = count
+            this.seed = seed
+            build()
+        }
+    }
+
+    private fun makeLine(pr: Random, x: Float): Line {
+        fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
+        val col = if (pr.nextFloat() < 0.5f) PAL[pr.nextInt(4)] else PAL[pr.nextInt(PAL.size)]
+        return Line(
+            x = x,
+            tilt = if (pr.nextFloat() < 0.3f) p(-0.012f, 0.012f) else 0f,
+            w = if (pr.nextFloat() < 0.15f) p(1.4f, 2.2f) else p(0.5f, 1.2f),
+            col = col,
+            base = p(0.55f, 1f),
+            phase = p(0f, 6.28f),
+            speed = p(0.4f, 2.2f),
+            dotted = pr.nextFloat() < 0.45f
+        )
+    }
+
+    private fun build() {
+        val pr = Random(seed)
+        fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
+        lines.clear()
+        // Cluster wie bei echtem Displayschaden
+        val nCl = 2 + pr.nextInt(3)
+        val cc = FloatArray(nCl) { p(0.1f, 0.95f) }
+        val cs = FloatArray(nCl) { p(0.03f, 0.12f) }
+        repeat(count) {
+            val x = if (pr.nextFloat() < 0.65f) {
+                val k = pr.nextInt(nCl)
+                cc[k] + (pr.nextFloat() - 0.5f) * 2f * cs[k]
+            } else pr.nextFloat()
+            lines.add(makeLine(pr, x.coerceIn(0.005f, 0.995f)))
+        }
+        // Doppellinien
+        repeat(4) {
+            val l = lines[pr.nextInt(lines.size)]
+            val n = makeLine(pr, (l.x + p(0.004f, 0.01f)).coerceAtMost(0.995f))
+            n.col = PAL[pr.nextInt(PAL.size)]
+            lines.add(n)
+        }
+        // Risse
+        sideLeft = pr.nextBoolean()
+        yOuter = p(0.82f, 0.9f)
+        yInner = p(0.74f, 0.8f)
+        f1 = (if (pr.nextBoolean()) -1f else 1f) * p(0.8f, 1.2f)
+        bx = p(0.3f, 0.7f)
+        by = crackY(bx)
+        ex = (bx + (if (pr.nextBoolean()) -1f else 1f) * p(0.18f, 0.32f)).coerceIn(0.02f, 0.98f)
+        ey = by - p(0.22f, 0.38f)
+        bf = (if (pr.nextBoolean()) -1f else 1f) * p(0.7f, 1.2f)
+    }
+
+    private fun crackY(xn: Float) = yInner + (if (sideLeft) 1f - xn else xn) * (yOuter - yInner)
+
+    // ---------- Glitch-Ausbrüche ----------
+
+    fun triggerBurst() {
+        burstT = if (chance(0.2f)) r(1.2f, 2.4f) else r(0.15f, 1.1f)
+        burstPow = r(0.5f, 1.5f)
+        val q = rnd.nextFloat()
+        burstZone = when {
+            q < 0.35f -> ZONE_ALL
+            q < 0.65f -> ZONE_BOTTOM
+            q < 0.85f -> ZONE_TOP
+            else -> ZONE_MID
+        }
+    }
+
+    /** Meist lange Pausen, ab und zu ein schneller Nachschlag. Regler links = sehr selten. */
+    private fun scheduleBurst(bur: Float): Float {
+        if (chance(0.18f * bur)) return r(0.3f, 1.6f)
+        val p = if (chance(0.3f)) r(25f, 60f) else r(8f, 25f)
+        return p * (0.5f + (1f - bur).pow(2) * 7f)
+    }
+
+    // ---------- Teilstücke an den Rissen ----------
+
+    private val sx0 = FloatArray(3)
+    private val sy0 = FloatArray(3)
+    private val sx1 = FloatArray(3)
+    private val sy1 = FloatArray(3)
+    private var segN = 0
+    private val cutY = FloatArray(2)
+    private val cutD = FloatArray(2)
+
+    private fun jit() = if (burstT > 0f && chance(0.3f)) r(0.6f, 1.8f) else 1f
+
+    private fun addSeg(xa: Float, ya: Float, xb: Float, yb: Float) {
+        if (segN >= 3) return
+        sx0[segN] = xa; sy0[segN] = ya; sx1[segN] = xb; sy1[segN] = yb
+        segN++
+    }
+
+    private fun computeSegs(l: Line, x: Float) {
+        val xn = x / w
+        val base = shearAmt * 1.2f * density
+        var nc = 0
+        if (base > 0f) {
+            cutY[0] = crackY(xn) * h
+            cutD[0] = f1 * base * jit()
+            nc = 1
+            val lo = min(bx, ex)
+            val hi = max(bx, ex)
+            if (xn > lo && xn < hi) {
+                val k = (xn - bx) / (ex - bx)
+                cutY[1] = (by + k * (ey - by)) * h
+                cutD[1] = bf * base * jit()
+                nc = 2
+                if (cutY[1] < cutY[0]) {
+                    val ty = cutY[0]; cutY[0] = cutY[1]; cutY[1] = ty
+                    val td = cutD[0]; cutD[0] = cutD[1]; cutD[1] = td
+                }
+            }
+        }
+        segN = 0
+        var cum = 0f
+        var yStart = 0f
+        for (i in 0 until nc) {
+            val cy = cutY[i]
+            if (cy >= h - 2f) continue
+            addSeg(x + cum, yStart, x + cum, cy)
+            cum += cutD[i]
+            yStart = cy
+        }
+        addSeg(x + cum, yStart, x + cum, h)
+        // leichte Schräglage
+        for (i in 0 until segN) {
+            sx0[i] += l.tilt * w * (sy0[i] / h - 0.5f)
+            sx1[i] += l.tilt * w * (sy1[i] / h - 0.5f)
+        }
+    }
+
+    // ---------- Zeichnen ----------
+
+    private val add = PorterDuffXfermode(PorterDuff.Mode.ADD)
+    private fun strokePaint() = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.BUTT
+        xfermode = add
+    }
+    private val pGlow = strokePaint()
+    private val pMid = strokePaint()
+    private val pCore = strokePaint()
+    private val pDot = strokePaint().apply {
+        pathEffect = DashPathEffect(floatArrayOf(1f * density, 1.5f * density), 0f)
+    }
+
+    private fun argb(a: Float, r: Int, g: Int, b: Int) =
+        Color.argb((a.coerceIn(0f, 1f) * 255f).toInt(), r.coerceAtMost(255), g.coerceAtMost(255), b.coerceAtMost(255))
+
+    private fun paintSeg(c: Canvas, l: Line, i: Int, a: Float, col: Int) {
+        val r = Color.red(col)
+        val g = Color.green(col)
+        val b = Color.blue(col)
+        val x0 = sx0[i]; val y0 = sy0[i]; val x1 = sx1[i]; val y1 = sy1[i]
+        val lw = l.w * density
+        // Glow
+        pGlow.color = argb(a * 0.10f, r, g, b)
+        pGlow.strokeWidth = lw * 3f
+        c.drawLine(x0, y0, x1, y1, pGlow)
+        // heller, haarfeiner Mittelstrich
+        pMid.color = argb(a * 0.55f, r + 120, g + 120, b + 120)
+        pMid.strokeWidth = max(1f, lw * 0.35f)
+        c.drawLine(x0, y0, x1, y1, pMid)
+        // Kern
+        pCore.color = argb(a, r, g, b)
+        pCore.strokeWidth = lw
+        c.drawLine(x0, y0, x1, y1, pCore)
+        // Pixelraster
+        if (l.dotted) {
+            pDot.color = argb(a * 0.35f, r + 80, g + 80, b + 80)
+            pDot.strokeWidth = max(1f, lw * 0.5f)
+            c.drawLine(x0, y0, x1, y1, pDot)
+        }
+    }
+
+    private fun drawLine(c: Canvas, l: Line, x: Float, alpha: Float, col: Int, y0: Float, y1: Float) {
+        computeSegs(l, x)
+        val clip = y0 > 0f || y1 < h
+        if (clip) {
+            c.save()
+            c.clipRect(0f, y0, w, y1)
+        }
+        val n = segN
+        for (i in 0 until n) {
+            val z = l.zones[i]
+            // Gilt der aktuelle Ausbruch für dieses Teilstück?
+            val sb = burstT > 0f && n > 1 && (burstZone == ZONE_ALL ||
+                (burstZone == ZONE_TOP && i == 0) ||
+                (burstZone == ZONE_BOTTOM && i == n - 1) ||
+                (burstZone == ZONE_MID && n == 3 && i == 1))
+            if (n > 1) {
+                if (z.off > 0f) {
+                    z.off -= dt
+                    if (z.off > 0f) continue
+                } else if (chance(if (sb) 0.035f * burstPow else 0.0012f * (1f + calmF * 2f))) {
+                    z.off = r(0.05f, if (sb) 0.5f else 1.8f)
+                    continue
+                }
+                if (z.flash > 0f) z.flash -= dt
+                else if (chance(if (sb) 0.3f * burstPow else 0.005f * (calmF + 0.3f))) {
+                    z.flash = r(0.03f, 0.18f)
+                    z.col = if (chance(0.6f)) pickCol() else col
+                }
+            }
+            var a = alpha
+            var cc = col
+            if (l.flash > 0f && l.mask[i]) {
+                a = if (chance(0.5f)) r(1f, 1.6f) else r(0.05f, 0.3f)
+                cc = l.flashCol
+            } else if (n > 1 && z.flash > 0f) {
+                a = if (chance(0.5f)) r(1f, 1.6f) else r(0.05f, 0.3f)
+                cc = z.col
+            }
+            paintSeg(c, l, i, a.coerceIn(0f, 1f), cc)
+        }
+        if (clip) c.restore()
+    }
+
+    /** Ein Bild zeichnen. dtSeconds = Zeit seit dem letzten Bild. */
+    fun frame(c: Canvas, dtSeconds: Float) {
+        w = c.width.toFloat().coerceAtLeast(1f)
+        h = c.height.toFloat().coerceAtLeast(1f)
+        dt = dtSeconds.coerceIn(0f, 0.05f)
+        t += dt
+        calmF = calm / 10f
+        val bur = burst / 10f
+
+        if (burstT > 0f) burstT -= dt
+        else if (bur > 0f) {
+            nextBurst -= dt
+            if (nextBurst <= 0f) {
+                triggerBurst()
+                nextBurst = scheduleBurst(bur)
+            }
+        }
+        val bursting = burstT > 0f && burstZone == ZONE_ALL
+
+        c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
+
+        for (l in lines) {
+            // Ausfall / Wiederkehr
+            if (l.off > 0f) {
+                l.off -= dt
+                if (l.off > 0f) continue
+            } else if (chance(if (bursting) 0.02f else 0.0008f * (1f + calmF * 2f))) {
+                l.off = r(0.05f, if (bursting) 0.4f else 2.5f)
+                continue
+            }
+            // Flackern (nur manche Teilstücke machen mit)
+            if (l.flash > 0f) l.flash -= dt
+            else if (chance(if (bursting) 0.25f * burstPow else 0.004f * calmF)) {
+                l.flash = r(0.03f, 0.15f)
+                l.flashCol = if (chance(0.5f)) pickCol() else l.col
+                for (k in 0..2) l.mask[k] = chance(0.55f)
+                if (!l.mask[0] && !l.mask[1] && !l.mask[2]) l.mask[rnd.nextInt(3)] = true
+            }
+            if (bursting && chance(0.01f)) l.col = pickCol()
+
+            val a = (l.base * (1f - calmF * 0.25f + sin(t * l.speed * (1f + calmF * 3f) + l.phase) * 0.25f * calmF))
+                .coerceIn(0f, 1f)
+            var x = l.x * w
+            if (bursting && chance(0.15f)) x += r(-3f, 3f) * density
+
+            // abgerissene Fragmente unten
+            if (l.fragY < 0f && chance(if (bursting) 0.02f else 0.0006f)) {
+                l.fragY = r(0.55f, 0.9f) * h
+                l.fragT = r(0.3f, 3f)
+            }
+            if (l.fragY >= 0f) {
+                l.fragT -= dt
+                drawLine(c, l, x, a, l.col, l.fragY, h)
+                if (chance(0.2f)) {
+                    drawLine(c, l, x, a * 0.7f, l.fragY - r(10f, 60f) * density, l.fragY - r(2f, 8f) * density)
+                }
+                if (l.fragT <= 0f) l.fragY = -1f
+            } else {
+                drawLine(c, l, x, a, l.col, 0f, h)
+            }
+        }
+
+        // während Ausbrüchen tauchen kurz neue Streifen auf
+        if (bursting && chance(0.35f)) {
+            val tmp = makeLine(rnd, rnd.nextFloat())
+            drawLine(c, tmp, tmp.x * w, r(0.6f, 1f), tmp.col, if (chance(0.5f)) 0f else r(0.3f, 0.8f) * h, h)
+        }
+    }
+
+    companion object {
+        const val ZONE_ALL = 0
+        const val ZONE_TOP = 1
+        const val ZONE_MID = 2
+        const val ZONE_BOTTOM = 3
+
+        // Farben aus den vier Vorlagen
+        val PAL = intArrayOf(
+            Color.rgb(25, 230, 25),   // Neongrün
+            Color.rgb(40, 210, 40),   // Grün
+            Color.rgb(200, 20, 200),  // Magenta
+            Color.rgb(170, 0, 170),   // Lila-Pink
+            Color.rgb(255, 20, 20),   // Rot
+            Color.rgb(45, 95, 255),   // Blau
+            Color.rgb(20, 170, 230),  // Cyan
+            Color.rgb(120, 40, 255),  // Violett
+            Color.rgb(30, 190, 120),  // Türkisgrün
+            Color.rgb(255, 0, 220)    // Pink
+        )
+    }
+}
