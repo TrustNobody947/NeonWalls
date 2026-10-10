@@ -6,3 +6,4 @@ local.properties
 .idea/
 .DS_Store
 app/debug.keystore
+vorschau/quellen/out/

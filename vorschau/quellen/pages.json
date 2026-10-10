@@ -1,0 +1,44 @@
+{
+  "tintenfleck": {
+    "title": "LCD-Tintenfleck",
+    "name": "LCD-Tintenfleck",
+    "sub": "Hinter dem Glas läuft das Display aus: schwarze Flecken mit schillernden Rändern.",
+    "accent": "#b77bff",
+    "aria": "Animierter Hintergrund: auslaufendes LCD-Display mit schillernden Farbrändern"
+  },
+  "geisterbild": {
+    "title": "Burn-in-Geisterbild",
+    "name": "Eingebranntes Geisterbild",
+    "sub": "Schwache Reste alter Bedienoberflächen, die sich ins Display eingebrannt haben.",
+    "accent": "#e0b46a",
+    "aria": "Animierter Hintergrund: eingebrannte Geisterbilder alter Bedienoberflächen"
+  },
+  "pixelfehler": {
+    "title": "Pixelsturm",
+    "name": "Pixelfehler",
+    "sub": "Hängende Pixel, Pixelwürmer und ab und zu ein ganzer Pixelsturm.",
+    "accent": "#ff4a4a",
+    "aria": "Animierter Hintergrund: hängende Pixel und Pixelstürme"
+  },
+  "plasma": {
+    "title": "Plasma-Blitze",
+    "name": "Plasma-Blitze",
+    "sub": "Lichtbögen wie in einer Plasmakugel, mit Entladung beim Entsperren.",
+    "accent": "#b65cff",
+    "aria": "Animierter Hintergrund: Plasma-Lichtbögen auf Schwarz"
+  },
+  "roehre": {
+    "title": "Röhrenmonitor",
+    "name": "Röhrenmonitor",
+    "sub": "Leuchtphosphor, Bildzeilen und Störungen wie bei einem alten Röhrenbildschirm.",
+    "accent": "#3cff6e",
+    "aria": "Animierter Hintergrund: alter Röhrenmonitor mit Oszilloskop, Terminal oder Radar"
+  },
+  "platine": {
+    "title": "Neon-Platine",
+    "name": "Neon-Platine",
+    "sub": "Leiterbahnen, durch die Strompulse jagen. Beim Entsperren schießt ein Stromstoß durch.",
+    "accent": "#00e5ff",
+    "aria": "Animierter Hintergrund: Platine mit leuchtenden Strompulsen"
+  }
+}

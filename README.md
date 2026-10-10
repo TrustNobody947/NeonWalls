@@ -14,6 +14,20 @@ Direkter Link zur neuesten Version:
 - `app/src/main/java/.../glitch/` – der Broken-Screen-Hintergrund (Renderer, Wallpaper-Service, Vorschau, Einstellungen)
 - Weitere Hintergründe (z. B. Plasma) kommen jeweils in einen eigenen Unterordner und bekommen einen eigenen Wallpaper-Service.
 
+## Vorschauen (im Browser)
+
+Unter `vorschau/` liegen die Browser-Vorschauen der Hintergründe, jeweils als eigenständige HTML-Seite:
+
+- `broken-screen.html` – Broken Screen (in der App enthalten)
+- `tintenfleck.html` – LCD-Tintenfleck
+- `geisterbild.html` – Eingebranntes Geisterbild
+- `pixelfehler.html` – Pixelfehler und Pixelstürme
+- `plasma.html` – Plasma-Blitze
+- `roehre.html` – Röhrenmonitor (Oszilloskop, Terminal, Radar)
+- `platine.html` – Neon-Platine
+
+Die sechs neuen Seiten werden aus `vorschau/quellen/` gebaut (`python3 build.py`). Änderungen unter `vorschau/` lösen keinen App-Build aus.
+
 ## Hinweis zur Signierung
 
 Die Test-APKs werden mit einem festen Testschlüssel signiert, damit Updates direkt über die alte Version installiert werden können. Der Schlüssel liegt als Text in `app/debug.keystore.b64` und wird beim Bauen automatisch zu `app/debug.keystore`. Für den Play Store wird später ein eigener, geheimer Upload-Schlüssel verwendet.

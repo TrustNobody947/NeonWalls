@@ -1,0 +1,365 @@
+<title>Burn-in-Geisterbild</title>
+<style>
+/* Layout: one full-screen canvas, single dark look; tapping the canvas reveals a control sheet */
+:root{
+  --bg:#000;
+  --panel:rgba(12,14,18,.9);
+  --fg:#e8ecf2;
+  --muted:#8a93a3;
+  --accent:#e0b46a;
+  --line:rgba(255,255,255,.12);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Roboto Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden}
+:root{padding:0!important}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:manipulation}
+.hint{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  font:500 12px/1 var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase;
+  background:var(--panel);padding:10px 14px;border-radius:999px;border:1px solid var(--line);
+  transition:opacity .6s;pointer-events:none;white-space:nowrap;z-index:5}
+.hint.msg{white-space:normal;text-transform:none;letter-spacing:0;font:500 13px/1.45 var(--font);color:var(--fg);
+  width:max-content;max-width:calc(100vw - 32px);text-align:center;border-radius:14px}
+.hint.gone{opacity:0}
+.sheet{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;
+  max-height:calc(100% - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;
+  background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:16px;
+  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px)}
+.sheet h2{margin:0;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.sheet .sub{margin:-6px 0 0;color:var(--muted);font-size:13px}
+#controls{display:grid;gap:14px}
+.row{display:grid;gap:6px}
+.row label,.row .lbl{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px}
+.row output{font:12px var(--mono);color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:0;padding:8px 6px;font-size:13px}
+.seg button.on{background:var(--accent);color:#000;border-color:transparent}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#000;border-color:transparent}
+</style>
+
+<canvas id="c" aria-label="Animierter Hintergrund: eingebrannte Geisterbilder alter Bedienoberflächen"></canvas>
+<div class="hint" id="hint">Tippen für Einstellungen</div>
+
+<div class="sheet" id="sheet" hidden>
+  <h2>Eingebranntes Geisterbild</h2>
+  <p class="sub">Schwache Reste alter Bedienoberflächen, die sich ins Display eingebrannt haben.</p>
+  <div id="controls"></div>
+  <div class="btns">
+    <button id="newBtn" class="primary" type="button">Neues Muster</button>
+    <button id="actBtn" type="button">Effekt</button>
+    <button id="fsBtn" type="button">Vollbild</button>
+    <button id="closeBtn" type="button">Schließen</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+// Hilfsfunktionen für alle Effekte
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lvl = v => v == 0 ? 'aus' : v < 4 ? 'leicht' : v < 7 ? 'mittel' : 'stark';
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; };
+// Wahrscheinlichkeit für "rate mal pro Sekunde" bei Zeitschritt dt
+const per = (rate, dt) => 1 - Math.exp(-rate * dt);
+
+// ---------- Effekt ----------
+const E = (function () {
+// Eingebranntes Geisterbild: schwache Reste alter Bedienoberflächen (Statusleiste, Navigationstasten,
+// Tastatur, Uhr, App-Raster), die ungleichmäßig eingebrannt sind und langsam ihre Farbe wandern lassen.
+// Beim Entsperren leuchten sie kurz stärker nach (wie Bildnachleuchten bei echten Displays).
+const settings = { strength: 5, tint: 0, drift: 4, amount: 1, afterglow: 6 };
+const controls = [
+  { type: 'range', id: 'strength', label: 'Stärke', min: 1, max: 10, fmt: lvl },
+  { type: 'choice', id: 'tint', label: 'Farbe', options: ['Bunt', 'Bernstein', 'Rosa', 'Grün'] },
+  { type: 'range', id: 'drift', label: 'Farbwandern', min: 0, max: 10, fmt: lvl },
+  { type: 'choice', id: 'amount', label: 'Eingebrannte Reste', options: ['Wenig', 'Mittel', 'Viel'] },
+  { type: 'range', id: 'afterglow', label: 'Nachleuchten beim Entsperren', min: 0, max: 10, fmt: lvl },
+];
+
+const GS = 0.5; // Geisterbilder in halber Auflösung: weich wie echtes Einbrennen und sparsam im Speicher
+let W = 1, H = 1, dpr = 1, G1 = null, G2 = null, grain = null, grainPat = null;
+let layout = null, t = 0, glow = 0, hue = 0;
+const two = n => (n < 10 ? '0' : '') + n;
+
+function rr(g, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y); g.closePath();
+}
+
+function makeLayout() {
+  const days = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+  const months = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'];
+  layout = {
+    time: two(rint(6, 23)) + ':' + two(rint(0, 59)),
+    clock: two(rint(0, 23)) + ':' + two(rint(0, 59)),
+    date: pick(days) + ', ' + rint(1, 28) + '. ' + pick(months),
+    battery: rnd(0.25, 0.95), nav: Math.random() < 0.6 ? 'buttons' : 'pill', notif: rint(1, 3),
+    icons: Array.from({ length: 20 }, () => ({ skip: Math.random() < 0.15, label: rnd(0.45, 0.9) })),
+    dock: rint(4, 5),
+  };
+}
+
+function statusBar(g) {
+  const d = dpr, y = 16 * d, fs = 13.5 * d;
+  g.font = '600 ' + fs + 'px system-ui, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.fillText(layout.time, 20 * d, y);
+  let nx = 20 * d + g.measureText(layout.time).width + 12 * d;
+  for (let i = 0; i < layout.notif; i++) {
+    if (i % 2 === 0) { rr(g, nx, y - 5 * d, 10 * d, 10 * d, 2.5 * d); g.fill(); }
+    else { g.beginPath(); g.arc(nx + 5 * d, y, 5 * d, 0, Math.PI * 2); g.fill(); }
+    nx += 16 * d;
+  }
+  let rx = W - 18 * d;
+  const bw = 24 * d, bh = 12 * d;
+  g.lineWidth = 1.6 * d; rr(g, rx - bw, y - bh / 2, bw, bh, 3 * d); g.stroke();
+  g.fillRect(rx + 1 * d, y - 3 * d, 2.2 * d, 6 * d);
+  g.fillRect(rx - bw + 2.5 * d, y - bh / 2 + 2.5 * d, (bw - 5 * d) * layout.battery, bh - 5 * d);
+  rx -= bw + 14 * d;
+  for (let i = 0; i < 4; i++) { const h = (4 + i * 3) * d; g.fillRect(rx - 22 * d + i * 5.5 * d, y + 7 * d - h, 3.5 * d, h); }
+  rx -= 34 * d;
+  g.lineWidth = 2 * d;
+  for (let i = 1; i <= 3; i++) { g.beginPath(); g.arc(rx, y + 6 * d, i * 4.2 * d, -Math.PI * 0.78, -Math.PI * 0.22); g.stroke(); }
+}
+
+function navBar(g) {
+  const d = dpr;
+  if (layout.nav === 'buttons') {
+    const y = H - 26 * d; g.lineWidth = 2 * d;
+    let x = W * 0.25; g.beginPath(); g.moveTo(x + 6 * d, y - 7.5 * d); g.lineTo(x - 6.5 * d, y); g.lineTo(x + 6 * d, y + 7.5 * d); g.closePath(); g.stroke();
+    x = W * 0.5; g.beginPath(); g.arc(x, y, 8 * d, 0, Math.PI * 2); g.stroke();
+    x = W * 0.75; rr(g, x - 7 * d, y - 7 * d, 14 * d, 14 * d, 2.5 * d); g.stroke();
+  } else {
+    rr(g, W / 2 - 58 * d, H - 13 * d, 116 * d, 5 * d, 2.5 * d); g.fill();
+  }
+}
+
+function clockFace(g) {
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = '200 ' + (W * 0.22) + 'px system-ui, sans-serif'; g.fillText(layout.clock, W / 2, H * 0.24);
+  g.font = '500 ' + (W * 0.042) + 'px system-ui, sans-serif'; g.fillText(layout.date, W / 2, H * 0.24 + W * 0.085);
+}
+
+function keyboard(g) {
+  const d = dpr, top = H * 0.62, bot = H * 0.915, gap = 6 * d, mx = 5 * d;
+  const rows = [
+    ['QWERTZUIOP'.split(''), Array(10).fill(1)],
+    ['ASDFGHJKL'.split(''), Array(9).fill(1)],
+    [['⇧'].concat('YXCVBNM'.split(''), ['⌫']), [1.5, 1, 1, 1, 1, 1, 1, 1, 1.5]],
+    [['?123', ',', '', '.', '↵'], [1.5, 1, 5, 1, 1.5]],
+  ];
+  const rowH = (bot - top - gap * 3) / 4, unit = (W - 2 * mx - gap * 9) / 10;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  rows.forEach(([labels, widths], r) => {
+    const total = widths.reduce((a, b) => a + b, 0) * unit + gap * (widths.length - 1);
+    let x = (W - total) / 2; const y = top + r * (rowH + gap);
+    widths.forEach((wu, i) => {
+      const w = wu * unit;
+      g.globalAlpha = 0.33; rr(g, x, y, w, rowH, 6 * d); g.fill();
+      g.globalAlpha = 0.6; g.lineWidth = 1.3 * d; g.stroke();
+      if (labels[i]) { g.globalAlpha = 0.95; g.font = '600 ' + (rowH * (labels[i].length > 1 ? 0.28 : 0.4)) + 'px system-ui, sans-serif'; g.fillText(labels[i], x + w / 2, y + rowH / 2); }
+      x += w + gap;
+    });
+  });
+  g.globalAlpha = 1;
+}
+
+function appGrid(g) {
+  const d = dpr, top = H * 0.13, bot = H * 0.62, mx = W * 0.06, cw = (W - 2 * mx) / 4, ch = (bot - top) / 5;
+  const size = Math.min(cw * 0.6, ch * 0.55);
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 4; c++) {
+    const ic = layout.icons[r * 4 + c]; if (ic.skip) continue;
+    const x = mx + c * cw + (cw - size) / 2, y = top + r * ch;
+    g.globalAlpha = 0.55; rr(g, x, y, size, size, size * 0.27); g.fill();
+    g.globalAlpha = 0.5; g.fillRect(x + size * (1 - ic.label) / 2, y + size + 8 * d, size * ic.label, 3.2 * d);
+  }
+  const n = layout.dock, dy = H * 0.78, step = (W - 2 * mx) / n;
+  for (let i = 0; i < n; i++) { g.globalAlpha = 0.6; rr(g, mx + i * step + (step - size) / 2, dy, size, size, size * 0.27); g.fill(); }
+  g.globalAlpha = 0.45; g.lineWidth = 1.6 * d; rr(g, mx, H * 0.705, W - 2 * mx, 44 * d, 22 * d); g.stroke();
+  g.beginPath(); g.arc(mx + 26 * d, H * 0.705 + 22 * d, 7 * d, 0, Math.PI * 2); g.stroke();
+  g.globalAlpha = 1;
+}
+
+// ungleichmäßiges Einbrennen: Maske aus weichem Rauschen
+function burnMask() {
+  const mw = Math.max(4, Math.round(W / 40)), mh = Math.max(4, Math.round(H / 40)), m = mk(mw, mh), mc = m.getContext('2d');
+  const id = mc.createImageData(mw, mh);
+  for (let i = 0; i < mw * mh; i++) { id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = 255; id.data[i * 4 + 3] = 140 + Math.random() * 115; }
+  mc.putImageData(id, 0, 0);
+  return m;
+}
+
+function layer(drawFns) {
+  const c = mk(W * GS, H * GS), g = c.getContext('2d');
+  g.setTransform(GS, 0, 0, GS, 0, 0);
+  g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.filter = 'blur(' + (1.3 * dpr) + 'px)';
+  for (const f of drawFns) f(g);
+  g.filter = 'none';
+  g.globalCompositeOperation = 'destination-in'; g.imageSmoothingEnabled = true;
+  g.drawImage(burnMask(), 0, 0, W, H);
+  g.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+function build() {
+  if (!layout) makeLayout();
+  G1 = layer([statusBar, navBar]);
+  const extra = [];
+  if (settings.amount >= 1) extra.push(keyboard, clockFace);
+  if (settings.amount >= 2) extra.push(appGrid);
+  G2 = extra.length ? layer(extra) : null;
+}
+
+function makeGrain() {
+  const s = 128; grain = mk(s, s); const g = grain.getContext('2d'); const id = g.createImageData(s, s);
+  for (let i = 0; i < s * s; i++) { const v = Math.random() < 0.5 ? 255 : 0; id.data[i * 4] = id.data[i * 4 + 1] = id.data[i * 4 + 2] = v; id.data[i * 4 + 3] = Math.random() * 255; }
+  g.putImageData(id, 0, 0); grainPat = null;
+}
+
+function tint(ctx) {
+  const m = settings.tint; let h0, sat = 62, li = 66, spread;
+  if (m === 0) { h0 = hue; spread = 120; }
+  else if (m === 1) { h0 = 36 + Math.sin(hue * 0.03) * 8; spread = 18; sat = 80; }
+  else if (m === 2) { h0 = 322 + Math.sin(hue * 0.03) * 10; spread = 22; }
+  else { h0 = 110 + Math.sin(hue * 0.03) * 10; spread = 25; sat = 55; }
+  const gr = ctx.createLinearGradient(0, 0, W * 0.6, H);
+  gr.addColorStop(0, 'hsl(' + h0.toFixed(1) + ',' + sat + '%,' + li + '%)');
+  gr.addColorStop(0.5, 'hsl(' + (h0 + spread * 0.5).toFixed(1) + ',' + sat + '%,' + li + '%)');
+  gr.addColorStop(1, 'hsl(' + (h0 + spread).toFixed(1) + ',' + sat + '%,' + li + '%)');
+  return gr;
+}
+
+return {
+  maxDpr: 3,
+  settings, controls,
+  actionLabel: 'Entsperren',
+  resize(w, h, d) { W = w; H = h; dpr = d; makeGrain(); if (layout) build(); },
+  newPattern() { makeLayout(); hue = rnd(0, 360); build(); },
+  action() { glow = 1; },
+  wake() { glow = 1; },
+  change(id) { if (id === 'amount') build(); },
+  frame(ctx, dt) {
+    t += dt; glow *= Math.exp(-dt * 0.8); hue = (hue + dt * settings.drift * 4) % 360;
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    const s = settings.strength / 10, ag = glow * settings.afterglow / 10;
+    const a1 = clamp((0.12 + s * 0.5) * (0.9 + 0.1 * Math.sin(t * 0.37)) + ag * 0.5, 0, 1);
+    const a2 = clamp((0.08 + s * 0.36) * (0.9 + 0.1 * Math.sin(t * 0.29 + 1.3)) + ag * 0.45, 0, 1);
+    ctx.imageSmoothingEnabled = true;
+    if (G2) { ctx.globalAlpha = a2; ctx.drawImage(G2, 0, 0, W, H); }
+    if (G1) { ctx.globalAlpha = a1; ctx.drawImage(G1, 0, 0, W, H); }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = tint(ctx); ctx.fillRect(0, 0, W, H);
+    // feines Rauschen wie bei einem eingeschalteten Panel
+    if (!grainPat) grainPat = ctx.createPattern(grain, 'repeat');
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.025 + ag * 0.04;
+    const ox = Math.random() * 128 | 0, oy = Math.random() * 128 | 0;
+    ctx.setTransform(1, 0, 0, 1, ox, oy); ctx.fillStyle = grainPat; ctx.fillRect(-ox, -oy, W, H);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  },
+};
+
+})();
+
+// ---------- Rahmen: Leinwand, Einstellungen, Bedienung ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const sheet = document.getElementById('sheet'), hint = document.getElementById('hint');
+const S = E.settings, KEY = 'nw-geisterbild';
+try { const sv = JSON.parse(localStorage.getItem(KEY) || '{}'); for (const k in sv) if (k in S && typeof sv[k] === 'number') S[k] = sv[k]; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+let W = 1, H = 1, dpr = 1;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, E.maxDpr || 3);
+  const w = Math.max(1, Math.round(innerWidth * dpr)), h = Math.max(1, Math.round(innerHeight * dpr));
+  if (w === W && h === H) return;
+  W = w; H = h; cv.width = W; cv.height = H;
+  E.resize(W, H, dpr);
+}
+
+// Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
+const box = document.getElementById('controls');
+for (const c of E.controls) {
+  const row = document.createElement('div'); row.className = 'row';
+  if (c.type === 'range') {
+    row.innerHTML = '<label for="' + c.id + '">' + c.label + ' <output></output></label>' +
+      '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
+    box.appendChild(row);
+    const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
+    el.value = S[c.id]; out.textContent = fmt(+el.value);
+    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); save(); if (E.change) E.change(c.id); });
+  } else if (c.type === 'choice') {
+    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="seg"></div>';
+    box.appendChild(row);
+    const seg = row.querySelector('.seg');
+    c.options.forEach((o, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = o;
+      if (S[c.id] === i) b.classList.add('on');
+      b.addEventListener('click', () => {
+        S[c.id] = i; seg.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j === i));
+        save(); if (E.change) E.change(c.id);
+      });
+      seg.appendChild(b);
+    });
+  }
+}
+document.getElementById('actBtn').textContent = E.actionLabel;
+document.getElementById('newBtn').onclick = () => E.newPattern();
+document.getElementById('actBtn').onclick = () => E.action();
+document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
+cv.addEventListener('click', () => { sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+setTimeout(() => hint.classList.add('gone'), 3500);
+
+// Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente
+const fsBtn = document.getElementById('fsBtn');
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let toastTimer = 0;
+function toast(msg) {
+  hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), 4000);
+}
+const fsBlocked = () => { if (!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Vorschau-Karte, dort geht es. Antippen holt die Einstellungen zurück.'); };
+fsBtn.onclick = () => {
+  sheet.hidden = true;
+  try {
+    if (isFs()) { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x) x.call(document); return; }
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) { fsBlocked(); return; }
+    const r = req.call(el, { navigationUI: 'hide' });
+    if (r && r.then) r.then(() => setTimeout(fsBlocked, 300), fsBlocked); else setTimeout(fsBlocked, 500);
+  } catch (e) { fsBlocked(); }
+};
+const fsLabel = () => { fsBtn.textContent = isFs() ? 'Vollbild beenden' : 'Vollbild'; };
+document.addEventListener('fullscreenchange', fsLabel);
+document.addEventListener('webkitfullscreenchange', fsLabel);
+
+// Start
+addEventListener('resize', resize);
+resize();
+E.newPattern();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  E.frame(ctx, dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+// So tun, als würde das Handy entsperrt: beim Öffnen und wenn die Seite wieder sichtbar wird
+setTimeout(() => E.wake(), 450);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) E.wake(); });
+window.__nw = { E, S };
+})();
+</script>
