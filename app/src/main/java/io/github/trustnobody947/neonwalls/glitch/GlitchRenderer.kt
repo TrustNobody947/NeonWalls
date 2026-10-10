@@ -13,7 +13,6 @@ import kotlin.math.max
 import kotlin.math.round
 import kotlin.math.min
 import kotlin.math.pow
-import kotlin.math.sin
 
 /**
  * "Broken Screen": flackernde Farbstreifen wie bei einem kaputten Display,
@@ -368,9 +367,13 @@ class GlitchRenderer(private val density: Float) {
             }
             if (bursting && chance(0.01f)) l.col = pickCol()
 
-            // Grundflackern: nur gleichmäßiges Pulsieren/Schimmern, keine plötzlichen Ereignisse
-            val a = (l.base * (1f - calmF * 0.3f + sin(t * l.speed * 2.5f + l.phase) * 0.3f * calmF +
-                sin(t * l.speed * 11f + l.phase * 3f) * 0.08f * calmF)).coerceIn(0f, 1f)
+            // Grundflackern: jeder Streifen flimmert unabhängig in kleinen, schnellen Helligkeitsschritten
+            // (kein Farbwechsel, keine Wellen, die durchs Bild laufen)
+            if (l.dim <= 0f) {
+                l.dim = r(0.03f, 0.09f)
+                l.dimF = 1f - calmF * r(0f, 0.45f)
+            } else l.dim -= dt
+            val a = (l.base * l.dimF).coerceIn(0f, 1f)
             var x = l.x * w
             if (bursting && chance(0.15f)) x += r(-3f, 3f) * density
 
