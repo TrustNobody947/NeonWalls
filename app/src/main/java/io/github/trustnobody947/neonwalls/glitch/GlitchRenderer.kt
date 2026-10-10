@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import java.util.Random
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.round
@@ -38,6 +39,10 @@ class GlitchRenderer(private val density: Float) {
     private var t = 0f
     private var dt = 0.016f
     private var calmF = 0.4f
+    private var g = 0.25f   // Glitch-Stärke aus dem Regler (quadratisch)
+
+    /** Wahrscheinlichkeit für "rate mal pro Sekunde", unabhängig von der Bildrate. */
+    private fun p(rate: Float) = 1f - exp(-rate * dt)
 
     private val lines = ArrayList<Line>()
 
@@ -71,6 +76,8 @@ class GlitchRenderer(private val density: Float) {
         var flash = 0f
         var flashCol = 0
         var off = 0f
+        var dim = 0f
+        var dimF = 1f
         var fragY = -1f
         var fragT = 0f
         val mask = booleanArrayOf(true, true, true)
@@ -296,12 +303,12 @@ class GlitchRenderer(private val density: Float) {
                 if (z.off > 0f) {
                     z.off -= dt
                     if (z.off > 0f) continue
-                } else if (chance(if (sb) 0.035f * burstPow else 0.0012f * (1f + calmF * 2f))) {
-                    z.off = r(0.05f, if (sb) 0.5f else 1.8f)
+                } else if (chance(if (sb) 0.035f * burstPow else p(0.05f * g))) {
+                    z.off = r(0.05f, if (sb) 0.5f else 1.2f)
                     continue
                 }
                 if (z.flash > 0f) z.flash -= dt
-                else if (chance(if (sb) 0.3f * burstPow else 0.005f * (calmF + 0.3f))) {
+                else if (chance(if (sb) 0.3f * burstPow else p(0.18f * g))) {
                     z.flash = r(0.03f, 0.18f)
                     z.col = if (chance(0.6f)) pickCol() else col
                 }
@@ -327,7 +334,8 @@ class GlitchRenderer(private val density: Float) {
         dt = dtSeconds.coerceIn(0f, 0.05f)
         t += dt
         calmF = calm / 10f
-        val bur = burst / 10f
+        val bur = burst.coerceAtLeast(0) / 10f
+        g = bur * bur
 
         if (burstT > 0f) burstT -= dt
         else if (bur > 0f) {
@@ -346,13 +354,13 @@ class GlitchRenderer(private val density: Float) {
             if (l.off > 0f) {
                 l.off -= dt
                 if (l.off > 0f) continue
-            } else if (chance(if (bursting) 0.02f else 0.0008f * (1f + calmF * 2f))) {
-                l.off = r(0.05f, if (bursting) 0.4f else 2.5f)
+            } else if (chance(if (bursting) 0.02f else p(0.03f * g))) {
+                l.off = r(0.05f, if (bursting) 0.4f else 1.5f)
                 continue
             }
-            // Flackern (nur manche Teilstücke machen mit)
+            // Glitch-Flash (Farbwechsel) – nur über den Glitch-Regler; nur manche Teilstücke machen mit
             if (l.flash > 0f) l.flash -= dt
-            else if (chance(if (bursting) 0.25f * burstPow else 0.004f * calmF)) {
+            else if (chance(if (bursting) 0.25f * burstPow else p(0.12f * g))) {
                 l.flash = r(0.03f, 0.15f)
                 l.flashCol = if (chance(0.5f)) pickCol() else l.col
                 for (k in 0..2) l.mask[k] = chance(0.55f)
@@ -360,13 +368,21 @@ class GlitchRenderer(private val density: Float) {
             }
             if (bursting && chance(0.01f)) l.col = pickCol()
 
-            val a = (l.base * (1f - calmF * 0.25f + sin(t * l.speed * (1f + calmF * 3f) + l.phase) * 0.25f * calmF))
-                .coerceIn(0f, 1f)
+            // Grundflackern: sanftes Pulsieren plus kurzes Helligkeitszucken, Stärke = Regler
+            var a = l.base * (1f - calmF * 0.3f + sin(t * l.speed * 2.5f + l.phase) * 0.3f * calmF)
+            if (l.dim > 0f) {
+                l.dim -= dt
+                a *= l.dimF
+            } else if (chance(p(calmF * calmF * 1.5f))) {
+                l.dim = r(0.03f, 0.12f)
+                l.dimF = r(0.25f, 0.7f)
+            }
+            a = a.coerceIn(0f, 1f)
             var x = l.x * w
             if (bursting && chance(0.15f)) x += r(-3f, 3f) * density
 
             // abgerissene Fragmente unten
-            if (l.fragY < 0f && chance(if (bursting) 0.02f else 0.0006f)) {
+            if (l.fragY < 0f && chance(if (bursting) 0.02f else p(0.02f * g))) {
                 l.fragY = r(0.55f, 0.9f) * h
                 l.fragT = r(0.3f, 3f)
             }
