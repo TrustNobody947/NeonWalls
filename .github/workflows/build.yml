@@ -19,12 +19,13 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # Gradle direkt in fester Version, dadurch braucht das Repo keine Binärdateien
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
 
       - name: APK bauen
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+        run: gradle assembleRelease --stacktrace
 
       - name: APK umbenennen
         run: cp app/build/outputs/apk/release/app-release.apk NeonWalls.apk

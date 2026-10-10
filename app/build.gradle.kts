@@ -8,6 +8,14 @@ plugins {
 // Jeder Build auf GitHub bekommt automatisch eine höhere Versionsnummer
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
+// Der Test-Schlüssel liegt als Text (Base64) im Repo, damit das ganze Projekt nur aus Textdateien besteht.
+// Beim Bauen wird daraus automatisch wieder die Schlüsseldatei.
+val testKeystore = file("debug.keystore")
+val testKeystoreB64 = file("debug.keystore.b64")
+if (!testKeystore.exists() && testKeystoreB64.exists()) {
+    testKeystore.writeBytes(java.util.Base64.getMimeDecoder().decode(testKeystoreB64.readText().trim()))
+}
+
 android {
     namespace = "io.github.trustnobody947.neonwalls"
     compileSdk = 36

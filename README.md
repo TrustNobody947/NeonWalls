@@ -16,4 +16,8 @@ Direkter Link zur neuesten Version:
 
 ## Hinweis zur Signierung
 
-Die Test-APKs werden mit einem festen Testschlüssel (`app/debug.keystore`) signiert, damit Updates direkt über die alte Version installiert werden können. Für den Play Store wird später ein eigener, geheimer Upload-Schlüssel verwendet.
+Die Test-APKs werden mit einem festen Testschlüssel signiert, damit Updates direkt über die alte Version installiert werden können. Der Schlüssel liegt als Text in `app/debug.keystore.b64` und wird beim Bauen automatisch zu `app/debug.keystore`. Für den Play Store wird später ein eigener, geheimer Upload-Schlüssel verwendet.
+
+## Nur Textdateien
+
+Das Repo enthält keine Binärdateien: Gradle wird im Build über `gradle/actions/setup-gradle` in Version 8.14.3 bereitgestellt (lokal: `gradle assembleRelease`).
