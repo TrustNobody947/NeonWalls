@@ -13,6 +13,7 @@ object GlitchPrefs {
     const val SHEAR = "shear"
     const val SEED = "seed"
     const val RANDOM_ON_WAKE = "random_on_wake"
+    const val MUTATE = "mutate_on_glitch"
 
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -31,6 +32,7 @@ object GlitchPrefs {
 
     fun applyTo(ctx: Context, r: GlitchRenderer) {
         val p = prefs(ctx)
+        r.mutate = p.getBoolean(MUTATE, false)
         r.configure(
             calm = p.getInt(CALM, 4),
             burst = p.getInt(BURST, 5),

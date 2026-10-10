@@ -25,6 +25,7 @@ class GlitchRenderer(private val density: Float) {
     var calm = 4
     var burst = -1
     var shearAmt = 5
+    var mutate = false   // Glitches verändern das Streifenmuster
     private var count = 30
     private var seed = 0L
 
@@ -117,8 +118,15 @@ class GlitchRenderer(private val density: Float) {
         )
     }
 
+    /** Neues Muster: Streifen und Risse aus dem gespeicherten Zufallswert. */
     private fun build() {
         val pr = Random(seed)
+        buildLines(pr)
+        buildCracks(pr)
+    }
+
+    /** Nur die Streifen neu (Risse bleiben). */
+    private fun buildLines(pr: Random) {
         fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
         lines.clear()
         // Cluster wie bei echtem Displayschaden
@@ -139,7 +147,10 @@ class GlitchRenderer(private val density: Float) {
             n.col = PAL[pr.nextInt(PAL.size)]
             lines.add(n)
         }
-        // Risse
+    }
+
+    private fun buildCracks(pr: Random) {
+        fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
         sideLeft = pr.nextBoolean()
         yOuter = p(0.82f, 0.9f)
         yInner = p(0.74f, 0.8f)
@@ -336,7 +347,11 @@ class GlitchRenderer(private val density: Float) {
         val bur = burst.coerceAtLeast(0) / 10f
         g = if (bur > 0f) 0.02f + 0.98f * bur.pow(1.6f) else 0f
 
-        if (burstT > 0f) burstT -= dt
+        if (burstT > 0f) {
+            burstT -= dt
+            // Option: nach einem Ausbruch manchmal neue Streifen (Risse bleiben gleich)
+            if (burstT <= 0f && mutate && chance(0.5f)) buildLines(Random(rnd.nextLong()))
+        }
         else if (bur > 0f) {
             nextBurst -= dt
             if (nextBurst <= 0f) {
@@ -365,7 +380,7 @@ class GlitchRenderer(private val density: Float) {
                 for (k in 0..2) l.mask[k] = chance(0.55f)
                 if (!l.mask[0] && !l.mask[1] && !l.mask[2]) l.mask[rnd.nextInt(3)] = true
             }
-            if (bursting && chance(0.01f)) l.col = pickCol()
+            if (bursting && mutate && chance(0.01f)) l.col = pickCol()
 
             // Grundflackern: jeder Streifen flimmert unabhängig in kleinen, schnellen Helligkeitsschritten
             // (kein Farbwechsel, keine Wellen, die durchs Bild laufen)

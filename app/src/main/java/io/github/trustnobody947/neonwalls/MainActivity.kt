@@ -82,19 +82,9 @@ class MainActivity : Activity() {
         addSlider(getString(R.string.s_count), GlitchPrefs.COUNT, 30, 10, 60) { it.toString() }
         addSlider(getString(R.string.s_shear), GlitchPrefs.SHEAR, 5, 0, 10, ::level)
 
-        // Schalter: bei jedem Einschalten des Bildschirms ein neues Zufallsmuster
-        val rndSwitch = Switch(this).apply {
-            text = getString(R.string.s_random)
-            setTextColor(fg)
-            textSize = 14f
-            isChecked = GlitchPrefs.prefs(this@MainActivity).getBoolean(GlitchPrefs.RANDOM_ON_WAKE, false)
-            setOnCheckedChangeListener { _, on ->
-                GlitchPrefs.prefs(this@MainActivity).edit().putBoolean(GlitchPrefs.RANDOM_ON_WAKE, on).apply()
-            }
-        }
-        panel.addView(rndSwitch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = dpi(10)
-        })
+        // Schalter: neues Zufallsmuster bei jedem Einschalten / Glitches verändern das Muster
+        addSwitch(getString(R.string.s_random), GlitchPrefs.RANDOM_ON_WAKE)
+        addSwitch(getString(R.string.s_mutate), GlitchPrefs.MUTATE)
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -173,6 +163,22 @@ class MainActivity : Activity() {
             })
         }
         panel.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+
+    private fun addSwitch(label: String, key: String) {
+        val sw = Switch(this).apply {
+            text = label
+            setTextColor(fg)
+            textSize = 14f
+            isChecked = GlitchPrefs.prefs(this@MainActivity).getBoolean(key, false)
+            setOnCheckedChangeListener { _, on ->
+                GlitchPrefs.prefs(this@MainActivity).edit().putBoolean(key, on).apply()
+                GlitchPrefs.applyTo(this@MainActivity, preview.renderer)
+            }
+        }
+        panel.addView(sw, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dpi(10)
+        })
     }
 
     private fun makeButton(label: String, primary: Boolean, onClick: () -> Unit): Button =
