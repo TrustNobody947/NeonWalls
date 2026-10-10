@@ -16,6 +16,7 @@
     <string name="l_high">stark</string>
     <string name="b_new">Neues Muster</string>
     <string name="b_glitch">Glitch jetzt</string>
+    <string name="b_fullscreen">Vollbild</string>
     <string name="b_set">Als Hintergrund festlegen</string>
     <string name="err_picker">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe „Broken Screen“ wählen.</string>
 </resources>

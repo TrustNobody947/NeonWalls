@@ -140,8 +140,8 @@ class GlitchRenderer(private val density: Float) {
             } else pr.nextFloat()
             lines.add(makeLine(pr, x.coerceIn(0.005f, 0.995f)))
         }
-        // Doppellinien
-        repeat(4) {
+        // Doppellinien, Anzahl wächst mit
+        repeat(Math.round(count * 0.12f)) {
             val l = lines[pr.nextInt(lines.size)]
             val n = makeLine(pr, (l.x + p(0.004f, 0.01f)).coerceAtMost(0.995f))
             n.col = PAL[pr.nextInt(PAL.size)]

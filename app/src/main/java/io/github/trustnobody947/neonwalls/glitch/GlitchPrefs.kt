@@ -9,11 +9,14 @@ object GlitchPrefs {
 
     const val CALM = "calm"
     const val BURST = "burst"
-    const val COUNT = "count"
+    const val COUNT_POS = "count_pos"
     const val SHEAR = "shear"
     const val SEED = "seed"
     const val RANDOM_ON_WAKE = "random_on_wake"
     const val MUTATE = "mutate_on_glitch"
+
+    /** Regler-Position 0..100 -> Anzahl Streifen 3..150 (exponentiell: unten fein, oben krass). */
+    fun countFromPos(pos: Int): Int = Math.round(3.0 * Math.pow(50.0, pos / 100.0)).toInt()
 
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -36,7 +39,7 @@ object GlitchPrefs {
         r.configure(
             calm = p.getInt(CALM, 4),
             burst = p.getInt(BURST, 5),
-            count = p.getInt(COUNT, 30),
+            count = countFromPos(p.getInt(COUNT_POS, 59)),
             shear = p.getInt(SHEAR, 5),
             seed = seed(p)
         )

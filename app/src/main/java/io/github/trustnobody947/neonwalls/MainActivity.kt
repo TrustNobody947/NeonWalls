@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -49,8 +50,9 @@ class MainActivity : Activity() {
 
         preview = GlitchView(this)
         GlitchPrefs.applyTo(this, preview.renderer)
+        // Antippen: Einstellungen ein/aus. Ohne Einstellungen läuft die Vorschau im echten Vollbild.
         preview.setOnClickListener {
-            panel.visibility = if (panel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            showPanel(panel.visibility != View.VISIBLE)
         }
         root.addView(preview, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
@@ -79,7 +81,7 @@ class MainActivity : Activity() {
 
         addSlider(getString(R.string.s_calm), GlitchPrefs.CALM, 4, 0, 10, ::level)
         addSlider(getString(R.string.s_burst), GlitchPrefs.BURST, 5, 0, 10, ::level)
-        addSlider(getString(R.string.s_count), GlitchPrefs.COUNT, 30, 10, 60) { it.toString() }
+        addSlider(getString(R.string.s_count), GlitchPrefs.COUNT_POS, 59, 0, 100) { GlitchPrefs.countFromPos(it).toString() }
         addSlider(getString(R.string.s_shear), GlitchPrefs.SHEAR, 5, 0, 10, ::level)
 
         // Schalter: neues Zufallsmuster bei jedem Einschalten / Glitches verändern das Muster
@@ -96,6 +98,9 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dpi(8) })
         row.addView(makeButton(getString(R.string.b_glitch), false) {
             preview.renderer.triggerBurst()
+        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dpi(8) })
+        row.addView(makeButton(getString(R.string.b_fullscreen), false) {
+            showPanel(false)
         }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         panel.addView(row)
 
@@ -123,6 +128,33 @@ class MainActivity : Activity() {
         }
 
         setContentView(root)
+    }
+
+    /** Einstellungen zeigen, oder ausblenden und Status-/Navigationsleiste verstecken (Vollbild). */
+    private fun showPanel(show: Boolean) {
+        panel.visibility = if (show) View.VISIBLE else View.GONE
+        setImmersive(!show)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun setImmersive(on: Boolean) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            val c = window.insetsController ?: return
+            if (on) {
+                c.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                c.hide(WindowInsets.Type.systemBars())
+            } else {
+                c.show(WindowInsets.Type.systemBars())
+            }
+        } else {
+            val layout = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            window.decorView.systemUiVisibility = if (on) {
+                layout or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            } else layout
+        }
     }
 
     private fun level(v: Int): String = when {
