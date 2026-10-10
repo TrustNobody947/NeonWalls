@@ -171,7 +171,7 @@ class GlitchRenderer(private val density: Float) {
     private fun scheduleBurst(bur: Float): Float {
         if (chance(0.18f * bur)) return r(0.3f, 1.6f)
         val p = if (chance(0.3f)) r(25f, 60f) else r(8f, 25f)
-        return p * (0.5f + (1f - bur).pow(2) * 7f)
+        return p * (0.5f + (1f - bur).pow(2) * 4f)
     }
 
     // ---------- Teilstücke an den Rissen ----------
@@ -334,7 +334,7 @@ class GlitchRenderer(private val density: Float) {
         t += dt
         calmF = calm / 10f
         val bur = burst.coerceAtLeast(0) / 10f
-        g = bur * bur
+        g = if (bur > 0f) 0.02f + 0.98f * bur.pow(1.6f) else 0f
 
         if (burstT > 0f) burstT -= dt
         else if (bur > 0f) {

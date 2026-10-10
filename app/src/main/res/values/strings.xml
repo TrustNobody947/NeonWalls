@@ -8,6 +8,7 @@
     <string name="s_burst">Glitch-Ausbrüche</string>
     <string name="s_count">Anzahl Streifen</string>
     <string name="s_shear">Versatz am Riss</string>
+    <string name="s_random">Neues Muster bei jedem Einschalten</string>
     <string name="l_off">aus</string>
     <string name="l_low">leicht</string>
     <string name="l_mid">mittel</string>

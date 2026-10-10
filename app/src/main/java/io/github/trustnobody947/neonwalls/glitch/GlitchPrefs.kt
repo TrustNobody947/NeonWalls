@@ -12,6 +12,7 @@ object GlitchPrefs {
     const val COUNT = "count"
     const val SHEAR = "shear"
     const val SEED = "seed"
+    const val RANDOM_ON_WAKE = "random_on_wake"
 
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 

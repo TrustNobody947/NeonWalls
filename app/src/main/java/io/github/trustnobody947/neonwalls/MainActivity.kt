@@ -18,6 +18,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import io.github.trustnobody947.neonwalls.glitch.GlitchPrefs
@@ -80,6 +81,20 @@ class MainActivity : Activity() {
         addSlider(getString(R.string.s_burst), GlitchPrefs.BURST, 5, 0, 10, ::level)
         addSlider(getString(R.string.s_count), GlitchPrefs.COUNT, 30, 10, 60) { it.toString() }
         addSlider(getString(R.string.s_shear), GlitchPrefs.SHEAR, 5, 0, 10, ::level)
+
+        // Schalter: bei jedem Einschalten des Bildschirms ein neues Zufallsmuster
+        val rndSwitch = Switch(this).apply {
+            text = getString(R.string.s_random)
+            setTextColor(fg)
+            textSize = 14f
+            isChecked = GlitchPrefs.prefs(this@MainActivity).getBoolean(GlitchPrefs.RANDOM_ON_WAKE, false)
+            setOnCheckedChangeListener { _, on ->
+                GlitchPrefs.prefs(this@MainActivity).edit().putBoolean(GlitchPrefs.RANDOM_ON_WAKE, on).apply()
+            }
+        }
+        panel.addView(rndSwitch, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+            topMargin = dpi(10)
+        })
 
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

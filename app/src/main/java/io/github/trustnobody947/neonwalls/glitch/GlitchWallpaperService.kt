@@ -1,6 +1,11 @@
 package io.github.trustnobody947.neonwalls.glitch
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.os.Build
 import android.graphics.Canvas
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
@@ -20,13 +25,32 @@ class GlitchWallpaperService : WallpaperService() {
         private var last = 0L
         private var useHw = true
 
+        // Bildschirm eingeschaltet: bei aktivierter Option ein neues Zufallsmuster
+        private val screenOn = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (prefs.getBoolean(GlitchPrefs.RANDOM_ON_WAKE, false) && !isPreview) {
+                    GlitchPrefs.newPattern(this@GlitchWallpaperService)
+                }
+            }
+        }
+
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             GlitchPrefs.applyTo(this@GlitchWallpaperService, renderer)
             prefs.registerOnSharedPreferenceChangeListener(this)
+            val filter = IntentFilter(Intent.ACTION_SCREEN_ON)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(screenOn, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(screenOn, filter)
+            }
         }
 
         override fun onDestroy() {
+            try {
+                unregisterReceiver(screenOn)
+            } catch (e: Exception) {
+            }
             prefs.unregisterOnSharedPreferenceChangeListener(this)
             stop()
             super.onDestroy()
