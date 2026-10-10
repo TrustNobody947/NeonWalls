@@ -133,11 +133,11 @@ class MainActivity : Activity() {
     /** Einstellungen zeigen, oder ausblenden und Status-/Navigationsleiste verstecken (Vollbild). */
     private fun showPanel(show: Boolean) {
         panel.visibility = if (show) View.VISIBLE else View.GONE
-        setImmersive(!show)
+        setFullscreen(!show)
     }
 
     @Suppress("DEPRECATION")
-    private fun setImmersive(on: Boolean) {
+    private fun setFullscreen(on: Boolean) {
         if (Build.VERSION.SDK_INT >= 30) {
             val c = window.insetsController ?: return
             if (on) {

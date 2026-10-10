@@ -401,7 +401,7 @@ class GlitchRenderer(private val density: Float) {
                 l.fragT -= dt
                 drawLine(c, l, x, a, l.col, l.fragY, h)
                 if (chance(0.2f)) {
-                    drawLine(c, l, x, a * 0.7f, l.fragY - r(10f, 60f) * density, l.fragY - r(2f, 8f) * density)
+                    drawLine(c, l, x, a * 0.7f, l.col, l.fragY - r(10f, 60f) * density, l.fragY - r(2f, 8f) * density)
                 }
                 if (l.fragT <= 0f) l.fragY = -1f
             } else {
