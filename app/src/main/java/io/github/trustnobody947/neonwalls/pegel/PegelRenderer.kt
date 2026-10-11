@@ -11,6 +11,7 @@ import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
+import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
@@ -38,6 +39,7 @@ class PegelRenderer(private val density: Float) {
     private var gain = 6
 
     val demo = PegelDemo()
+    var clock: ClockFace? = null   // Uhr über der Anzeige (null = aus)
 
     private var w = 0
     private var h = 0
@@ -276,6 +278,11 @@ class PegelRenderer(private val density: Float) {
                 paint.alpha = 255
                 canvas.restore()
             }
+        }
+        // Uhr obendrauf
+        clock?.let { ck ->
+            ck.update(canvas.width, canvas.height)
+            ck.layer?.let { paint.alpha = 255; canvas.drawBitmap(it, ck.x, ck.y, paint) }
         }
     }
 }

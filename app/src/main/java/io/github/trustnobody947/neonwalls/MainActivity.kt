@@ -36,6 +36,7 @@ import io.github.trustnobody947.neonwalls.pegel.PegelAudio
 import io.github.trustnobody947.neonwalls.pegel.PegelPrefs
 import io.github.trustnobody947.neonwalls.pegel.PegelView
 import io.github.trustnobody947.neonwalls.pegel.PegelWallpaperService
+import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /**
  * Startbildschirm: oben die Auswahl der Hintergründe, dahinter die Live-Vorschau, unten die Einstellungen.
@@ -202,6 +203,7 @@ class MainActivity : Activity() {
         addSlider(getString(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ::level, reapply)
         addSwitch(getString(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, reapply)
         addSwitch(getString(R.string.s_mutate), p, GlitchPrefs.MUTATE, reapply)
+        addClockSection(ClockPrefs.ON_GLITCH, true, reapply)
         addButtonRow(
             getString(R.string.b_new) to {
                 GlitchPrefs.newPattern(this)
@@ -248,6 +250,7 @@ class MainActivity : Activity() {
         addChoice(getString(R.string.p_peaks), p, PegelPrefs.PEAKS, 0, listOf(getString(R.string.on), getString(R.string.off))) { reapply() }
         addChoice(getString(R.string.p_reflect), p, PegelPrefs.MIRROR, 0, listOf(getString(R.string.on), getString(R.string.off))) { reapply() }
         addChoice(getString(R.string.p_pos), p, PegelPrefs.POS, 1, listOf(getString(R.string.p_mid), getString(R.string.p_bottom))) { reapply() }
+        addClockSection(ClockPrefs.ON_PEGEL, false, reapply)
         addButtonRow(
             getString(R.string.b_test) to { pegelView?.renderer?.wake(); Unit },
             getString(R.string.b_drop) to { pegelView?.renderer?.bassDrop(); Unit },
@@ -255,6 +258,36 @@ class MainActivity : Activity() {
         )
         addSetButton()
         updateStatus()
+    }
+
+    // ---------- Uhr (für alle Hintergründe gleich, je Hintergrund ein Schalter) ----------
+    private fun addClockSection(onKey: String, withCrack: Boolean, reapply: () -> Unit) {
+        val cp = ClockPrefs.prefs(this)
+        panel.addView(TextView(this).apply {
+            text = getString(R.string.c_title)
+            setTextColor(accent)
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            letterSpacing = 0.1f
+            isAllCaps = true
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = dpi(22) })
+        panel.addView(TextView(this).apply {
+            text = getString(R.string.c_note)
+            setTextColor(muted)
+            textSize = 12f
+            setPadding(0, dpi(2), 0, 0)
+        })
+        addSwitch(getString(R.string.c_show), cp, onKey, reapply)
+        addChoice(getString(R.string.c_finish), cp, ClockPrefs.FINISH, 0, listOf(
+            getString(R.string.f_chrome), getString(R.string.f_gold), getString(R.string.f_steel),
+            getString(R.string.f_rose), getString(R.string.f_black), getString(R.string.f_copper),
+            getString(R.string.f_neon))) { reapply() }
+        addChoice(getString(R.string.c_pos), cp, ClockPrefs.POS, 0,
+            listOf(getString(R.string.c_top), getString(R.string.p_mid), getString(R.string.p_bottom))) { reapply() }
+        addSlider(getString(R.string.c_size), cp, ClockPrefs.SIZE, 5, 1, 10, 1, { it.toString() }, reapply)
+        addChoice(getString(R.string.c_date), cp, ClockPrefs.DATE, 0,
+            listOf(getString(R.string.c_date_orig), getString(R.string.c_date_de), getString(R.string.off))) { reapply() }
+        if (withCrack) addSlider(getString(R.string.c_crack), cp, ClockPrefs.CRACK, 5, 0, 10, 1, ::level, reapply)
     }
 
     private fun hasMic() = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

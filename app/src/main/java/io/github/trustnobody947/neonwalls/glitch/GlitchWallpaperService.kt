@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
+import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /** Der eigentliche Live-Hintergrund. Läuft nur, solange er sichtbar ist (spart Akku). */
 class GlitchWallpaperService : WallpaperService() {
@@ -21,6 +22,7 @@ class GlitchWallpaperService : WallpaperService() {
 
         private val renderer = GlitchRenderer(resources.displayMetrics.density)
         private val prefs = GlitchPrefs.prefs(this@GlitchWallpaperService)
+        private val clockPrefs = ClockPrefs.prefs(this@GlitchWallpaperService)
         private var running = false
         private var last = 0L
         private var useHw = true
@@ -38,6 +40,7 @@ class GlitchWallpaperService : WallpaperService() {
             super.onCreate(surfaceHolder)
             GlitchPrefs.applyTo(this@GlitchWallpaperService, renderer)
             prefs.registerOnSharedPreferenceChangeListener(this)
+            clockPrefs.registerOnSharedPreferenceChangeListener(this)
             val filter = IntentFilter(Intent.ACTION_SCREEN_ON)
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(screenOn, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -52,6 +55,7 @@ class GlitchWallpaperService : WallpaperService() {
             } catch (e: Exception) {
             }
             prefs.unregisterOnSharedPreferenceChangeListener(this)
+            clockPrefs.unregisterOnSharedPreferenceChangeListener(this)
             stop()
             super.onDestroy()
         }

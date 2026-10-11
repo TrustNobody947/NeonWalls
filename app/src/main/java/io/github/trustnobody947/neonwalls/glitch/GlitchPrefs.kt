@@ -2,6 +2,7 @@ package io.github.trustnobody947.neonwalls.glitch
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /** Gespeicherte Einstellungen, gemeinsam für Vorschau und Live-Hintergrund. */
 object GlitchPrefs {
@@ -36,6 +37,8 @@ object GlitchPrefs {
     fun applyTo(ctx: Context, r: GlitchRenderer) {
         val p = prefs(ctx)
         r.mutate = p.getBoolean(MUTATE, false)
+        r.clock = ClockPrefs.face(ctx, ClockPrefs.ON_GLITCH, r.clock)
+        r.clockCrack = ClockPrefs.crack(ctx)
         r.configure(
             calm = p.getInt(CALM, 4),
             burst = p.getInt(BURST, 5),

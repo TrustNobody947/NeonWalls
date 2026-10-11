@@ -53,5 +53,23 @@
     <string name="st_fail_music">Dieses Handy gibt die Musik nicht frei. Probiere „Mikrofon“. Bis dahin läuft der Demo-Beat.</string>
     <string name="st_fail_mic">Mikrofon nicht verfügbar. Bis dahin läuft der Demo-Beat.</string>
     <string name="st_wait">Starte …</string>
+    <string name="c_title">Uhr</string>
+    <string name="c_show">Uhr anzeigen</string>
+    <string name="c_finish">Oberfläche</string>
+    <string name="f_chrome">Chrom</string>
+    <string name="f_gold">Gold</string>
+    <string name="f_steel">Stahlblau</string>
+    <string name="f_rose">Roségold</string>
+    <string name="f_black">Schwarzchrom</string>
+    <string name="f_copper">Kupfer</string>
+    <string name="f_neon">Neon</string>
+    <string name="c_pos">Position der Uhr</string>
+    <string name="c_top">Oben</string>
+    <string name="c_size">Größe der Uhr</string>
+    <string name="c_date">Datum</string>
+    <string name="c_date_orig">Wie Original</string>
+    <string name="c_date_de">Deutsch</string>
+    <string name="c_crack">Riss durch die Uhr</string>
+    <string name="c_note">Die Uhr gilt für alle Hintergründe, an jedem Hintergrund einzeln einschaltbar.</string>
     <string name="err_picker_any">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe den gewünschten Hintergrund wählen.</string>
 </resources>

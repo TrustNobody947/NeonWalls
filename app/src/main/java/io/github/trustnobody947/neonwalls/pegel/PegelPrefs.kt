@@ -2,6 +2,7 @@ package io.github.trustnobody947.neonwalls.pegel
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /** Gespeicherte Einstellungen der Pegelanzeige, gemeinsam für Vorschau und Live-Hintergrund. */
 object PegelPrefs {
@@ -23,6 +24,7 @@ object PegelPrefs {
 
     fun applyTo(ctx: Context, r: PegelRenderer) {
         val p = prefs(ctx)
+        r.clock = ClockPrefs.face(ctx, ClockPrefs.ON_PEGEL, r.clock)
         r.configure(
             style = p.getInt(STYLE, 0),
             colorScheme = p.getInt(COLOR, 0),

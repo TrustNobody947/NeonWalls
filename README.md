@@ -4,8 +4,9 @@ Live-Hintergründe für Android:
 
 - **Broken Screen** – flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss, Abzweig und zufälligen Glitch-Ausbrüchen.
 - **Pegelanzeige** – LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy (Visualizer) oder auf das Mikrofon; beides braucht die Mikrofon-Berechtigung. Ohne Berechtigung läuft ein Demo-Beat.
+- **Uhr** – Schablonen-Uhr mit echter Uhrzeit und Datum, bei jedem Hintergrund einzeln einschaltbar (Chrom, Gold, Stahlblau, Roségold, Schwarzchrom, Kupfer, Neon). Bei Broken Screen läuft ein Haarriss durch die Ziffern, der große Riss versetzt sie und Glitches zerlegen sie kurz.
 
-In der App wählt man oben zwischen den Hintergründen.
+In der App wählt man oben zwischen den Hintergründen; die Uhr stellt man unten in den Einstellungen des jeweiligen Hintergrunds ein.
 
 ## APK herunterladen
 
@@ -18,6 +19,7 @@ Direkter Link zur neuesten Version:
 
 - `app/src/main/java/.../glitch/` – Broken Screen (Renderer, Wallpaper-Service, Vorschau, Einstellungen)
 - `app/src/main/java/.../pegel/` – Pegelanzeige (Renderer, Demo-Song, Audio aus Musik oder Mikrofon, Wallpaper-Service, Vorschau, Einstellungen)
+- `app/src/main/java/.../uhr/` – Schablonen-Uhr (Zifferblatt als Bild, Einstellungen); gezeichnet wird sie von den Renderern der Hintergründe
 - Weitere Hintergründe kommen jeweils in einen eigenen Unterordner und bekommen einen eigenen Wallpaper-Service.
 
 ## Vorschauen (im Browser)

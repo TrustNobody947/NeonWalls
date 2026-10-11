@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
+import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /**
  * Pegelanzeige als Live-Hintergrund. Läuft nur, solange er sichtbar ist; nur dann wird auch Musik
@@ -20,6 +21,7 @@ class PegelWallpaperService : WallpaperService() {
         private val renderer = PegelRenderer(resources.displayMetrics.density)
         private val audio = PegelAudio(applicationContext)
         private val prefs = PegelPrefs.prefs(this@PegelWallpaperService)
+        private val clockPrefs = ClockPrefs.prefs(this@PegelWallpaperService)
         private var source = 0
         private var running = false
         private var last = 0L
@@ -31,10 +33,12 @@ class PegelWallpaperService : WallpaperService() {
             PegelPrefs.applyTo(this@PegelWallpaperService, renderer)
             source = PegelPrefs.source(this@PegelWallpaperService)
             prefs.registerOnSharedPreferenceChangeListener(this)
+            clockPrefs.registerOnSharedPreferenceChangeListener(this)
         }
 
         override fun onDestroy() {
             prefs.unregisterOnSharedPreferenceChangeListener(this)
+            clockPrefs.unregisterOnSharedPreferenceChangeListener(this)
             stop()
             audio.stop()
             super.onDestroy()

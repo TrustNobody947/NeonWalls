@@ -3,9 +3,15 @@ package io.github.trustnobody947.neonwalls.glitch
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
+import android.graphics.Rect
+import android.graphics.Shader
+import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import java.util.Random
 import kotlin.math.exp
 import kotlin.math.floor
@@ -18,6 +24,9 @@ import kotlin.math.pow
  * "Broken Screen": flackernde Farbstreifen wie bei einem kaputten Display,
  * mit Haarriss (plus Abzweig), an dem die Streifen gekappt und versetzt weiterlaufen.
  * Jedes Teilstück zwischen den Rissen flackert unabhängig.
+ * Optional liegt die Schablonen-Uhr im Bild: Ein eigener Haarriss läuft durch die Ziffern, auch der große Riss versetzt
+ * sie, die Teilstücke flackern einzeln, bei Glitch-Ausbrüchen zerfällt die Uhr kurz in Farbkanäle, verrutschte Streifen
+ * und Farbblitze, und die Farbstreifen laufen über die Uhr.
  */
 class GlitchRenderer(private val density: Float) {
 
@@ -26,6 +35,8 @@ class GlitchRenderer(private val density: Float) {
     var burst = -1
     var shearAmt = 5
     var mutate = false   // Glitches verändern das Streifenmuster
+    var clock: ClockFace? = null   // Uhr im Bild (null = aus)
+    var clockCrack = 5             // Riss durch die Uhr 0..10
     private var count = 30
     private var seed = 0L
 
@@ -62,6 +73,9 @@ class GlitchRenderer(private val density: Float) {
     private var ex = 0.7f
     private var ey = 0.5f
     private var bf = 1f
+    private var ccY = 0.5f
+    private var ccK = 0f
+    private var ccF = 1f
 
     class Zone {
         var flash = 0f
@@ -160,6 +174,10 @@ class GlitchRenderer(private val density: Float) {
         ex = (bx + (if (pr.nextBoolean()) -1f else 1f) * p(0.18f, 0.32f)).coerceIn(0.02f, 0.98f)
         ey = by - p(0.22f, 0.38f)
         bf = (if (pr.nextBoolean()) -1f else 1f) * p(0.7f, 1.2f)
+        // eigener Haarriss durch die Uhr (Lage relativ zur Uhr)
+        ccY = p(0.3f, 0.7f)
+        ccK = p(-0.16f, 0.16f)
+        ccF = if (pr.nextBoolean()) -1f else 1f
     }
 
     private fun crackY(xn: Float) = yInner + (if (sideLeft) 1f - xn else xn) * (yOuter - yInner)
@@ -337,6 +355,160 @@ class GlitchRenderer(private val density: Float) {
         if (clip) c.restore()
     }
 
+    // ---------- Uhr in Teilstücken ----------
+
+    private class ClockZone {
+        var off = 0f
+        var flash = 0f
+        var col = 0
+        var fl = 1f
+        var flT = 0f
+        var split = 0f
+        var sx = 0f
+        var slice = 0f
+    }
+
+    private val czones = Array(4) { ClockZone() }
+    private val cY0 = FloatArray(2)
+    private val cK = FloatArray(2)
+    private val cDx = FloatArray(2)
+    private val cDy = FloatArray(2)
+    private val clipP = Path()
+    private val clockPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val chPaint = arrayOf(Color.RED, Color.GREEN, Color.BLUE).map { col ->
+        Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter = PorterDuffColorFilter(col, PorterDuff.Mode.MULTIPLY); xfermode = add }
+    }
+    private val tintPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = add }
+    private val tintFilters = HashMap<Int, PorterDuffColorFilter>()
+    private val srcR = Rect()
+    private val dstR = Rect()
+    private val crackDark = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; color = Color.argb(217, 0, 0, 0) }
+    private val crackShine = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+    private var shineX0 = Float.NaN
+    private var shineX1 = Float.NaN
+
+    /** Halbebene unter (below) oder über der Geraden y = y0 + k*x. */
+    private fun halfPlane(y0: Float, k: Float, below: Boolean) {
+        val xa = -w
+        val xb = 2f * w
+        val far = if (below) 4f * h + 1e4f else -4f * h - 1e4f
+        clipP.reset()
+        clipP.moveTo(xa, y0 + k * xa); clipP.lineTo(xb, y0 + k * xb); clipP.lineTo(xb, far); clipP.lineTo(xa, far); clipP.close()
+    }
+
+    private fun inPiece(px: Float, py: Float, mask: Int, n: Int): Boolean {
+        for (i in 0 until n) {
+            val below = py > cY0[i] + cK[i] * px
+            if (below != ((mask and (1 shl i)) != 0)) return false
+        }
+        return true
+    }
+
+    private fun drawClock(c: Canvas) {
+        val ck = clock ?: return
+        ck.update(c.width, c.height)
+        val layer = ck.layer ?: return
+        val lx = ck.x
+        val ly = ck.y
+        val lw = layer.width.toFloat()
+        val lh = layer.height.toFloat()
+        // Risse: eigener Haarriss durch die Uhr und der große Riss (als Gerade)
+        var n = 0
+        if (clockCrack > 0) {
+            val k = ccK * lh / lw
+            cY0[n] = ly + lh * ccY - k * (lx + lw / 2f); cK[n] = k
+            cDx[n] = ccF * clockCrack * 0.9f * density * jit(); cDy[n] = clockCrack * 0.12f * density
+            n++
+        }
+        if (shearAmt > 0) {
+            val ya = crackY(0f) * h
+            val yb = crackY(1f) * h
+            cY0[n] = ya; cK[n] = (yb - ya) / w
+            cDx[n] = f1 * shearAmt * 1.2f * density * jit(); cDy[n] = 0f
+            n++
+        }
+        val all = (1 shl n) - 1
+        for (mask in 0..all) {
+            var ox = 0f
+            var oy = 0f
+            for (i in 0 until n) if ((mask and (1 shl i)) != 0) { ox += cDx[i]; oy += cDy[i] }
+            // Liegt dieses Teilstück überhaupt im Bereich der Uhr?
+            if (n > 0) {
+                var any = false
+                var yy = 0
+                while (yy <= 8 && !any) {
+                    var xx = 0
+                    while (xx <= 8 && !any) { any = inPiece(lx + lw * xx / 8f, ly + lh * yy / 8f, mask, n); xx++ }
+                    yy++
+                }
+                if (!any) continue
+            }
+            val z = czones[mask]
+            val sb = burstT > 0f && (burstZone == ZONE_ALL || (burstZone == ZONE_TOP && mask == 0) ||
+                (burstZone == ZONE_BOTTOM && mask == all) || (burstZone == ZONE_MID && mask > 0 && mask < all))
+            if (z.off > 0f) {
+                z.off -= dt
+                if (z.off > 0f) continue
+            } else if (chance(if (sb) 0.02f * burstPow else p(0.025f * g))) {
+                z.off = r(0.04f, if (sb) 0.3f else 0.5f)
+                continue
+            }
+            if (z.flash > 0f) z.flash -= dt
+            else if (chance(if (sb) 0.18f * burstPow else p(0.08f * g))) { z.flash = r(0.03f, 0.15f); z.col = pickCol() }
+            if (z.split > 0f) z.split -= dt
+            else if (chance(if (sb) 0.12f * burstPow else p(0.04f * g))) { z.split = r(0.04f, 0.22f); z.sx = r(2f, 7f) * density * (if (chance(0.5f)) -1f else 1f) }
+            if (z.slice > 0f) z.slice -= dt
+            else if (sb && chance(0.05f * burstPow)) z.slice = r(0.05f, 0.2f)
+            if (z.flT <= 0f) { z.flT = r(0.03f, 0.09f); z.fl = 1f - calmF * r(0f, 0.22f) } else z.flT -= dt
+            c.save()
+            for (i in 0 until n) { halfPlane(cY0[i], cK[i], (mask and (1 shl i)) != 0); c.clipPath(clipP) }
+            val x = lx + ox
+            val y = ly + oy
+            val a = (z.fl * 255f).toInt().coerceIn(0, 255)
+            if (z.split > 0f) {
+                // Farbkanäle auseinander
+                chPaint[0].alpha = a; c.drawBitmap(layer, x + z.sx, y, chPaint[0])
+                chPaint[1].alpha = a; c.drawBitmap(layer, x, y, chPaint[1])
+                chPaint[2].alpha = a; c.drawBitmap(layer, x - z.sx, y, chPaint[2])
+            } else if (z.slice > 0f) {
+                // waagerechte Streifen verrutschen
+                val k = 3 + rnd.nextInt(4)
+                clockPaint.alpha = a
+                for (sI in 0 until k) {
+                    val sy = (lh * sI / k).toInt()
+                    val sh = kotlin.math.ceil(lh / k).toInt()
+                    val dx = r(-1f, 1f) * 10f * density
+                    srcR.set(0, sy, layer.width, min(layer.height, sy + sh))
+                    dstR.set((x + dx).toInt(), (y + sy).toInt(), (x + dx + lw).toInt(), (y + sy + sh).toInt())
+                    c.drawBitmap(layer, srcR, dstR, clockPaint)
+                }
+            } else {
+                clockPaint.alpha = a
+                c.drawBitmap(layer, x, y, clockPaint)
+            }
+            if (z.flash > 0f) {
+                tintPaint.colorFilter = tintFilters.getOrPut(z.col) { PorterDuffColorFilter(z.col, PorterDuff.Mode.SRC_IN) }
+                tintPaint.alpha = (0.75f * z.fl * 255f).toInt().coerceIn(0, 255)
+                c.drawBitmap(layer, x, y, tintPaint)
+            }
+            c.restore()
+        }
+        // der Haarriss selbst: dunkle Bruchkante über den Ziffern, mit feinem Glanz
+        if (clockCrack > 0 && n > 0) {
+            val x0 = lx - lw * 0.08f
+            val x1 = lx + lw * 1.08f
+            crackDark.strokeWidth = max(1f, 1.6f * density)
+            c.drawLine(x0, cY0[0] + cK[0] * x0, x1, cY0[0] + cK[0] * x1, crackDark)
+            crackShine.strokeWidth = max(1f, 0.6f * density)
+            if (x0 != shineX0 || x1 != shineX1) {
+                shineX0 = x0; shineX1 = x1
+                crackShine.shader = LinearGradient(x0, 0f, x1, 0f, intArrayOf(Color.argb(0, 255, 255, 255), Color.argb(56, 255, 255, 255), Color.argb(0, 255, 255, 255)),
+                    null, Shader.TileMode.CLAMP)
+            }
+            c.drawLine(x0, cY0[0] + cK[0] * x0 - density, x1, cY0[0] + cK[0] * x1 - density, crackShine)
+        }
+    }
+
     /** Ein Bild zeichnen. dtSeconds = Zeit seit dem letzten Bild. */
     fun frame(c: Canvas, dtSeconds: Float) {
         w = c.width.toFloat().coerceAtLeast(1f)
@@ -362,6 +534,7 @@ class GlitchRenderer(private val density: Float) {
         val bursting = burstT > 0f && burstZone == ZONE_ALL
 
         c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
+        drawClock(c)
 
         for (l in lines) {
             // Ausfall / Wiederkehr
