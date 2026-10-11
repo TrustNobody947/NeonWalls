@@ -25,8 +25,16 @@ Unter `vorschau/` liegen die Browser-Vorschauen der Hintergründe, jeweils als e
 - `plasma.html` – Plasma-Blitze
 - `roehre.html` – Röhrenmonitor (Oszilloskop, Terminal, Radar)
 - `platine.html` – Neon-Platine
+- `wackelkontakt.html` – Wackelkontakt (loses Displaykabel)
+- `ghosttouch.html` – Ghost Touch (Zeigerposition wie in den Entwickleroptionen)
+- `backlight.html` – Kaputtes Backlight
+- `nixie.html` – Nixie-Uhr mit echter Uhrzeit
+- `jakobsleiter.html` – Jakobsleiter (aufsteigender Lichtbogen)
+- `leuchtreklame.html` – Leuchtreklame mit eigenem Text (Schriften von Google Fonts)
+- `nebelkammer.html` – Nebelkammer mit Teilchenspuren
+- `pegel.html` – LED-Pegelanzeige (simulierter Beat, keine echte Musik)
 
-Die sechs neuen Seiten werden aus `vorschau/quellen/` gebaut (`python3 build.py`). Änderungen unter `vorschau/` lösen keinen App-Build aus.
+Alle Seiten außer `broken-screen.html` werden aus `vorschau/quellen/` gebaut (`python3 build.py`, Test ohne Browser: `node test.js <name>`). Änderungen unter `vorschau/` lösen keinen App-Build aus.
 
 ## Hinweis zur Signierung
 

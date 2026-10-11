@@ -40,5 +40,61 @@
     "sub": "Leiterbahnen, durch die Strompulse jagen. Beim Entsperren schießt ein Stromstoß durch.",
     "accent": "#00e5ff",
     "aria": "Animierter Hintergrund: Platine mit leuchtenden Strompulsen"
+  },
+  "wackelkontakt": {
+    "title": "Wackelkontakt",
+    "name": "Wackelkontakt",
+    "sub": "Ein loses Displaykabel: meist Ruhe, dann reißt das Bild in bunten Störstreifen auf.",
+    "accent": "#ff3d9a",
+    "aria": "Animierter Hintergrund: Bildstörungen wie bei einem Wackelkontakt im Displaykabel"
+  },
+  "ghosttouch": {
+    "title": "Ghost Touch",
+    "name": "Ghost Touch",
+    "sub": "Ein unsichtbarer Finger tippt und wischt, sichtbar gemacht wie in den Entwickleroptionen.",
+    "accent": "#4fc3ff",
+    "aria": "Animierter Hintergrund: Geisterberührungen mit Fadenkreuz und Spuren"
+  },
+  "backlight": {
+    "title": "Kaputtes Backlight",
+    "name": "Kaputtes Backlight",
+    "sub": "Die Hintergrundbeleuchtung spinnt: einzelne Zonen flackern, glimmen nach oder bleiben hängen.",
+    "accent": "#9fd4ff",
+    "aria": "Animierter Hintergrund: flackernde Zonen einer defekten Hintergrundbeleuchtung"
+  },
+  "nixie": {
+    "title": "Nixie-Uhr",
+    "name": "Nixie-Uhr",
+    "sub": "Die echte Uhrzeit in glühenden Ziffernröhren.",
+    "accent": "#ff8a2a",
+    "aria": "Animierter Hintergrund: Uhr aus Nixie-Röhren mit der aktuellen Uhrzeit"
+  },
+  "jakobsleiter": {
+    "title": "Jakobsleiter",
+    "name": "Jakobsleiter",
+    "sub": "Ein Lichtbogen klettert zwischen zwei Drähten nach oben, reißt ab und zündet neu.",
+    "accent": "#a77bff",
+    "aria": "Animierter Hintergrund: Lichtbogen, der zwischen zwei Drähten aufsteigt"
+  },
+  "leuchtreklame": {
+    "title": "Leuchtreklame",
+    "name": "Leuchtreklame",
+    "sub": "Dein eigener Text als Neonschild, mit Buchstaben, die nicht ganz mitspielen.",
+    "accent": "#ff4fd8",
+    "aria": "Animierter Hintergrund: Neonschild mit eigenem Text und flackernden Buchstaben"
+  },
+  "nebelkammer": {
+    "title": "Nebelkammer",
+    "name": "Nebelkammer",
+    "sub": "Teilchen schießen durch kalten Nebel und hinterlassen kurz leuchtende Spuren.",
+    "accent": "#cfe6ff",
+    "aria": "Animierter Hintergrund: Teilchenspuren in einer Nebelkammer"
+  },
+  "pegel": {
+    "title": "Pegelanzeige",
+    "name": "Pegelanzeige",
+    "sub": "LED-Balken wie an einer alten Stereoanlage, im Takt eines erfundenen Beats.",
+    "accent": "#3dff6a",
+    "aria": "Animierter Hintergrund: LED-Pegelanzeige, die im Takt springt"
   }
 }

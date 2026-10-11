@@ -1,0 +1,253 @@
+// Nixie-Uhr: die echte Uhrzeit in Ziffernröhren. In jeder Glasröhre stehen alle Ziffern aus dünnem Draht hintereinander,
+// die aktive glüht, die anderen sind als feines Drahtgewirr dahinter zu sehen. Vorne liegt das Anodengitter.
+// Beim Entsperren, zur vollen Stunde und auf Knopfdruck laufen die Ziffern wie ein Spielautomat durch.
+const settings = { mode: 0, arrange: 0, pos: 1, color: 0, glow: 6, flicker: 3 };
+const controls = [
+  { type: 'choice', id: 'mode', label: 'Anzeige', options: ['Uhrzeit', 'Mit Sekunden'] },
+  { type: 'choice', id: 'arrange', label: 'Anordnung', options: ['Gestapelt', 'In einer Reihe'] },
+  { type: 'choice', id: 'pos', label: 'Position', options: ['Oben', 'Mitte', 'Unten'] },
+  { type: 'choice', id: 'color', label: 'Farbe', options: ['Orange', 'Eisblau', 'Grün', 'Pink'] },
+  { type: 'range', id: 'glow', label: 'Glühen', min: 1, max: 10, fmt: lvl },
+  { type: 'range', id: 'flicker', label: 'Flackern', min: 0, max: 10, fmt: lvl },
+];
+const COLORS = [
+  { core: [255, 226, 180], glow: [255, 128, 34], outer: [255, 72, 8] },
+  { core: [225, 246, 255], glow: [90, 185, 255], outer: [40, 110, 255] },
+  { core: [225, 255, 230], glow: [70, 255, 130], outer: [20, 200, 80] },
+  { core: [255, 225, 246], glow: [255, 85, 205], outer: [225, 30, 150] },
+];
+const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a < 0 ? 0 : a > 1 ? 1 : a).toFixed(3) + ')';
+const TAU = Math.PI * 2, PI = Math.PI;
+// Ziffern aus Draht, in einem Kasten von 0,6 x 1 (y nach unten)
+const DIG = [
+  [['M', 0.57, 0.5], ['E', 0.3, 0.5, 0.27, 0.47, 0, TAU]],
+  [['M', 0.17, 0.15], ['L', 0.31, 0.02], ['L', 0.31, 0.98]],
+  [['M', 0.05, 0.25], ['A', 0.3, 0.26, 0.25, PI + 0.06, TAU + 0.55], ['Q', 0.34, 0.66, 0.03, 0.98], ['L', 0.59, 0.98]],
+  [['M', 0.094, 0.16], ['A', 0.3, 0.26, 0.23, PI + 0.45, TAU + PI / 2], ['A', 0.3, 0.735, 0.245, -PI / 2, PI - 0.4]],
+  [['M', 0.47, 0.98], ['L', 0.47, 0.02], ['L', 0.02, 0.68], ['L', 0.6, 0.68]],
+  [['M', 0.56, 0.02], ['L', 0.1, 0.02], ['L', 0.07, 0.46], ['A', 0.3, 0.7, 0.26, -2.45, 2.55]],
+  [['M', 0.52, 0.04], ['Q', 0.1, 0.2, 0.035, 0.66], ['M', 0.57, 0.705], ['A', 0.3, 0.705, 0.27, 0, TAU]],
+  [['M', 0.02, 0.02], ['L', 0.58, 0.02], ['Q', 0.3, 0.45, 0.2, 0.98]],
+  [['M', 0.52, 0.255], ['A', 0.3, 0.255, 0.22, 0, TAU], ['M', 0.56, 0.725], ['A', 0.3, 0.725, 0.26, 0, TAU]],
+  [['M', 0.57, 0.295], ['A', 0.3, 0.295, 0.27, 0, TAU], ['M', 0.57, 0.31], ['Q', 0.52, 0.8, 0.08, 0.96]],
+];
+function digitPath(x, d, x0, y0, s, sx) {
+  sx = sx || 1;
+  x.beginPath();
+  for (const c of DIG[d]) {
+    if (c[0] === 'M') x.moveTo(x0 + c[1] * s * sx, y0 + c[2] * s);
+    else if (c[0] === 'L') x.lineTo(x0 + c[1] * s * sx, y0 + c[2] * s);
+    else if (c[0] === 'Q') x.quadraticCurveTo(x0 + c[1] * s * sx, y0 + c[2] * s, x0 + c[3] * s * sx, y0 + c[4] * s);
+    else if (c[0] === 'A') x.ellipse(x0 + c[1] * s * sx, y0 + c[2] * s, c[3] * s * sx, c[3] * s, 0, c[4], c[5]);
+    else if (c[0] === 'E') x.ellipse(x0 + c[1] * s * sx, y0 + c[2] * s, c[3] * s * sx, c[4] * s, 0, c[5], c[6]);
+  }
+}
+
+let W = 1, H = 1, dpr = 1, t = 0;
+let tubes = [], seps = [], st = [], lit = [], tangle = null, back = null, front = null, halo = null, dot = null;
+let tw = 1, th = 1, dh = 1, pad = 1, lastMin = -1, lastHour = -1, sepOff = 0, aging = [], weak = -1, order = [];
+
+function layout() {
+  const n = settings.mode ? 6 : 4;
+  tubes = []; seps = [];
+  const cyF = [0.3, 0.5, 0.68][settings.pos];
+  if (settings.arrange === 0) {
+    const R = n / 2, avail = H * (R === 2 ? 0.6 : 0.78), sepG = Math.min(W, H) * 0.075;
+    th = (avail - (R - 1) * sepG) / R; tw = Math.min(th / 1.72, W * 0.36); th = tw * 1.72;
+    const gapX = tw * 0.12, blockH = R * th + (R - 1) * sepG;
+    const y0 = clamp(cyF * H - blockH / 2, H * 0.07, Math.max(H * 0.07, H * 0.95 - blockH));
+    for (let r = 0; r < R; r++) {
+      const y = y0 + r * (th + sepG);
+      tubes.push({ x: W / 2 - gapX / 2 - tw, y }, { x: W / 2 + gapX / 2, y });
+      if (r < R - 1) seps.push({ x: W / 2, y: y + th + sepG / 2 - th * 0.03, horiz: true });
+    }
+  } else {
+    const nsep = n / 2 - 1, gap = 0.1, sepW = 0.42;
+    tw = Math.min(W * 0.94 / (n + (n - 1) * gap + nsep * sepW), H * 0.5 / 1.72); th = tw * 1.72;
+    const total = tw * (n + (n - 1) * gap + nsep * sepW);
+    const y = clamp(cyF * H - th / 2, H * 0.07, H * 0.95 - th);
+    let x = (W - total) / 2;
+    for (let i = 0; i < n; i++) {
+      tubes.push({ x, y }); x += tw;
+      if (i < n - 1) {
+        if (i % 2 === 1) { seps.push({ x: x + tw * (gap + sepW / 2), y: y + th * 0.41, horiz: false }); x += tw * (sepW + gap * 2); }
+        else x += tw * gap;
+      }
+    }
+  }
+  dh = th * 0.46;
+}
+const digitX = tb => tb.x + tw / 2 - dh * 0.3, digitY = tb => tb.y + th * 0.18;
+
+// Glasröhre mit Kuppel oben
+function tubeShape(x, ox, oy) {
+  const r = tw / 2, b = th * 0.87, rb = tw * 0.12;
+  x.beginPath();
+  x.moveTo(ox, oy + r);
+  x.arc(ox + r, oy + r, r, PI, TAU);
+  x.lineTo(ox + tw, oy + b - rb);
+  x.quadraticCurveTo(ox + tw, oy + b, ox + tw - rb, oy + b);
+  x.lineTo(ox + rb, oy + b);
+  x.quadraticCurveTo(ox, oy + b, ox, oy + b - rb);
+  x.closePath();
+}
+function genSprites() {
+  const C = COLORS[settings.color], g = settings.glow / 10, sw = Math.max(1, dh * 0.04);
+  pad = Math.round(dh * (0.2 + 0.28 * g));
+  const sw2 = Math.round(dh * 0.6 + pad * 2), sh2 = Math.round(dh + pad * 2);
+  // leuchtende Ziffern
+  lit = [];
+  for (let d = 0; d < 10; d++) {
+    const c = mk(sw2, sh2), x = c.getContext('2d');
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    digitPath(x, d, pad, pad, dh);
+    x.shadowColor = rgba(C.outer, 1); x.shadowBlur = pad * 0.75;
+    x.strokeStyle = rgba(C.glow, 0.25 + 0.2 * g); x.lineWidth = sw * 2.6; x.stroke();
+    x.shadowColor = rgba(C.glow, 1); x.shadowBlur = pad * 0.25;
+    x.strokeStyle = rgba(C.glow, 0.9); x.lineWidth = sw * 1.5; x.stroke();
+    x.shadowBlur = 0;
+    x.strokeStyle = rgba(C.core, 1); x.lineWidth = Math.max(1, sw * 0.7); x.stroke();
+    lit.push(c);
+  }
+  // die anderen Ziffern als Drahtgewirr dahinter
+  tangle = mk(sw2, sh2);
+  const tx = tangle.getContext('2d');
+  tx.lineCap = 'round'; tx.lineJoin = 'round';
+  const tc = [Math.round(150 * 0.6 + C.glow[0] * 0.4), Math.round(140 * 0.6 + C.glow[1] * 0.4), Math.round(132 * 0.6 + C.glow[2] * 0.4)];
+  order.forEach((d, k) => {
+    const sc = 1 - k * 0.006, o = (1 - sc) * dh * 0.5;
+    digitPath(tx, d, pad + o, pad + o * 0.6, dh * sc, 1);
+    tx.strokeStyle = rgba(tc, 0.16 - k * 0.006); tx.lineWidth = Math.max(1, sw * 0.55); tx.stroke();
+  });
+  // Röhre: Glas, Getterspiegel in der Kuppel, Sockel
+  const bw = Math.ceil(tw + 4), bh = Math.ceil(th + 4);
+  back = mk(bw, bh);
+  const bx = back.getContext('2d');
+  tubeShape(bx, 2, 2);
+  bx.fillStyle = 'rgba(255,255,255,0.025)'; bx.fill();
+  const gt = bx.createRadialGradient(2 + tw / 2, 2 + tw * 0.35, 0, 2 + tw / 2, 2 + tw * 0.35, tw * 0.55);
+  gt.addColorStop(0, 'rgba(190,195,210,0.10)'); gt.addColorStop(1, 'rgba(190,195,210,0)');
+  bx.fillStyle = gt; bx.fill();
+  const sy = 2 + th * 0.85, sh = th * 0.15 - 1;
+  const sg = bx.createLinearGradient(0, sy, 0, sy + sh);
+  sg.addColorStop(0, '#1d1d20'); sg.addColorStop(0.35, '#0e0e10'); sg.addColorStop(1, '#050506');
+  bx.fillStyle = sg; bx.fillRect(2 + tw * 0.05, sy, tw * 0.9, sh);
+  bx.fillStyle = 'rgba(255,255,255,0.10)'; bx.fillRect(2 + tw * 0.05, sy, tw * 0.9, Math.max(1, dpr * 0.6));
+  // vorne: Anodengitter, Glanzlichter und Glaskante
+  front = mk(bw, bh);
+  const fx = front.getContext('2d');
+  fx.save();
+  fx.beginPath(); fx.rect(2 + tw * 0.1, 2 + th * 0.1, tw * 0.8, th * 0.7); fx.clip();
+  const hs = dh / 15, hh = hs * Math.sqrt(3);
+  fx.beginPath();
+  for (let yy = 0, row = 0; yy < th + hh; yy += hh / 2, row++) {
+    for (let xx = (row % 2) * hs * 1.5; xx < tw + hs * 3; xx += hs * 3) {
+      const cx = 2 + xx, cy = 2 + yy;
+      fx.moveTo(cx + hs, cy);
+      for (let k = 1; k <= 6; k++) fx.lineTo(cx + Math.cos(k * PI / 3) * hs, cy + Math.sin(k * PI / 3) * hs);
+    }
+  }
+  fx.lineWidth = Math.max(1, dpr * 0.5); fx.strokeStyle = 'rgba(0,0,0,0.55)'; fx.stroke();
+  fx.restore();
+  tubeShape(fx, 2, 2);
+  fx.lineWidth = Math.max(1, dpr * 0.8); fx.strokeStyle = 'rgba(255,255,255,0.13)'; fx.stroke();
+  const hl = (x0, w0, a) => {
+    const lg = fx.createLinearGradient(2 + x0, 0, 2 + x0 + w0, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,' + a + ')'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    fx.fillStyle = lg; fx.fillRect(2 + x0, 2 + th * 0.16, w0, th * 0.62);
+  };
+  hl(tw * 0.1, tw * 0.09, 0.16); hl(tw * 0.8, tw * 0.05, 0.07);
+  fx.beginPath(); fx.arc(2 + tw / 2, 2 + tw / 2, tw / 2 - tw * 0.08, PI * 1.12, PI * 1.45);
+  fx.lineWidth = Math.max(1, tw * 0.03); fx.strokeStyle = 'rgba(255,255,255,0.12)'; fx.lineCap = 'round'; fx.stroke();
+  // Lichtschein um die Röhre und Punkt für die Trenner
+  const R = Math.round(th * 0.75);
+  halo = mk(R * 2, R * 2);
+  const hx = halo.getContext('2d'), hg = hx.createRadialGradient(R, R, 0, R, R, R);
+  hg.addColorStop(0, rgba(C.outer, 0.16 * (0.4 + g))); hg.addColorStop(0.4, rgba(C.outer, 0.05 * (0.4 + g))); hg.addColorStop(1, rgba(C.outer, 0));
+  hx.fillStyle = hg; hx.fillRect(0, 0, R * 2, R * 2);
+  const D = Math.max(4, Math.round(tw * 0.22));
+  dot = mk(D * 2, D * 2);
+  const dx = dot.getContext('2d'), dg = dx.createRadialGradient(D, D, 0, D, D, D);
+  dg.addColorStop(0, rgba(C.core, 1)); dg.addColorStop(0.12, rgba(C.core, 0.95)); dg.addColorStop(0.2, rgba(C.glow, 0.7));
+  dg.addColorStop(0.45, rgba(C.outer, 0.18 * (0.5 + g))); dg.addColorStop(1, rgba(C.outer, 0));
+  dx.fillStyle = dg; dx.fillRect(0, 0, D * 2, D * 2);
+}
+
+function timeNow() {
+  const d = new Date(), h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
+  const arr = [(h / 10) | 0, h % 10, (m / 10) | 0, m % 10, (s / 10) | 0, s % 10];
+  return { arr, ms: d.getMilliseconds(), h, m };
+}
+function initState() {
+  const T = timeNow();
+  st = [];
+  for (let i = 0; i < 6; i++) st.push({ cur: T.arr[i], prev: T.arr[i], fade: 1, fd: 0.12, cyc: 0, step: 0, drop: 0, dropLv: 1, ghost: -1, gT: 0, gLv: 0 });
+  lastMin = T.m; lastHour = T.h;
+}
+function setDigit(s, d, fast) { if (d === s.cur) return; s.prev = s.cur; s.cur = d; s.fade = 0; s.fd = fast ? 0.025 : 0.12; }
+function cycleAll(base, stepT) { for (let i = 0; i < st.length; i++) { st[i].cyc = t + base + i * stepT; st[i].step = 0; } sepOff = base * 0.6; }
+function newSet() {
+  aging = []; for (let i = 0; i < 6; i++) aging.push(rnd(0.86, 1));
+  weak = Math.random() < 0.7 ? rint(0, 5) : -1;
+  order = [1, 6, 2, 7, 5, 0, 4, 9, 8, 3];
+  if (Math.random() < 0.5) order.reverse();
+}
+
+return {
+  maxDpr: 3,
+  settings, controls,
+  actionLabel: 'Durchlaufen',
+  resize(w, h, d) { W = w; H = h; dpr = d; if (!order.length) newSet(); layout(); genSprites(); if (!st.length) initState(); },
+  newPattern() { newSet(); genSprites(); },
+  action() { cycleAll(0.3, 0.12); },
+  wake() { cycleAll(0.45, 0.2); },
+  change(id) { if (id !== 'flicker') { layout(); genSprites(); } },
+  frame(ctx, dt) {
+    t += dt;
+    const T = timeNow(), n = settings.mode ? 6 : 4, fl = settings.flicker / 10;
+    // Minutenwechsel: geänderte Röhren laufen kurz durch, zur vollen Stunde alle
+    if (T.m !== lastMin) {
+      if (T.h !== lastHour) cycleAll(0.5, 0.15);
+      else for (let i = 0; i < 4; i++) if (st[i].cur !== T.arr[i]) { st[i].cyc = t + 0.35 + i * 0.06; st[i].step = 0; }
+      lastMin = T.m; lastHour = T.h;
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    sepOff = Math.max(0, sepOff - dt);
+    for (let i = 0; i < n; i++) {
+      const s = st[i], tb = tubes[i];
+      if (!tb) continue;
+      if (t < s.cyc) { s.step -= dt; if (s.step <= 0) { setDigit(s, (s.cur + 1) % 10, true); s.step = 0.05; } }
+      else if (s.cur !== T.arr[i]) setDigit(s, T.arr[i], false);
+      s.fade = Math.min(1, s.fade + dt / s.fd);
+      // Flackern: feines Zittern, kurze Aussetzer und ab und zu eine falsch mitglimmende Ziffer
+      const wk = i === weak ? 3.5 : 1;
+      if (s.drop > 0) s.drop -= dt; else if (fl > 0 && Math.random() < per(fl * 0.06 * wk, dt)) { s.drop = rnd(0.03, 0.22); s.dropLv = rnd(0.12, 0.7); }
+      if (s.gT > 0) s.gT -= dt; else if (fl > 0 && Math.random() < per(fl * 0.035 * wk, dt)) { s.ghost = (s.cur + rint(1, 9)) % 10; s.gT = rnd(0.05, 0.3); s.gLv = rnd(0.1, 0.35); }
+      const bri = aging[i] * (1 - fl * 0.07 * Math.random()) * (s.drop > 0 ? s.dropLv : 1);
+      const px = digitX(tb) - pad, py = digitY(tb) - pad;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = Math.min(1, bri);
+      ctx.drawImage(halo, tb.x + tw / 2 - halo.width / 2, tb.y + th * 0.41 - halo.height / 2);
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      ctx.drawImage(back, tb.x - 2, tb.y - 2);
+      ctx.drawImage(tangle, px, py);
+      ctx.globalCompositeOperation = 'lighter';
+      const e = s.fade * s.fade * (3 - 2 * s.fade);
+      if (e < 1) { ctx.globalAlpha = Math.min(1, bri * (1 - e)); ctx.drawImage(lit[s.prev], px, py); }
+      ctx.globalAlpha = Math.min(1, bri * e); ctx.drawImage(lit[s.cur], px, py);
+      if (s.gT > 0 && s.ghost !== s.cur) { ctx.globalAlpha = s.gLv * bri; ctx.drawImage(lit[s.ghost], px, py); }
+      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      ctx.drawImage(front, tb.x - 2, tb.y - 2);
+    }
+    // Trennpunkte blinken im Sekundentakt
+    const on = sepOff > 0 ? 0 : clamp(Math.min(T.ms / 60, (520 - T.ms) / 80), 0, 1);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = on;
+    const D = dot.width / 2, off = tw * 0.13;
+    for (const sp of seps) {
+      if (sp.horiz) { ctx.drawImage(dot, sp.x - off - D, sp.y - D); ctx.drawImage(dot, sp.x + off - D, sp.y - D); }
+      else { ctx.drawImage(dot, sp.x - D, sp.y - off * 1.4 - D); ctx.drawImage(dot, sp.x - D, sp.y + off * 1.4 - D); }
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  },
+};
