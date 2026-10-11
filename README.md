@@ -1,6 +1,11 @@
 # Neon Walls
 
-Live-Hintergründe für Android. Erster Hintergrund: **Broken Screen** – flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss, Abzweig und zufälligen Glitch-Ausbrüchen.
+Live-Hintergründe für Android:
+
+- **Broken Screen** – flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss, Abzweig und zufälligen Glitch-Ausbrüchen.
+- **Pegelanzeige** – LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy (Visualizer) oder auf das Mikrofon; beides braucht die Mikrofon-Berechtigung. Ohne Berechtigung läuft ein Demo-Beat.
+
+In der App wählt man oben zwischen den Hintergründen.
 
 ## APK herunterladen
 
@@ -11,8 +16,9 @@ Direkter Link zur neuesten Version:
 
 ## Aufbau
 
-- `app/src/main/java/.../glitch/` – der Broken-Screen-Hintergrund (Renderer, Wallpaper-Service, Vorschau, Einstellungen)
-- Weitere Hintergründe (z. B. Plasma) kommen jeweils in einen eigenen Unterordner und bekommen einen eigenen Wallpaper-Service.
+- `app/src/main/java/.../glitch/` – Broken Screen (Renderer, Wallpaper-Service, Vorschau, Einstellungen)
+- `app/src/main/java/.../pegel/` – Pegelanzeige (Renderer, Demo-Song, Audio aus Musik oder Mikrofon, Wallpaper-Service, Vorschau, Einstellungen)
+- Weitere Hintergründe kommen jeweils in einen eigenen Unterordner und bekommen einen eigenen Wallpaper-Service.
 
 ## Vorschauen (im Browser)
 
@@ -32,7 +38,8 @@ Unter `vorschau/` liegen die Browser-Vorschauen der Hintergründe, jeweils als e
 - `jakobsleiter.html` – Jakobsleiter (aufsteigender Lichtbogen)
 - `leuchtreklame.html` – Leuchtreklame mit eigenem Text (Schriften von Google Fonts)
 - `nebelkammer.html` – Nebelkammer mit Teilchenspuren
-- `pegel.html` – LED-Pegelanzeige (simulierter Beat, keine echte Musik)
+- `pegel.html` – LED-Pegelanzeige (in der Vorschau simulierter Beat; in der App mit Musik oder Mikrofon)
+- `uhr.html` – Schablonen-Uhr, wahlweise über Broken Screen
 
 Alle Seiten außer `broken-screen.html` werden aus `vorschau/quellen/` gebaut (`python3 build.py`, Test ohne Browser: `node test.js <name>`). Änderungen unter `vorschau/` lösen keinen App-Build aus.
 

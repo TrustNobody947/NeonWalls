@@ -96,5 +96,12 @@
     "sub": "LED-Balken wie an einer alten Stereoanlage, im Takt eines erfundenen Beats.",
     "accent": "#3dff6a",
     "aria": "Animierter Hintergrund: LED-Pegelanzeige, die im Takt springt"
+  },
+  "uhr": {
+    "title": "Schablonen-Uhr",
+    "name": "Schablonen-Uhr",
+    "sub": "Kantige Metall-Uhr mit echter Zeit und Datum. Über Broken Screen läuft der Riss mitten durch die Ziffern.",
+    "accent": "#cfd6e2",
+    "aria": "Animierter Hintergrund: kantige Metall-Uhr mit echter Uhrzeit, wahlweise über flackernden Glitch-Streifen"
   }
 }

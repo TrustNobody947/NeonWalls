@@ -94,7 +94,7 @@ E.wake(); run(120);
 E.newPattern(); run(60);
 for (const c of E.controls) {
   const vals = c.type === 'range' ? [c.min, c.max, Math.round((c.min + c.max) / 2)]
-    : c.type === 'text' ? ['', 'NEON WALLS', 'ÄÖÜ ß 123', '   ', 'X'.repeat(c.max || 20), 'Kai'] : c.options.map((_, i) => i);
+    : c.type === 'text' ? ['', 'NEON WALLS', 'ÄÖÜ ß 123', '   ', 'X'.repeat(c.max || 20), '✠𝕿𝖗𝖚𝖘𝖙𝕹𝖔𝖇𝖔𝖉𝖞✠', '𝒦𝒶𝒾 🔥👍🏽', 'Kai'] : c.options.map((_, i) => i);
   for (const v of vals) { S[c.id] = v; if (E.change) E.change(c.id); run(40); E.action(); run(30); }
 }
 r = run(300);

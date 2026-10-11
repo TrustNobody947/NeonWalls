@@ -5,6 +5,13 @@
         android:name="android.software.live_wallpaper"
         android:required="true" />
 
+    <!-- Pegelanzeige: Musik vom Handy (Visualizer) oder Mikrofon. Ohne Erlaubnis läuft ein Demo-Beat. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -32,6 +39,19 @@
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/glitch_wallpaper" />
+        </service>
+
+        <service
+            android:name=".pegel.PegelWallpaperService"
+            android:exported="true"
+            android:label="@string/wp_pegel_name"
+            android:permission="android.permission.BIND_WALLPAPER">
+            <intent-filter>
+                <action android:name="android.service.wallpaper.WallpaperService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.wallpaper"
+                android:resource="@xml/pegel_wallpaper" />
         </service>
     </application>
 </manifest>

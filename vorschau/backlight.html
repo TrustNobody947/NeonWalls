@@ -39,6 +39,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{flex:1 1 0;min-width:0;padding:8px 6px;font-size:13px}
 .seg button.on{background:var(--accent);color:#000;border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.grid .grp{grid-column:1/-1;margin-top:6px;font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.grid button{min-width:0;padding:10px 8px;font-size:18px;font-weight:400;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid button.on{background:var(--accent);color:#000;border-color:transparent}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
 button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
   border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
@@ -301,7 +305,9 @@ function resize() {
 }
 
 // Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
-const box = document.getElementById('controls');
+const box = document.getElementById('controls'), ui = {};
+// Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
+const setVal = (id, v) => { S[id] = v; if (ui[id]) ui[id](v); save(); };
 for (const c of E.controls) {
   const row = document.createElement('div'); row.className = 'row';
   if (c.type === 'range') {
@@ -309,29 +315,35 @@ for (const c of E.controls) {
       '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
     box.appendChild(row);
     const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
-    el.value = S[c.id]; out.textContent = fmt(+el.value);
+    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); };
+    ui[c.id](S[c.id]);
     el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); save(); if (E.change) E.change(c.id); });
-  } else if (c.type === 'choice') {
-    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="seg"></div>';
+  } else if (c.type === 'choice' || c.type === 'grid') {
+    // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
+    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';
     box.appendChild(row);
-    const seg = row.querySelector('.seg');
+    const wrap = row.querySelector('.grid, .seg'), btns = [];
+    let group = null;
     c.options.forEach((o, i) => {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = o;
-      if (S[c.id] === i) b.classList.add('on');
-      b.addEventListener('click', () => {
-        S[c.id] = i; seg.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j === i));
-        save(); if (E.change) E.change(c.id);
-      });
-      seg.appendChild(b);
+      if (o.group && o.group !== group) { const h = document.createElement('div'); h.className = 'grp'; h.textContent = o.group; wrap.appendChild(h); group = o.group; }
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
+      if (o.font) b.style.fontFamily = o.font;
+      if (o.weight) b.style.fontWeight = o.weight;
+      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); });
+      wrap.appendChild(b); btns.push(b);
     });
+    ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
+    ui[c.id](S[c.id]);
   } else if (c.type === 'text') {
     row.innerHTML = '<label for="' + c.id + '">' + c.label + '</label>' +
       '<input id="' + c.id + '" type="text" maxlength="' + (c.max || 20) + '" autocomplete="off" spellcheck="false">';
     box.appendChild(row);
     const el = row.querySelector('input'); el.value = S[c.id];
+    ui[c.id] = v => { el.value = v; };
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
+if (E.bindUI) E.bindUI({ set: setVal });
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();

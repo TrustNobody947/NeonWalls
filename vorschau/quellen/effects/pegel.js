@@ -2,7 +2,7 @@
 // läuft im eingestellten Tempo und wechselt alle paar Takte zwischen Intro, Hauptteil, Breakdown, Aufbau und Drop.
 // Dunkle Segmente bleiben schwach sichtbar, oben halten kleine Spitzenwerte kurz die Stellung.
 // Beim Entsperren macht die Anzeige zuerst einen Selbsttest wie beim Einschalten eines Verstärkers.
-const settings = { tempo: 5, gain: 6, style: 0, bands: 16, color: 0, peaks: 0, pos: 1 };
+const settings = { tempo: 5, gain: 6, style: 0, bands: 16, color: 0, peaks: 0, pos: 1, after: 5, mirror: 0 };
 const bpmOf = v => 80 + (v - 1) * 8;
 const controls = [
   { type: 'range', id: 'tempo', label: 'Tempo', min: 1, max: 10, fmt: v => bpmOf(v) + ' BPM' },
@@ -12,6 +12,8 @@ const controls = [
   { type: 'choice', id: 'color', label: 'Farbe', options: ['Klassisch', 'Cyan', 'Pink', 'Bernstein', 'Regenbogen'] },
   { type: 'choice', id: 'peaks', label: 'Spitzenwerte', options: ['An', 'Aus'] },
   { type: 'choice', id: 'pos', label: 'Position', options: ['Mitte', 'Unten'] },
+  { type: 'range', id: 'after', label: 'Nachleuchten', min: 0, max: 10, fmt: lvl },
+  { type: 'choice', id: 'mirror', label: 'Spiegelung (bei Balken)', options: ['An', 'Aus'] },
 ];
 const MONO = 'ui-monospace, "Roboto Mono", Menlo, monospace';
 const lerpC = (a, b, k) => [a[0] + (b[0] - a[0]) * k | 0, a[1] + (b[1] - a[1]) * k | 0, a[2] + (b[2] - a[2]) * k | 0];
@@ -33,6 +35,7 @@ const ckey = c => c[0] + ',' + c[1] + ',' + c[2];
 
 let W = 1, H = 1, dpr = 1, t = 0;
 let nb = 16, nseg = 18, cells = [], unlit = null, sprites = {}, segW = 1, segH = 1, pad = 1, labels = [];
+let glowLv = new Float32Array(1), floorY = -1, fx0 = 0, fx1 = 0, refl = null, rx = null;
 let disp = new Float32Array(64), peak = new Float32Array(64), hold = new Float32Array(64), flut = new Float32Array(64);
 let beat = 0, lastStep = -1, voices = [], song = null, test = -1, drop = 0, curSec = 'main', bed = 0, pump = 1;
 const BED = { intro: 0.1, main: 0.2, break: 0.17, build: 0.2, drop: 0.28 };
@@ -85,7 +88,7 @@ function spectrum(x) {
 
 // ---------- Aufbau der Anzeige ----------
 function layout() {
-  cells = []; labels = [];
+  cells = []; labels = []; floorY = -1;
   const st = settings.style, bottom = settings.pos === 1;
   if (st === 2) { // Stereo: zwei waagerechte Reihen
     nb = 2; nseg = 30;
@@ -110,6 +113,7 @@ function layout() {
       const y1 = H * (bottom ? 0.88 : 0.7), y0 = y1 - H * 0.36, rh = (y1 - y0) / nseg;
       segH = rh * 0.68;
       for (let b = 0; b < nb; b++) for (let s = 0; s < nseg; s++) cells.push({ b, s, x: x0 + b * cw + (cw - segW) / 2, y: y1 - (s + 1) * rh + (rh - segH) / 2, p: s / (nseg - 1) });
+      floorY = y1 + rh * 0.2; fx0 = x0 - cw; fx1 = x1 + cw;
     } else {
       nseg = 11;
       const cy = H * (bottom ? 0.7 : 0.52), rh = H * 0.19 / nseg;
@@ -123,12 +127,19 @@ function layout() {
   pad = Math.round(Math.min(segW, segH) * 0.9 + 3 * dpr);
   sprites = {};
   for (const c of cells) c.col = settings.color === 0 && settings.style === 2 ? (c.red ? [255, 52, 42] : c.p > 0.7 ? [255, 214, 40] : [60, 255, 95]) : segColor(c.p, c.b / Math.max(1, nb - 1));
-  // dunkle Segmente einmal vorzeichnen
+  glowLv = new Float32Array(cells.length);
+  if (floorY > 0) { refl = mk(W, Math.max(2, Math.ceil(H * 0.17))); rx = refl.getContext('2d'); }
+  // dunkle Segmente einmal vorzeichnen: Vertiefung im Gehäuse, dunkle Linse mit Glanz
   unlit = mk(W, H);
-  const x = unlit.getContext('2d'), r = Math.min(segW, segH) * 0.18;
+  const x = unlit.getContext('2d'), r = Math.min(segW, segH) * 0.22, rim = Math.max(1, Math.round(dpr * 0.9));
+  const dk = (c, k, add) => 'rgb(' + Math.round(c[0] * k + add) + ',' + Math.round(c[1] * k + add) + ',' + Math.round(c[2] * k + add) + ')';
   for (const c of cells) {
-    x.fillStyle = 'rgba(' + ckey(c.col) + ',0.09)';
-    x.beginPath(); roundRect(x, c.x, c.y, segW, segH, r); x.fill();
+    x.fillStyle = '#020202'; x.beginPath(); roundRect(x, c.x - rim, c.y - rim, segW + rim * 2, segH + rim * 2, r + rim); x.fill();
+    x.fillStyle = 'rgba(255,255,255,0.07)'; x.fillRect(c.x + r, c.y + segH + rim * 0.4, Math.max(1, segW - r * 2), Math.max(1, rim * 0.6));
+    const g = x.createLinearGradient(0, c.y, 0, c.y + segH);
+    g.addColorStop(0, dk(c.col, 0.2, 14)); g.addColorStop(0.5, dk(c.col, 0.11, 5)); g.addColorStop(1, dk(c.col, 0.07, 3));
+    x.fillStyle = g; x.beginPath(); roundRect(x, c.x, c.y, segW, segH, r); x.fill();
+    x.fillStyle = 'rgba(255,255,255,0.07)'; x.beginPath(); roundRect(x, c.x + segW * 0.12, c.y + segH * 0.1, segW * 0.76, Math.max(1, segH * 0.26), r * 0.5); x.fill();
   }
   x.font = Math.round(9 * dpr) + 'px ' + MONO; x.textBaseline = 'middle'; x.fillStyle = 'rgba(200,210,200,0.45)';
   for (const l of labels) { x.textAlign = l.align; x.fillText(l.text, l.x, l.y); }
@@ -142,13 +153,20 @@ function roundRect(x, a, b, w, h, r) {
 function sprite(col) {
   const k = ckey(col);
   if (sprites[k]) return sprites[k];
-  const c = mk(segW + pad * 2, segH + pad * 2), x = c.getContext('2d'), r = Math.min(segW, segH) * 0.18;
+  const c = mk(segW + pad * 2, segH + pad * 2), x = c.getContext('2d'), r = Math.min(segW, segH) * 0.22;
+  const lift = q => 'rgb(' + Math.round(col[0] + (255 - col[0]) * q) + ',' + Math.round(col[1] + (255 - col[1]) * q) + ',' + Math.round(col[2] + (255 - col[2]) * q) + ')';
+  const dim = q => 'rgb(' + Math.round(col[0] * q) + ',' + Math.round(col[1] * q) + ',' + Math.round(col[2] * q) + ')';
   x.shadowColor = 'rgba(' + k + ',0.9)'; x.shadowBlur = pad * 0.75;
   x.fillStyle = 'rgb(' + k + ')'; x.beginPath(); roundRect(x, pad, pad, segW, segH, r); x.fill();
   x.shadowBlur = 0;
+  // gewölbte Linse: oben heller, unten satter, in der Mitte ein leuchtender Kern
   const g = x.createLinearGradient(0, pad, 0, pad + segH);
-  g.addColorStop(0, 'rgba(255,255,255,0.45)'); g.addColorStop(0.5, 'rgba(255,255,255,0.08)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  g.addColorStop(0, lift(0.5)); g.addColorStop(0.45, 'rgb(' + k + ')'); g.addColorStop(1, dim(0.6));
   x.fillStyle = g; x.beginPath(); roundRect(x, pad, pad, segW, segH, r); x.fill();
+  const rg = x.createRadialGradient(pad + segW / 2, pad + segH * 0.55, 0, pad + segW / 2, pad + segH * 0.55, Math.max(segW, segH) * 0.6);
+  rg.addColorStop(0, 'rgba(255,255,255,0.32)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = rg; x.beginPath(); roundRect(x, pad, pad, segW, segH, r); x.fill();
+  x.fillStyle = 'rgba(255,255,255,0.55)'; x.beginPath(); roundRect(x, pad + segW * 0.14, pad + segH * 0.1, segW * 0.72, Math.max(1, segH * 0.22), r * 0.5); x.fill();
   sprites[k] = c;
   return c;
 }
@@ -165,7 +183,7 @@ return {
     hit('snare', 1, 0.5, 0.5, 0.45); hit('ohat', 0.9, 0.85, 0.5, 0.2);
   },
   wake() { test = 0; voices = []; },
-  change(id) { if (id !== 'tempo' && id !== 'gain') layout(); },
+  change(id) { if (id !== 'tempo' && id !== 'gain' && id !== 'after' && id !== 'mirror') layout(); },
   frame(ctx, dt) {
     t += dt;
     const bpm = bpmOf(settings.tempo), g = 0.55 + settings.gain * 0.07;
@@ -213,13 +231,32 @@ return {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     ctx.drawImage(unlit, 0, 0);
     ctx.globalCompositeOperation = 'lighter';
-    for (const c of cells) {
-      const lit = Math.floor(disp[c.b] * nseg + 0.25), pk = settings.peaks === 0 && test < 0 ? Math.min(nseg - 1, Math.floor(peak[c.b] * nseg - 0.25)) : -1;
-      if (c.s < lit || (c.s === pk && pk >= lit)) {
-        ctx.globalAlpha = c.s === pk && pk >= lit ? 0.85 : 1;
-        ctx.drawImage(sprite(c.col), c.x - pad, c.y - pad);
+    // Nachleuchten: ausgehende Segmente verglimmen und flimmern dabei leicht
+    const decay = Math.exp(-dt / (0.03 + settings.after * 0.045));
+    for (let ci = 0; ci < cells.length; ci++) {
+      const c = cells[ci], lit = Math.floor(disp[c.b] * nseg + 0.25), pk = settings.peaks === 0 && test < 0 ? Math.min(nseg - 1, Math.floor(peak[c.b] * nseg - 0.25)) : -1;
+      const isPk = c.s === pk && pk >= lit, on = c.s < lit || isPk;
+      const v = on ? (isPk ? 0.85 : 1) : glowLv[ci] * decay;
+      glowLv[ci] = v;
+      if (v < 0.015) continue;
+      ctx.globalAlpha = on ? v : v * (settings.after > 0 ? 0.75 + 0.25 * Math.random() : 1);
+      ctx.drawImage(sprite(c.col), c.x - pad, c.y - pad);
+    }
+    ctx.globalAlpha = 1;
+    // Spiegelung auf glänzender Fläche unter den Balken
+    if (floorY > 0 && settings.mirror === 0 && refl) {
+      const hh = Math.floor(Math.min(refl.height, H - floorY)), x0 = Math.max(0, fx0), w = Math.min(W, fx1) - x0;
+      if (hh > 2 && w > 1) {
+        rx.save(); rx.globalCompositeOperation = 'copy'; rx.globalAlpha = 1; rx.translate(0, hh); rx.scale(1, -1);
+        rx.drawImage(ctx.canvas, x0, floorY - hh, w, hh, x0, 0, w, hh); rx.restore();
+        rx.globalCompositeOperation = 'destination-in';
+        const fg = rx.createLinearGradient(0, 0, 0, hh);
+        fg.addColorStop(0, 'rgba(0,0,0,1)'); fg.addColorStop(0.4, 'rgba(0,0,0,0.35)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+        rx.fillStyle = fg; rx.fillRect(x0, 0, w, hh);
+        rx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.28; ctx.drawImage(refl, x0, 0, w, hh, x0, floorY, w, hh); ctx.globalAlpha = 1;
       }
     }
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = 'source-over';
   },
 };

@@ -39,6 +39,10 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{flex:1 1 0;min-width:0;padding:8px 6px;font-size:13px}
 .seg button.on{background:var(--accent);color:#000;border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.grid .grp{grid-column:1/-1;margin-top:6px;font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.grid button{min-width:0;padding:10px 8px;font-size:18px;font-weight:400;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid button.on{background:var(--accent);color:#000;border-color:transparent}
 .btns{display:flex;flex-wrap:wrap;gap:8px}
 button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
   border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
@@ -76,10 +80,13 @@ const per = (rate, dt) => 1 - Math.exp(-rate * dt);
 
 // ---------- Effekt ----------
 const E = (function () {
-// Nixie-Uhr: die echte Uhrzeit in Ziffernröhren. In jeder Glasröhre stehen alle Ziffern aus dünnem Draht hintereinander,
-// die aktive glüht, die anderen sind als feines Drahtgewirr dahinter zu sehen. Vorne liegt das Anodengitter.
+// Nixie-Uhr: die echte Uhrzeit in Ziffernröhren, möglichst fotorealistisch.
+// Jede Röhre: Glaskolben mit Pumpspitze oben, Getterspiegel in der Kuppel, Glimmerscheiben oben und unten, Haltestäbe,
+// Zuleitungen im Fuß. Innen stehen die zehn Drahtziffern hintereinander (Reihenfolge wie bei der IN-14). Die leuchtende Ziffer
+// wird von den Drähten davor teilweise verdeckt, vorne liegt das gewölbte Wabengitter. Das Glühen spiegelt sich im Glas,
+// auf den Glimmerscheiben und auf der glänzenden Fläche, auf der die Röhren stehen.
 // Beim Entsperren, zur vollen Stunde und auf Knopfdruck laufen die Ziffern wie ein Spielautomat durch.
-const settings = { mode: 0, arrange: 0, pos: 1, color: 0, glow: 6, flicker: 3 };
+const settings = { mode: 0, arrange: 0, pos: 1, color: 0, glow: 6, flicker: 3, mirror: 0 };
 const controls = [
   { type: 'choice', id: 'mode', label: 'Anzeige', options: ['Uhrzeit', 'Mit Sekunden'] },
   { type: 'choice', id: 'arrange', label: 'Anordnung', options: ['Gestapelt', 'In einer Reihe'] },
@@ -87,15 +94,18 @@ const controls = [
   { type: 'choice', id: 'color', label: 'Farbe', options: ['Orange', 'Eisblau', 'Grün', 'Pink'] },
   { type: 'range', id: 'glow', label: 'Glühen', min: 1, max: 10, fmt: lvl },
   { type: 'range', id: 'flicker', label: 'Flackern', min: 0, max: 10, fmt: lvl },
+  { type: 'choice', id: 'mirror', label: 'Spiegelung', options: ['An', 'Aus'] },
 ];
 const COLORS = [
-  { core: [255, 226, 180], glow: [255, 128, 34], outer: [255, 72, 8] },
-  { core: [225, 246, 255], glow: [90, 185, 255], outer: [40, 110, 255] },
-  { core: [225, 255, 230], glow: [70, 255, 130], outer: [20, 200, 80] },
-  { core: [255, 225, 246], glow: [255, 85, 205], outer: [225, 30, 150] },
+  { core: [255, 236, 200], hot: [255, 196, 96], glow: [255, 124, 30], outer: [255, 70, 8] },
+  { core: [230, 248, 255], hot: [150, 215, 255], glow: [80, 175, 255], outer: [40, 105, 255] },
+  { core: [230, 255, 236], hot: [150, 255, 180], glow: [60, 245, 120], outer: [20, 190, 80] },
+  { core: [255, 230, 248], hot: [255, 150, 225], glow: [255, 80, 200], outer: [220, 30, 150] },
 ];
 const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a < 0 ? 0 : a > 1 ? 1 : a).toFixed(3) + ')';
 const TAU = Math.PI * 2, PI = Math.PI;
+const RATIO = 2.1, TILT = 0.12;
+const smooth = (a, b, x) => { const u = clamp((x - a) / (b - a), 0, 1); return u * u * (3 - 2 * u); };
 // Ziffern aus Draht, in einem Kasten von 0,6 x 1 (y nach unten)
 const DIG = [
   [['M', 0.57, 0.5], ['E', 0.3, 0.5, 0.27, 0.47, 0, TAU]],
@@ -109,152 +119,270 @@ const DIG = [
   [['M', 0.52, 0.255], ['A', 0.3, 0.255, 0.22, 0, TAU], ['M', 0.56, 0.725], ['A', 0.3, 0.725, 0.26, 0, TAU]],
   [['M', 0.57, 0.295], ['A', 0.3, 0.295, 0.27, 0, TAU], ['M', 0.57, 0.31], ['Q', 0.52, 0.8, 0.08, 0.96]],
 ];
-function digitPath(x, d, x0, y0, s, sx) {
-  sx = sx || 1;
+// Lage im Ziffernstapel wie bei der IN-14, von vorne nach hinten: 1 6 2 7 5 0 4 9 8 3
+const DEPTH = [5, 0, 2, 9, 6, 4, 1, 3, 8, 7];
+function digitPath(x, d, x0, y0, s) {
   x.beginPath();
   for (const c of DIG[d]) {
-    if (c[0] === 'M') x.moveTo(x0 + c[1] * s * sx, y0 + c[2] * s);
-    else if (c[0] === 'L') x.lineTo(x0 + c[1] * s * sx, y0 + c[2] * s);
-    else if (c[0] === 'Q') x.quadraticCurveTo(x0 + c[1] * s * sx, y0 + c[2] * s, x0 + c[3] * s * sx, y0 + c[4] * s);
-    else if (c[0] === 'A') x.ellipse(x0 + c[1] * s * sx, y0 + c[2] * s, c[3] * s * sx, c[3] * s, 0, c[4], c[5]);
-    else if (c[0] === 'E') x.ellipse(x0 + c[1] * s * sx, y0 + c[2] * s, c[3] * s * sx, c[4] * s, 0, c[5], c[6]);
+    if (c[0] === 'M') x.moveTo(x0 + c[1] * s, y0 + c[2] * s);
+    else if (c[0] === 'L') x.lineTo(x0 + c[1] * s, y0 + c[2] * s);
+    else if (c[0] === 'Q') x.quadraticCurveTo(x0 + c[1] * s, y0 + c[2] * s, x0 + c[3] * s, y0 + c[4] * s);
+    else if (c[0] === 'A') x.ellipse(x0 + c[1] * s, y0 + c[2] * s, c[3] * s, c[3] * s, 0, c[4], c[5]);
+    else if (c[0] === 'E') x.ellipse(x0 + c[1] * s, y0 + c[2] * s, c[3] * s, c[4] * s, 0, c[5], c[6]);
   }
 }
 
 let W = 1, H = 1, dpr = 1, t = 0;
-let tubes = [], seps = [], st = [], lit = [], tangle = null, back = null, front = null, halo = null, dot = null;
-let tw = 1, th = 1, dh = 1, pad = 1, lastMin = -1, lastHour = -1, sepOff = 0, aging = [], weak = -1, order = [];
+let tubes = [], rows = [], seps = [], st = [], lit = [], occ = [], tangle = null, back = null, front = null, inner = null, halo = null, dot = null;
+let tw = 1, th = 1, dh = 1, pad = 1, m = 1, tipH = 1, mb = 1, lastMin = -1, lastHour = -1, sepOff = 0, aging = [], weak = -1, refl = null, rx = null;
 
 function layout() {
   const n = settings.mode ? 6 : 4;
-  tubes = []; seps = [];
+  tubes = []; seps = []; rows = [];
   const cyF = [0.3, 0.5, 0.68][settings.pos];
   if (settings.arrange === 0) {
-    const R = n / 2, avail = H * (R === 2 ? 0.6 : 0.78), sepG = Math.min(W, H) * 0.075;
-    th = (avail - (R - 1) * sepG) / R; tw = Math.min(th / 1.72, W * 0.36); th = tw * 1.72;
-    const gapX = tw * 0.12, blockH = R * th + (R - 1) * sepG;
-    const y0 = clamp(cyF * H - blockH / 2, H * 0.07, Math.max(H * 0.07, H * 0.95 - blockH));
+    const R = n / 2, avail = H * (R === 2 ? 0.62 : 0.8), sepG = Math.min(W, H) * 0.09;
+    th = (avail - (R - 1) * sepG) / R; tw = Math.min(th / RATIO, W * 0.33); th = tw * RATIO;
+    const gapX = tw * 0.14, blockH = R * th + (R - 1) * sepG;
+    const y0 = clamp(cyF * H - blockH / 2, H * 0.06, Math.max(H * 0.06, H * 0.95 - blockH));
     for (let r = 0; r < R; r++) {
       const y = y0 + r * (th + sepG);
       tubes.push({ x: W / 2 - gapX / 2 - tw, y }, { x: W / 2 + gapX / 2, y });
-      if (r < R - 1) seps.push({ x: W / 2, y: y + th + sepG / 2 - th * 0.03, horiz: true });
+      rows.push({ x0: W / 2 - gapX / 2 - tw * 1.6, x1: W / 2 + gapX / 2 + tw * 1.6, top: y, bottom: y + th, room: r < R - 1 ? sepG * 0.8 : H - (y + th) });
+      if (r < R - 1) seps.push({ x: W / 2, y: y + th + sepG * 0.55, horiz: true });
     }
   } else {
     const nsep = n / 2 - 1, gap = 0.1, sepW = 0.42;
-    tw = Math.min(W * 0.94 / (n + (n - 1) * gap + nsep * sepW), H * 0.5 / 1.72); th = tw * 1.72;
+    tw = Math.min(W * 0.94 / (n + (n - 1) * gap + nsep * sepW), H * 0.5 / RATIO); th = tw * RATIO;
     const total = tw * (n + (n - 1) * gap + nsep * sepW);
-    const y = clamp(cyF * H - th / 2, H * 0.07, H * 0.95 - th);
+    const y = clamp(cyF * H - th / 2, H * 0.06, H * 0.95 - th);
     let x = (W - total) / 2;
     for (let i = 0; i < n; i++) {
       tubes.push({ x, y }); x += tw;
       if (i < n - 1) {
-        if (i % 2 === 1) { seps.push({ x: x + tw * (gap + sepW / 2), y: y + th * 0.41, horiz: false }); x += tw * (sepW + gap * 2); }
+        if (i % 2 === 1) { seps.push({ x: x + tw * (gap + sepW / 2), y: y + th * 0.415, horiz: false }); x += tw * (sepW + gap * 2); }
         else x += tw * gap;
       }
     }
+    rows.push({ x0: (W - total) / 2 - tw * 0.6, x1: (W + total) / 2 + tw * 0.6, top: y, bottom: y + th, room: H - (y + th) });
   }
-  dh = th * 0.46;
+  dh = th * 0.44;
+  m = Math.ceil(tw * 0.1 + 4); tipH = Math.ceil(tw * 0.08); mb = Math.ceil(th * 0.14);
+  refl = mk(W, Math.ceil(th * 0.45) + 2); rx = refl.getContext('2d');
 }
-const digitX = tb => tb.x + tw / 2 - dh * 0.3, digitY = tb => tb.y + th * 0.18;
+const digitX = tb => tb.x + tw / 2 - dh * 0.3, digitY = tb => tb.y + th * 0.195;
+// Lage einer Ziffer im Stapel: hintere etwas kleiner und (Blick leicht von oben) etwas höher
+const place = d => { const k = DEPTH[d], s = 1 - 0.018 * k; return [pad + dh * 0.6 * (1 - s) / 2, pad + dh * (1 - s) / 2 - k * 0.005 * dh, dh * s]; };
 
-// Glasröhre mit Kuppel oben
-function tubeShape(x, ox, oy) {
-  const r = tw / 2, b = th * 0.87, rb = tw * 0.12;
+// Glaskolben: Kuppel oben, Boden als Ellipse (Blick leicht von oben)
+function glassPath(x, ox, oy) {
+  const r = tw / 2, ry = r * TILT * 1.4, yb = th - ry;
   x.beginPath();
   x.moveTo(ox, oy + r);
   x.arc(ox + r, oy + r, r, PI, TAU);
-  x.lineTo(ox + tw, oy + b - rb);
-  x.quadraticCurveTo(ox + tw, oy + b, ox + tw - rb, oy + b);
-  x.lineTo(ox + rb, oy + b);
-  x.quadraticCurveTo(ox, oy + b, ox, oy + b - rb);
+  x.lineTo(ox + tw, oy + yb);
+  x.ellipse(ox + r, oy + yb, r, ry, 0, 0, PI);
   x.closePath();
 }
+// Wabengitter auf einem Zylinder: zum Rand hin gestaucht und leicht nach oben gebogen
+function meshPath(x, ox, oy) {
+  const R = tw * 0.36, cx = ox + tw / 2, hs = dh / 15, hh = hs * Math.sqrt(3), umax = 1.4, smax = R * umax;
+  x.beginPath();
+  for (let v = oy + th * 0.11, row = 0; v < oy + th * 0.72; v += hh / 2, row++) {
+    for (let s = -smax + (row % 2) * hs * 1.5; s < smax + hs * 3; s += hs * 3) {
+      for (let k = 0; k <= 6; k++) {
+        const u = clamp((s + Math.cos(k * PI / 3) * hs) / R, -umax, umax), vv = v + Math.sin(k * PI / 3) * hs;
+        const px = cx + R * Math.sin(u), py = vv - R * (1 - Math.cos(u)) * TILT;
+        if (k === 0) x.moveTo(px, py); else x.lineTo(px, py);
+      }
+    }
+  }
+}
+function ellipseAt(x, cx, cy, rx, ry) { x.beginPath(); x.ellipse(cx, cy, Math.max(0.5, rx), Math.max(0.5, ry), 0, 0, TAU); }
+// senkrechter Lichtstreifen mit weichen Enden
+function streak(x, ox, oy, x0, w0, a, y0, y1) {
+  const lg = x.createLinearGradient(ox + x0, 0, ox + x0 + w0, 0);
+  lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.45, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = lg;
+  const n = 28;
+  for (let i = 0; i < n; i++) {
+    const v = i / (n - 1), e = smooth(0, 0.18, v) * (1 - smooth(0.75, 1, v));
+    x.globalAlpha = a * e;
+    x.fillRect(ox + x0, oy + y0 + (y1 - y0) * i / n, w0, (y1 - y0) / n + 1);
+  }
+  x.globalAlpha = 1;
+}
+
 function genSprites() {
-  const C = COLORS[settings.color], g = settings.glow / 10, sw = Math.max(1, dh * 0.04);
+  const C = COLORS[settings.color], g = settings.glow / 10, sw = Math.max(1, dh * 0.038);
   pad = Math.round(dh * (0.2 + 0.28 * g));
   const sw2 = Math.round(dh * 0.6 + pad * 2), sh2 = Math.round(dh + pad * 2);
-  // leuchtende Ziffern
+  // leuchtende Ziffern: weiter Schein, Glimmsaum, unruhiges Plasma, heißer Kern
   lit = [];
   for (let d = 0; d < 10; d++) {
-    const c = mk(sw2, sh2), x = c.getContext('2d');
+    const c = mk(sw2, sh2), x = c.getContext('2d'), P = place(d);
     x.lineCap = 'round'; x.lineJoin = 'round';
-    digitPath(x, d, pad, pad, dh);
+    digitPath(x, d, P[0], P[1], P[2]);
     x.shadowColor = rgba(C.outer, 1); x.shadowBlur = pad * 0.75;
-    x.strokeStyle = rgba(C.glow, 0.25 + 0.2 * g); x.lineWidth = sw * 2.6; x.stroke();
-    x.shadowColor = rgba(C.glow, 1); x.shadowBlur = pad * 0.25;
-    x.strokeStyle = rgba(C.glow, 0.9); x.lineWidth = sw * 1.5; x.stroke();
+    x.strokeStyle = rgba(C.glow, 0.22 + 0.2 * g); x.lineWidth = sw * 2.8; x.stroke();
+    x.shadowColor = rgba(C.glow, 1); x.shadowBlur = pad * 0.22;
+    x.strokeStyle = rgba(C.glow, 0.85); x.lineWidth = sw * 1.7; x.stroke();
     x.shadowBlur = 0;
-    x.strokeStyle = rgba(C.core, 1); x.lineWidth = Math.max(1, sw * 0.7); x.stroke();
+    for (let k = 0; k < 5; k++) {
+      digitPath(x, d, P[0] + rnd(-0.3, 0.3) * sw, P[1] + rnd(-0.3, 0.3) * sw, P[2]);
+      x.strokeStyle = rgba(C.glow, 0.14); x.lineWidth = sw * rnd(1.1, 1.6); x.stroke();
+    }
+    digitPath(x, d, P[0], P[1], P[2]);
+    x.strokeStyle = rgba(C.hot, 0.9); x.lineWidth = sw * 1.05; x.stroke();
+    x.strokeStyle = rgba(C.core, 1); x.lineWidth = Math.max(1, sw * 0.55); x.stroke();
     lit.push(c);
   }
-  // die anderen Ziffern als Drahtgewirr dahinter
+  // alle Ziffern als Drahtgewirr, hintere dunkler und leicht unscharf
+  const tc = [Math.round(140 * 0.62 + C.glow[0] * 0.38), Math.round(132 * 0.62 + C.glow[1] * 0.38), Math.round(126 * 0.62 + C.glow[2] * 0.38)];
+  const byDepth = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].sort((a, b) => DEPTH[b] - DEPTH[a]);
   tangle = mk(sw2, sh2);
   const tx = tangle.getContext('2d');
   tx.lineCap = 'round'; tx.lineJoin = 'round';
-  const tc = [Math.round(150 * 0.6 + C.glow[0] * 0.4), Math.round(140 * 0.6 + C.glow[1] * 0.4), Math.round(132 * 0.6 + C.glow[2] * 0.4)];
-  order.forEach((d, k) => {
-    const sc = 1 - k * 0.006, o = (1 - sc) * dh * 0.5;
-    digitPath(tx, d, pad + o, pad + o * 0.6, dh * sc, 1);
-    tx.strokeStyle = rgba(tc, 0.16 - k * 0.006); tx.lineWidth = Math.max(1, sw * 0.55); tx.stroke();
-  });
-  // Röhre: Glas, Getterspiegel in der Kuppel, Sockel
-  const bw = Math.ceil(tw + 4), bh = Math.ceil(th + 4);
+  for (const d of byDepth) {
+    const k = DEPTH[d], P = place(d);
+    tx.filter = k > 2 ? 'blur(' + (k * 0.07 * sw).toFixed(2) + 'px)' : 'none';
+    digitPath(tx, d, P[0], P[1], P[2]);
+    tx.strokeStyle = rgba(tc, 0.22 - k * 0.013); tx.lineWidth = Math.max(1, sw * 0.55); tx.stroke();
+  }
+  tx.filter = 'none';
+  // Drähte vor der leuchtenden Ziffer: dunkel, mit Licht, das um sie herumgreift
+  occ = [];
+  for (let d = 0; d < 10; d++) {
+    const front = byDepth.filter(e => DEPTH[e] < DEPTH[d]);
+    if (!front.length) { occ.push(null); continue; }
+    const c = mk(sw2, sh2), x = c.getContext('2d');
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    for (const e of front) {
+      const P = place(e);
+      digitPath(x, e, P[0], P[1], P[2]);
+      x.strokeStyle = rgba(C.glow, 0.1); x.lineWidth = sw * 1.2; x.stroke();
+      x.strokeStyle = 'rgba(26,20,17,0.72)'; x.lineWidth = Math.max(1, sw * 0.5); x.stroke();
+    }
+    occ.push(c);
+  }
+  // Röhre hinten: Glas, Getterspiegel, Haltestäbe, Glimmerscheiben, Zuleitungen
+  const bw = Math.ceil(tw + 2 * m), bh = Math.ceil(th + 2 * m + tipH + mb), ox = m, oy = m + tipH, r = tw / 2;
+  const micaRx = tw * 0.4, micaRy = micaRx * TILT, yTop = th * 0.115, yBot = th * 0.715, rw = Math.max(1, tw * 0.02);
   back = mk(bw, bh);
   const bx = back.getContext('2d');
-  tubeShape(bx, 2, 2);
-  bx.fillStyle = 'rgba(255,255,255,0.025)'; bx.fill();
-  const gt = bx.createRadialGradient(2 + tw / 2, 2 + tw * 0.35, 0, 2 + tw / 2, 2 + tw * 0.35, tw * 0.55);
-  gt.addColorStop(0, 'rgba(190,195,210,0.10)'); gt.addColorStop(1, 'rgba(190,195,210,0)');
-  bx.fillStyle = gt; bx.fill();
-  const sy = 2 + th * 0.85, sh = th * 0.15 - 1;
-  const sg = bx.createLinearGradient(0, sy, 0, sy + sh);
-  sg.addColorStop(0, '#1d1d20'); sg.addColorStop(0.35, '#0e0e10'); sg.addColorStop(1, '#050506');
-  bx.fillStyle = sg; bx.fillRect(2 + tw * 0.05, sy, tw * 0.9, sh);
-  bx.fillStyle = 'rgba(255,255,255,0.10)'; bx.fillRect(2 + tw * 0.05, sy, tw * 0.9, Math.max(1, dpr * 0.6));
-  // vorne: Anodengitter, Glanzlichter und Glaskante
+  bx.save(); glassPath(bx, ox, oy); bx.clip();
+  bx.fillStyle = 'rgba(255,255,255,0.018)'; bx.fillRect(0, 0, bw, bh);
+  const gt = bx.createRadialGradient(ox + r, oy + r * 0.85, 0, ox + r, oy + r * 0.85, r);
+  gt.addColorStop(0, 'rgba(170,170,182,0.2)'); gt.addColorStop(0.6, 'rgba(120,120,130,0.1)'); gt.addColorStop(1, 'rgba(120,120,130,0)');
+  bx.fillStyle = gt; bx.fillRect(ox, oy, tw, r * 2);
+  const band = bx.createLinearGradient(0, oy + th * 0.84, 0, oy + th);
+  band.addColorStop(0, 'rgba(175,195,185,0)'); band.addColorStop(1, 'rgba(175,195,185,0.12)');
+  bx.fillStyle = band; bx.fillRect(ox, oy + th * 0.84, tw, th * 0.16);
+  bx.restore();
+  for (const xr of [0.13, 0.87]) {
+    const lg = bx.createLinearGradient(ox + xr * tw - rw / 2, 0, ox + xr * tw + rw / 2, 0);
+    lg.addColorStop(0, '#202024'); lg.addColorStop(0.5, '#6e6e76'); lg.addColorStop(1, '#151518');
+    bx.fillStyle = lg; bx.fillRect(ox + xr * tw - rw / 2, oy + yTop, rw, yBot - yTop);
+  }
+  bx.lineWidth = Math.max(1, dpr * 0.5); bx.strokeStyle = 'rgba(140,128,118,0.35)';
+  for (let i = 0; i < 7; i++) {
+    bx.beginPath(); bx.moveTo(ox + r + (i - 3) * tw * 0.075, oy + yBot + micaRy); bx.lineTo(ox + r + (i - 3) * tw * 0.05, oy + th * 0.93); bx.stroke();
+  }
+  bx.beginPath();
+  bx.moveTo(ox + r - tw * 0.14, oy + th * 0.86); bx.lineTo(ox + r + tw * 0.14, oy + th * 0.86);
+  bx.lineTo(ox + r + tw * 0.23, oy + th - r * TILT * 1.4); bx.lineTo(ox + r - tw * 0.23, oy + th - r * TILT * 1.4); bx.closePath();
+  bx.fillStyle = 'rgba(210,220,215,0.05)'; bx.fill(); bx.strokeStyle = 'rgba(255,255,255,0.05)'; bx.stroke();
+  for (const [yy, a] of [[yTop, 0.13], [yBot, 0.1]]) {
+    ellipseAt(bx, ox + r, oy + yy + micaRy * 0.35, micaRx, micaRy); bx.fillStyle = 'rgba(90,90,96,0.25)'; bx.fill();
+    ellipseAt(bx, ox + r, oy + yy, micaRx, micaRy); bx.fillStyle = 'rgba(205,205,212,' + a + ')'; bx.fill();
+    bx.lineWidth = Math.max(1, dpr * 0.6); bx.strokeStyle = 'rgba(235,235,242,0.22)'; bx.stroke();
+  }
+  // Röhre vorne: Wabengitter, Fresnel-Rand, Glanzstreifen, Kante, Kuppellicht, Pumpspitze
   front = mk(bw, bh);
   const fx = front.getContext('2d');
   fx.save();
-  fx.beginPath(); fx.rect(2 + tw * 0.1, 2 + th * 0.1, tw * 0.8, th * 0.7); fx.clip();
-  const hs = dh / 15, hh = hs * Math.sqrt(3);
-  fx.beginPath();
-  for (let yy = 0, row = 0; yy < th + hh; yy += hh / 2, row++) {
-    for (let xx = (row % 2) * hs * 1.5; xx < tw + hs * 3; xx += hs * 3) {
-      const cx = 2 + xx, cy = 2 + yy;
-      fx.moveTo(cx + hs, cy);
-      for (let k = 1; k <= 6; k++) fx.lineTo(cx + Math.cos(k * PI / 3) * hs, cy + Math.sin(k * PI / 3) * hs);
-    }
-  }
-  fx.lineWidth = Math.max(1, dpr * 0.5); fx.strokeStyle = 'rgba(0,0,0,0.55)'; fx.stroke();
+  fx.beginPath(); fx.rect(ox + tw * 0.14, oy + th * 0.12, tw * 0.72, th * 0.59); fx.clip();
+  meshPath(fx, ox, oy);
+  fx.lineJoin = 'round';
+  fx.lineWidth = Math.max(1, dpr * 0.55); fx.strokeStyle = 'rgba(30,19,12,0.6)'; fx.stroke();
+  fx.translate(0, -Math.max(0.5, dpr * 0.4)); fx.lineWidth = Math.max(0.5, dpr * 0.3); fx.strokeStyle = 'rgba(255,255,255,0.04)'; fx.stroke();
   fx.restore();
-  tubeShape(fx, 2, 2);
-  fx.lineWidth = Math.max(1, dpr * 0.8); fx.strokeStyle = 'rgba(255,255,255,0.13)'; fx.stroke();
-  const hl = (x0, w0, a) => {
-    const lg = fx.createLinearGradient(2 + x0, 0, 2 + x0 + w0, 0);
-    lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,' + a + ')'); lg.addColorStop(1, 'rgba(255,255,255,0)');
-    fx.fillStyle = lg; fx.fillRect(2 + x0, 2 + th * 0.16, w0, th * 0.62);
-  };
-  hl(tw * 0.1, tw * 0.09, 0.16); hl(tw * 0.8, tw * 0.05, 0.07);
-  fx.beginPath(); fx.arc(2 + tw / 2, 2 + tw / 2, tw / 2 - tw * 0.08, PI * 1.12, PI * 1.45);
-  fx.lineWidth = Math.max(1, tw * 0.03); fx.strokeStyle = 'rgba(255,255,255,0.12)'; fx.lineCap = 'round'; fx.stroke();
-  // Lichtschein um die Röhre und Punkt für die Trenner
-  const R = Math.round(th * 0.75);
+  fx.save(); glassPath(fx, ox, oy); fx.clip();
+  const fr = fx.createLinearGradient(ox, 0, ox + tw, 0);
+  fr.addColorStop(0, 'rgba(255,255,255,0.17)'); fr.addColorStop(0.06, 'rgba(255,255,255,0.05)'); fr.addColorStop(0.2, 'rgba(255,255,255,0)');
+  fr.addColorStop(0.8, 'rgba(255,255,255,0)'); fr.addColorStop(0.94, 'rgba(255,255,255,0.04)'); fr.addColorStop(1, 'rgba(255,255,255,0.12)');
+  fx.fillStyle = fr; fx.fillRect(ox, oy, tw, th);
+  streak(fx, ox, oy, tw * 0.11, tw * 0.1, 0.3, th * 0.05, th * 0.9);
+  streak(fx, ox, oy, tw * 0.765, tw * 0.06, 0.13, th * 0.12, th * 0.86);
+  fx.restore();
+  glassPath(fx, ox, oy);
+  fx.lineWidth = Math.max(1, dpr * 0.7); fx.strokeStyle = 'rgba(255,255,255,0.15)'; fx.stroke();
+  fx.lineCap = 'round';
+  fx.beginPath(); fx.arc(ox + r, oy + r, r * 0.84, PI * 1.12, PI * 1.42);
+  fx.lineWidth = Math.max(1, tw * 0.035); fx.strokeStyle = 'rgba(255,255,255,0.22)'; fx.stroke();
+  fx.beginPath(); fx.arc(ox + r, oy + r, r * 0.86, PI * 1.62, PI * 1.78);
+  fx.lineWidth = Math.max(1, tw * 0.02); fx.strokeStyle = 'rgba(255,255,255,0.1)'; fx.stroke();
+  fx.beginPath(); fx.ellipse(ox + r, oy + th - r * TILT * 1.4, r * 0.95, r * TILT * 1.3, 0, 0.15 * PI, 0.85 * PI);
+  fx.lineWidth = Math.max(1, dpr * 0.6); fx.strokeStyle = 'rgba(255,255,255,0.1)'; fx.stroke();
+  ellipseAt(fx, ox + r, oy - tipH * 0.35, tw * 0.045, tipH * 0.65);
+  fx.fillStyle = 'rgba(255,255,255,0.07)'; fx.fill(); fx.lineWidth = Math.max(1, dpr * 0.5); fx.strokeStyle = 'rgba(255,255,255,0.22)'; fx.stroke();
+  // Licht der Ziffer im Inneren: Glasrand, Haltestäbe, Glimmerscheiben, Lichtfleck auf der Fläche darunter
+  inner = mk(bw, bh);
+  const ix = inner.getContext('2d');
+  ix.save(); glassPath(ix, ox, oy); ix.clip();
+  for (const [x0, x1] of [[0, 0.15], [1, 0.85]]) {
+    const lg = ix.createLinearGradient(ox + x0 * tw, 0, ox + x1 * tw, 0);
+    lg.addColorStop(0, rgba(C.glow, 0.2)); lg.addColorStop(1, rgba(C.glow, 0));
+    ix.fillStyle = lg;
+    const n = 20;
+    for (let i = 0; i < n; i++) {
+      const v = 0.12 + 0.62 * i / n, e = Math.exp(-Math.pow((v - 0.42) / 0.17, 2));
+      ix.globalAlpha = e; ix.fillRect(ox + Math.min(x0, x1) * tw, oy + v * th, tw * 0.15, th * 0.62 / n + 1);
+    }
+    ix.globalAlpha = 1;
+  }
+  const dg = ix.createRadialGradient(ox + r, oy + r, 0, ox + r, oy + r, r);
+  dg.addColorStop(0, rgba(C.glow, 0.06)); dg.addColorStop(1, rgba(C.glow, 0));
+  ix.fillStyle = dg; ix.fillRect(ox, oy, tw, tw);
+  ix.restore();
+  for (const xr of [0.13, 0.87]) {
+    const side = xr < 0.5 ? 1 : -1, lg = ix.createLinearGradient(0, oy + yTop, 0, oy + yBot);
+    lg.addColorStop(0, rgba(C.glow, 0.1)); lg.addColorStop(0.5, rgba(C.glow, 0.6)); lg.addColorStop(1, rgba(C.glow, 0.15));
+    ix.fillStyle = lg; ix.fillRect(ox + xr * tw + side * rw * 0.15 - rw * 0.2, oy + yTop, Math.max(1, rw * 0.4), yBot - yTop);
+  }
+  for (const [yy, a] of [[yBot, 0.5], [yTop, 0.16]]) {
+    ix.save(); ix.translate(ox + r, oy + yy); ix.scale(1, TILT);
+    const mg = ix.createRadialGradient(0, 0, 0, 0, 0, micaRx);
+    mg.addColorStop(0, rgba(C.glow, a)); mg.addColorStop(0.7, rgba(C.glow, a * 0.35)); mg.addColorStop(1, rgba(C.glow, 0));
+    ix.fillStyle = mg; ix.beginPath(); ix.arc(0, 0, micaRx, 0, TAU); ix.fill();
+    ix.restore();
+  }
+  ix.save(); ix.translate(ox + r, oy + th); ix.scale(1, 0.22);
+  const pg = ix.createRadialGradient(0, 0, 0, 0, 0, tw * 0.95);
+  pg.addColorStop(0, rgba(C.glow, 0.22)); pg.addColorStop(1, rgba(C.glow, 0));
+  ix.fillStyle = pg; ix.fillRect(-tw, -tw, tw * 2, tw * 2);
+  ix.restore();
+  // weiter Schein um die Röhre
+  const R = Math.round(th * 0.7);
   halo = mk(R * 2, R * 2);
   const hx = halo.getContext('2d'), hg = hx.createRadialGradient(R, R, 0, R, R, R);
-  hg.addColorStop(0, rgba(C.outer, 0.16 * (0.4 + g))); hg.addColorStop(0.4, rgba(C.outer, 0.05 * (0.4 + g))); hg.addColorStop(1, rgba(C.outer, 0));
+  hg.addColorStop(0, rgba(C.outer, 0.15 * (0.4 + g))); hg.addColorStop(0.4, rgba(C.outer, 0.05 * (0.4 + g))); hg.addColorStop(1, rgba(C.outer, 0));
   hx.fillStyle = hg; hx.fillRect(0, 0, R * 2, R * 2);
-  const D = Math.max(4, Math.round(tw * 0.22));
+  // Trennpunkt: kleine Glimmlampe mit Glasperle
+  const D = Math.max(5, Math.round(tw * 0.2));
   dot = mk(D * 2, D * 2);
-  const dx = dot.getContext('2d'), dg = dx.createRadialGradient(D, D, 0, D, D, D);
-  dg.addColorStop(0, rgba(C.core, 1)); dg.addColorStop(0.12, rgba(C.core, 0.95)); dg.addColorStop(0.2, rgba(C.glow, 0.7));
-  dg.addColorStop(0.45, rgba(C.outer, 0.18 * (0.5 + g))); dg.addColorStop(1, rgba(C.outer, 0));
-  dx.fillStyle = dg; dx.fillRect(0, 0, D * 2, D * 2);
+  const ddx = dot.getContext('2d'), ddg = ddx.createRadialGradient(D, D, 0, D, D, D);
+  ddg.addColorStop(0, rgba(C.core, 1)); ddg.addColorStop(0.1, rgba(C.hot, 0.95)); ddg.addColorStop(0.2, rgba(C.glow, 0.65));
+  ddg.addColorStop(0.45, rgba(C.outer, 0.16 * (0.5 + g))); ddg.addColorStop(1, rgba(C.outer, 0));
+  ddx.fillStyle = ddg; ddx.fillRect(0, 0, D * 2, D * 2);
+  ddx.beginPath(); ddx.arc(D, D, D * 0.32, PI * 1.1, PI * 1.6);
+  ddx.lineWidth = Math.max(1, D * 0.05); ddx.strokeStyle = 'rgba(255,255,255,0.35)'; ddx.lineCap = 'round'; ddx.stroke();
 }
 
 function timeNow() {
-  const d = new Date(), h = d.getHours(), m = d.getMinutes(), s = d.getSeconds();
-  const arr = [(h / 10) | 0, h % 10, (m / 10) | 0, m % 10, (s / 10) | 0, s % 10];
-  return { arr, ms: d.getMilliseconds(), h, m };
+  const d = new Date(), h = d.getHours(), mi = d.getMinutes(), s = d.getSeconds();
+  const arr = [(h / 10) | 0, h % 10, (mi / 10) | 0, mi % 10, (s / 10) | 0, s % 10];
+  return { arr, ms: d.getMilliseconds(), h, m: mi };
 }
 function initState() {
   const T = timeNow();
@@ -267,19 +395,17 @@ function cycleAll(base, stepT) { for (let i = 0; i < st.length; i++) { st[i].cyc
 function newSet() {
   aging = []; for (let i = 0; i < 6; i++) aging.push(rnd(0.86, 1));
   weak = Math.random() < 0.7 ? rint(0, 5) : -1;
-  order = [1, 6, 2, 7, 5, 0, 4, 9, 8, 3];
-  if (Math.random() < 0.5) order.reverse();
 }
 
 return {
   maxDpr: 3,
   settings, controls,
   actionLabel: 'Durchlaufen',
-  resize(w, h, d) { W = w; H = h; dpr = d; if (!order.length) newSet(); layout(); genSprites(); if (!st.length) initState(); },
+  resize(w, h, d) { W = w; H = h; dpr = d; if (!aging.length) newSet(); layout(); genSprites(); if (!st.length) initState(); },
   newPattern() { newSet(); genSprites(); },
   action() { cycleAll(0.3, 0.12); },
   wake() { cycleAll(0.45, 0.2); },
-  change(id) { if (id !== 'flicker') { layout(); genSprites(); } },
+  change(id) { if (id === 'flicker' || id === 'mirror') return; layout(); genSprites(); },
   frame(ctx, dt) {
     t += dt;
     const T = timeNow(), n = settings.mode ? 6 : 4, fl = settings.flicker / 10;
@@ -292,6 +418,7 @@ return {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     sepOff = Math.max(0, sepOff - dt);
+    let ri = 0;
     for (let i = 0; i < n; i++) {
       const s = st[i], tb = tubes[i];
       if (!tb) continue;
@@ -302,21 +429,52 @@ return {
       const wk = i === weak ? 3.5 : 1;
       if (s.drop > 0) s.drop -= dt; else if (fl > 0 && Math.random() < per(fl * 0.06 * wk, dt)) { s.drop = rnd(0.03, 0.22); s.dropLv = rnd(0.12, 0.7); }
       if (s.gT > 0) s.gT -= dt; else if (fl > 0 && Math.random() < per(fl * 0.035 * wk, dt)) { s.ghost = (s.cur + rint(1, 9)) % 10; s.gT = rnd(0.05, 0.3); s.gLv = rnd(0.1, 0.35); }
-      const bri = aging[i] * (1 - fl * 0.07 * Math.random()) * (s.drop > 0 ? s.dropLv : 1);
-      const px = digitX(tb) - pad, py = digitY(tb) - pad;
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = Math.min(1, bri);
-      ctx.drawImage(halo, tb.x + tw / 2 - halo.width / 2, tb.y + th * 0.41 - halo.height / 2);
+      const bri = Math.min(1, aging[i] * (1 - fl * 0.07 * Math.random()) * (s.drop > 0 ? s.dropLv : 1));
+      const px = digitX(tb) - pad, py = digitY(tb) - pad, sx = tb.x - m, sy = tb.y - m - tipH;
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = bri;
+      ctx.drawImage(halo, tb.x + tw / 2 - halo.width / 2, tb.y + th * 0.415 - halo.height / 2);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      ctx.drawImage(back, tb.x - 2, tb.y - 2);
+      ctx.drawImage(back, sx, sy);
       ctx.drawImage(tangle, px, py);
       ctx.globalCompositeOperation = 'lighter';
       const e = s.fade * s.fade * (3 - 2 * s.fade);
-      if (e < 1) { ctx.globalAlpha = Math.min(1, bri * (1 - e)); ctx.drawImage(lit[s.prev], px, py); }
-      ctx.globalAlpha = Math.min(1, bri * e); ctx.drawImage(lit[s.cur], px, py);
+      if (e < 1) { ctx.globalAlpha = bri * (1 - e); ctx.drawImage(lit[s.prev], px, py); }
+      ctx.globalAlpha = bri * e; ctx.drawImage(lit[s.cur], px, py);
       if (s.gT > 0 && s.ghost !== s.cur) { ctx.globalAlpha = s.gLv * bri; ctx.drawImage(lit[s.ghost], px, py); }
-      ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-      ctx.drawImage(front, tb.x - 2, tb.y - 2);
+      ctx.globalCompositeOperation = 'source-over';
+      if (occ[s.cur]) { ctx.globalAlpha = 0.4 + 0.6 * bri; ctx.drawImage(occ[s.cur], px, py); }
+      ctx.globalAlpha = 1;
+      ctx.drawImage(front, sx, sy);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = bri;
+      ctx.drawImage(inner, sx, sy);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      // Spiegelung, sobald eine Reihe fertig ist
+      const row = rows[ri];
+      if (row && (i === n - 1 || (tubes[i + 1] && tubes[i + 1].y !== tb.y))) {
+        if (settings.mirror === 0) {
+          const rh = Math.max(1, Math.min(th * 0.42, row.room)), x0 = Math.max(0, row.x0), w = Math.min(W, row.x1) - x0, fy = row.bottom;
+          const hh = Math.floor(Math.min(rh, H - fy, refl.height));
+          if (w > 1 && hh > 2) {
+            // Ausschnitt über der Fläche gespiegelt kopieren, nach unten ausblenden und dazuaddieren
+            rx.save(); rx.globalCompositeOperation = 'copy'; rx.globalAlpha = 1;
+            rx.translate(0, hh); rx.scale(1, -1);
+            rx.drawImage(ctx.canvas, x0, fy - hh, w, hh, x0, 0, w, hh);
+            rx.restore();
+            rx.globalCompositeOperation = 'destination-in';
+            const fg = rx.createLinearGradient(0, 0, 0, hh);
+            fg.addColorStop(0, 'rgba(0,0,0,1)'); fg.addColorStop(0.35, 'rgba(0,0,0,0.45)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
+            rx.fillStyle = fg; rx.fillRect(x0, 0, w, hh);
+            const sg = rx.createLinearGradient(x0, 0, x0 + w, 0);
+            sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(0.18, 'rgba(0,0,0,1)'); sg.addColorStop(0.82, 'rgba(0,0,0,1)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+            rx.fillStyle = sg; rx.fillRect(x0, 0, w, hh);
+            rx.globalCompositeOperation = 'source-over';
+            ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.26;
+            ctx.drawImage(refl, x0, 0, w, hh, x0, fy, w, hh);
+            ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+          }
+        }
+        ri++;
+      }
     }
     // Trennpunkte blinken im Sekundentakt
     const on = sepOff > 0 ? 0 : clamp(Math.min(T.ms / 60, (520 - T.ms) / 80), 0, 1);
@@ -349,7 +507,9 @@ function resize() {
 }
 
 // Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
-const box = document.getElementById('controls');
+const box = document.getElementById('controls'), ui = {};
+// Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
+const setVal = (id, v) => { S[id] = v; if (ui[id]) ui[id](v); save(); };
 for (const c of E.controls) {
   const row = document.createElement('div'); row.className = 'row';
   if (c.type === 'range') {
@@ -357,29 +517,35 @@ for (const c of E.controls) {
       '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
     box.appendChild(row);
     const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
-    el.value = S[c.id]; out.textContent = fmt(+el.value);
+    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); };
+    ui[c.id](S[c.id]);
     el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); save(); if (E.change) E.change(c.id); });
-  } else if (c.type === 'choice') {
-    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="seg"></div>';
+  } else if (c.type === 'choice' || c.type === 'grid') {
+    // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
+    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';
     box.appendChild(row);
-    const seg = row.querySelector('.seg');
+    const wrap = row.querySelector('.grid, .seg'), btns = [];
+    let group = null;
     c.options.forEach((o, i) => {
-      const b = document.createElement('button'); b.type = 'button'; b.textContent = o;
-      if (S[c.id] === i) b.classList.add('on');
-      b.addEventListener('click', () => {
-        S[c.id] = i; seg.querySelectorAll('button').forEach((x, j) => x.classList.toggle('on', j === i));
-        save(); if (E.change) E.change(c.id);
-      });
-      seg.appendChild(b);
+      if (o.group && o.group !== group) { const h = document.createElement('div'); h.className = 'grp'; h.textContent = o.group; wrap.appendChild(h); group = o.group; }
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
+      if (o.font) b.style.fontFamily = o.font;
+      if (o.weight) b.style.fontWeight = o.weight;
+      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); });
+      wrap.appendChild(b); btns.push(b);
     });
+    ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
+    ui[c.id](S[c.id]);
   } else if (c.type === 'text') {
     row.innerHTML = '<label for="' + c.id + '">' + c.label + '</label>' +
       '<input id="' + c.id + '" type="text" maxlength="' + (c.max || 20) + '" autocomplete="off" spellcheck="false">';
     box.appendChild(row);
     const el = row.querySelector('input'); el.value = S[c.id];
+    ui[c.id] = v => { el.value = v; };
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
+if (E.bindUI) E.bindUI({ set: setVal });
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();
