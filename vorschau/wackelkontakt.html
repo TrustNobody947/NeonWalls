@@ -83,11 +83,14 @@ const E = (function () {
 // Wackelkontakt: ein loses Displaykabel. Meist ist das Bild ruhig und schwarz, nur ein paar schwache Linien zittern.
 // Dann verliert das Kabel kurz den Kontakt und das Bild reißt in waagerechten Störstreifen auf: bunte Datenzeilen,
 // Blockfehler, Rauschen, Farbversatz, manchmal eine ganze gestörte Bildhälfte. Danach bleiben kurz einzelne Linien hängen.
-const settings = { rate: 5, power: 6, split: 5, idle: 4, pal: 0 };
+// 3D: Die Störstreifen springen ein Stück aus dem Bildschirm heraus (perspektivisch größer, mit leuchtenden Seitenwänden
+// und Schatten auf dem Bild darunter), und einzelne Bruchstücke fliegen auf den Betrachter zu und verschwinden.
+const settings = { rate: 5, power: 6, split: 5, depth: 5, idle: 4, pal: 0 };
 const controls = [
   { type: 'range', id: 'rate', label: 'Wackeln', min: 0, max: 10, fmt: v => v == 0 ? 'nur beim Entsperren' : lvl(v) },
   { type: 'range', id: 'power', label: 'Heftigkeit', min: 1, max: 10, fmt: lvl },
   { type: 'range', id: 'split', label: 'Farbversatz', min: 0, max: 10, fmt: lvl },
+  { type: 'range', id: 'depth', label: 'Tiefe (3D)', min: 0, max: 10, fmt: v => v == 0 ? 'flach' : lvl(v) },
   { type: 'range', id: 'idle', label: 'Ruhe-Rauschen', min: 0, max: 10, fmt: lvl },
   { type: 'choice', id: 'pal', label: 'Störfarben', options: ['Bunt', 'Neon', 'Grün', 'Weiß'] },
 ];
@@ -102,7 +105,7 @@ const TW = 1024, TH = 384, NW = 256, NH = 96;
 
 let W = 1, H = 1, dpr = 1, t = 0;
 let tex = null, texC = null, noise = null;
-let burst = null, after = -1, idle = [], stuck = [], roll = null, rollWait = 4;
+let burst = null, after = -1, idle = [], stuck = [], roll = null, rollWait = 4, frags = [];
 
 // Streifen-Textur: jede Zeile eine Datenzeile mit Segmenten, Strichen oder Rauschen; dazu je eine Kopie pro Farbkanal
 function genTextures() {
@@ -206,7 +209,7 @@ function makeLayout(P, first, flashOk) {
       y: Math.round(clamp(yc + rnd(-0.5, 0.5) * spread, -h * 0.5, H - h * 0.5)), h, kind: Math.random() < 0.2 ? 1 : 0,
       sy: rint(0, TH - 2), sh: Math.max(1, Math.round(h / (dpr * rnd(0.7, 1.6)))),
       tx: rnd(0, TW - tw), tw, xo: Math.random() < 0.5 ? 0 : rnd(-0.22, 0.22) * W,
-      cs: maxCs * rnd(0.3, 1) * (Math.random() < 0.5 ? -1 : 1), a: rnd(0.5, 1),
+      cs: maxCs * rnd(0.3, 1) * (Math.random() < 0.5 ? -1 : 1), a: rnd(0.5, 1), z: Math.pow(Math.random(), 1.3),
     });
   }
   if (Math.random() < 0.15 + 0.35 * P) { // Blockfehler wie bei kaputtem Videosignal
@@ -215,7 +218,7 @@ function makeLayout(P, first, flashOk) {
     for (let r = 0; r < rows; r++) {
       const end = Math.random() < 0.5 ? W : rnd(0.4, 1) * W;
       for (let x = Math.random() < 0.5 ? 0 : rint(0, Math.round(W * 0.5)); x < end; x += bs)
-        if (Math.random() < fill) L.blocks.push({ x, y: y0 + r * bs, s: bs, c: rgb(pick(pal), rnd(0.15, 0.9)) });
+        if (Math.random() < fill) { const col = pick(pal), br = rnd(0.15, 0.9); L.blocks.push({ x, y: y0 + r * bs, s: bs, c: rgb(col, br), d: rgb(col, br * 0.35) }); }
     }
   }
   if (Math.random() < 0.06 + 0.14 * P) { // untere oder obere Bildhälfte verliert den Takt
@@ -224,6 +227,7 @@ function makeLayout(P, first, flashOk) {
   }
   if (flashOk && (first || Math.random() < 0.05 + 0.14 * P)) L.flash = { c: rgb(pick(pal)), a: first ? 0.26 : rnd(0.05, 0.1 + 0.16 * P) };
   if (Math.random() < 0.3) L.vy = rnd(-1, 1) * H * rnd(0.4, 2.5);
+  L.zb = rnd(0.3, 1); L.born = t;
   return L;
 }
 
@@ -234,9 +238,16 @@ function drawTex(ctx, sx, sy, sw, sh, x, y, w, h, cs) {
   ctx.drawImage(texC[2], sx, sy, sw, sh, x - cs, y, w, h);
 }
 
+// Herausspringen: Abstand vom Bildschirm z (0..1) vergrößert perspektivisch um die Bildmitte
+const popAt = (v, c, sc) => c + (v - c) * sc;
+function popNow(L) {
+  const u = Math.min(1, (t - L.born) / 0.06), v = u - 1;
+  return 1 + 2.4 * v * v * v + 1.4 * v * v; // schnell raus, leicht übers Ziel, zurück
+}
 function drawLayout(ctx, L, dt) {
   ctx.imageSmoothingEnabled = false;
   ctx.globalCompositeOperation = 'lighter';
+  const Dd = settings.depth / 10, pop = popNow(L), cx = W / 2, cy = H / 2;
   if (L.flash) { ctx.globalAlpha = L.flash.a; ctx.fillStyle = L.flash.c; ctx.fillRect(0, 0, W, H); }
   if (L.half) {
     const hf = L.half, y0 = hf.up ? 0 : hf.y, hh = hf.up ? hf.y : H - hf.y, rows = Math.min(TH - hf.sy, Math.max(1, Math.round(hh / (dpr * 1.3))));
@@ -249,18 +260,82 @@ function drawLayout(ctx, L, dt) {
     if (b.y > H) b.y -= H + b.h; else if (b.y < -b.h) b.y += H + b.h;
     if (Math.random() < 0.25) b.sy = (b.sy + rint(1, 3)) % (TH - 1);
     const x = b.xo + rnd(-1.5, 1.5) * dpr, sh = Math.max(1, Math.min(b.sh, TH - b.sy));
-    ctx.globalAlpha = b.a;
-    if (b.kind === 1) {
-      const nh = Math.max(1, Math.min(NH - 1, Math.round(b.h / (dpr * 1.5))));
-      ctx.drawImage(noise, rnd(0, NW * 0.7), rint(0, NH - nh), NW * 0.3, nh, x, b.y, W, b.h);
-    } else drawTex(ctx, b.tx, b.sy, b.tw, sh, x, b.y, W, b.h, b.cs);
+    // springt heraus und kommt danach noch ein Stück näher
+    const z = b.z * Dd * pop, sc = 1 + 0.2 * z + 0.45 * b.z * Dd * Math.min(0.2, t - L.born);
+    const nh = b.kind === 1 ? Math.max(1, Math.min(NH - 1, Math.round(b.h / (dpr * 1.5)))) : 0, nsx = rnd(0, NW * 0.7), nsy = rint(0, Math.max(0, NH - nh));
+    const put = (k, a, split) => {
+      const X = popAt(x, cx, k), Y = popAt(b.y, cy, k), w = W * k, h = b.h * k;
+      ctx.globalAlpha = Math.min(1, a);
+      if (b.kind === 1) ctx.drawImage(noise, nsx, nsy, NW * 0.3, nh, X, Y, w, h);
+      else if (split) drawTex(ctx, b.tx, b.sy, b.tw, sh, X, Y, w, h, b.cs * (1 + z));
+      else ctx.drawImage(tex, b.tx, b.sy, b.tw, sh, X, Y, w, h);
+    };
+    if (z > 0.06) {
+      // Lücke, wo der Streifen herausgesprungen ist, und sein Schatten auf dem Bild darunter
+      // (beides nur sichtbar, wo dort gerade etwas leuchtet)
+      ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#000';
+      ctx.globalAlpha = Math.min(0.7, 0.7 * z); ctx.fillRect(0, b.y, W, b.h);
+      ctx.globalAlpha = Math.min(0.45, 0.45 * z); ctx.fillRect(0, b.y + z * 16 * dpr, W, b.h * 1.15);
+      ctx.globalCompositeOperation = 'lighter';
+      // leuchtende Seitenwände zwischen Bildschirm und Vorderfläche
+      ctx.imageSmoothingEnabled = true;
+      for (let k = 1; k <= 3; k++) { const f = k / 4; put(1 + 0.2 * z * f, b.a * 0.2 * (1.2 - f), false); }
+      // Lichtschein um den herausgesprungenen Streifen: er leuchtet jetzt vor dem Glas
+      if (z > 0.25 && b.kind === 0) {
+        const X = popAt(x, cx, sc), Y = popAt(b.y, cy, sc), h = b.h * sc;
+        ctx.globalAlpha = 0.12 * z; ctx.drawImage(tex, b.tx, b.sy, b.tw, sh, X, Y - h * 1.5, W * sc, h * 4);
+      }
+      ctx.imageSmoothingEnabled = false;
+    }
+    put(sc, b.a, true);
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
-  for (const k of L.blocks) { ctx.fillStyle = k.c; ctx.fillRect(k.x, k.y, k.s, k.s); }
+  const zb = L.zb * Dd * pop, sb = 1 + 0.2 * zb;
+  for (const k of L.blocks) {
+    if (zb > 0.06) {
+      ctx.fillStyle = 'rgba(0,0,0,' + Math.min(0.55, 0.55 * zb).toFixed(3) + ')'; ctx.fillRect(k.x + zb * 8 * dpr, k.y + zb * 14 * dpr, k.s, k.s);
+      const m = 1 + 0.1 * zb; ctx.fillStyle = k.d; ctx.fillRect(popAt(k.x, cx, m), popAt(k.y, cy, m), k.s * m, k.s * m);
+    }
+    ctx.fillStyle = k.c; ctx.fillRect(popAt(k.x, cx, sb), popAt(k.y, cy, sb), k.s * sb, k.s * sb);
+  }
 }
 
-function startBurst(P, dur, first) { burst = { left: dur, P, hold: 0, L: null, on: false, first: !!first, flashes: 0 }; }
+// Bruchstücke, die aus dem Bildschirm auf den Betrachter zufliegen
+function spawnFrags(P) {
+  const Dd = settings.depth / 10;
+  if (Dd <= 0 || !tex) return;
+  const n = Math.round(rnd(0, 2 + 4 * P) * Dd);
+  for (let i = 0; i < n && frags.length < 14; i++) {
+    const w = rnd(0.06, 0.3) * W, h = rnd(3, 26) * dpr, sw = rnd(20, 160);
+    frags.push({ x: rnd(0, W - w), y: rnd(0.05, 0.95) * H, w, h, sx: rnd(0, TW - sw), sy: rint(0, TH - 4), sw, sh: Math.max(1, h / (dpr * 1.4)),
+      z: 0, vz: rnd(2.5, 5.5), rot: 0, vr: rnd(-1.2, 1.2), age: 0, life: rnd(0.22, 0.45), a: rnd(0.6, 1), cs: settings.split * rnd(1, 3) * dpr });
+  }
+}
+function drawFrags(ctx, dt) {
+  if (!frags.length) return;
+  const cx = W / 2, cy = H / 2;
+  ctx.imageSmoothingEnabled = true; ctx.globalCompositeOperation = 'lighter';
+  frags = frags.filter(f => {
+    f.age += dt; if (f.age >= f.life) return false;
+    f.z += f.vz * dt; f.rot += f.vr * dt;
+    const k = f.age / f.life;
+    // drei Abzüge entlang des Flugwegs: Bewegungsunschärfe
+    for (let j = 2; j >= 0; j--) {
+      const zz = Math.max(0, f.z - j * f.vz * 0.012), sc = 1 + 0.35 * zz * zz;
+      const mx = popAt(f.x + f.w / 2, cx, sc), my = popAt(f.y + f.h / 2, cy, sc);
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(f.rot * zz * 0.4);
+      ctx.globalAlpha = f.a * (1 - k) * (1 - k) * (j ? 0.25 : 1);
+      if (j === 0) drawTex(ctx, f.sx, f.sy, f.sw, f.sh, -f.w * sc / 2, -f.h * sc / 2, f.w * sc, f.h * sc, f.cs * (1 + zz));
+      else ctx.drawImage(tex, f.sx, f.sy, f.sw, f.sh, -f.w * sc / 2, -f.h * sc / 2, f.w * sc, f.h * sc);
+      ctx.restore();
+    }
+    return true;
+  });
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+}
+
+function startBurst(P, dur, first) { burst = { left: dur, P, hold: 0, L: null, on: false, first: !!first, flashes: 0 }; if (Math.random() < 0.35 + 0.6 * P) spawnFrags(P); }
 function endBurst() {
   const pal = PALS[settings.pal];
   if (Math.random() < 0.55) for (let k = rint(1, 2); k > 0; k--) {
@@ -275,7 +350,10 @@ function stepBurst(ctx, dt) {
   if (b.hold <= 0) {
     b.on = b.first || Math.random() < 0.7;
     b.hold = b.on ? rnd(0.017, 0.14) : rnd(0.02, 0.16);
-    if (b.on) { b.L = makeLayout(b.P * rnd(0.55, 1), b.first, b.flashes < 2); if (b.L.flash) b.flashes++; b.first = false; }
+    if (b.on) {
+      b.L = makeLayout(b.P * rnd(0.55, 1), b.first, b.flashes < 2); if (b.L.flash) b.flashes++; b.first = false;
+      if (Math.random() < 0.12 * b.P) spawnFrags(b.P * 0.5);
+    }
   }
   if (b.on && b.L) drawLayout(ctx, b.L, dt);
   if (b.left <= 0) { burst = null; endBurst(); }
@@ -321,6 +399,7 @@ return {
     }
     if (burst) stepBurst(ctx, dt);
     drawStuck(ctx, dt);
+    drawFrags(ctx, dt);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   },
 };
@@ -383,11 +462,28 @@ for (const c of E.controls) {
   }
 }
 if (E.bindUI) E.bindUI({ set: setVal });
+if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
-cv.addEventListener('click', () => { sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+// Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
+// öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
+let dragged = false, downX = 0, downY = 0, downT = 0;
+if (E.touch) {
+  cv.style.touchAction = 'none';
+  const P = (e, type) => E.touch(type, e.clientX * dpr, e.clientY * dpr, e.pointerId);
+  cv.addEventListener('pointerdown', e => { dragged = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (err) {} P(e, 'down'); });
+  cv.addEventListener('pointermove', e => {
+    if (!e.buttons && e.pointerType === 'mouse') return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragged = true;
+    P(e, 'move');
+  });
+  const up = e => { if (performance.now() - downT > 350) dragged = true; P(e, 'up'); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente

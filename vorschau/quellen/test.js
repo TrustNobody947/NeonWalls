@@ -92,6 +92,7 @@ console.log('Grundlauf     ', r.avg.toFixed(2), 'ms im Schnitt, schlimmster Fram
 E.action(); run(120);
 E.wake(); run(120);
 E.newPattern(); run(60);
+if (E.touch) { E.touch('down', 300, 900, 1); run(20); for (let i = 0; i < 30; i++) { E.touch('move', 300 + i * 10, 900 - i * 15, 1); run(2); } E.touch('up', 600, 450, 1); run(60); }
 for (const c of E.controls) {
   const vals = c.type === 'range' ? [c.min, c.max, Math.round((c.min + c.max) / 2)]
     : c.type === 'text' ? ['', 'NEON WALLS', 'ÄÖÜ ß 123', '   ', 'X'.repeat(c.max || 20), '✠𝕿𝖗𝖚𝖘𝖙𝕹𝖔𝖇𝖔𝖉𝖞✠', '𝒦𝒶𝒾 🔥👍🏽', 'Kai'] : c.options.map((_, i) => i);

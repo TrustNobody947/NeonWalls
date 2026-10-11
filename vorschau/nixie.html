@@ -86,7 +86,72 @@ const E = (function () {
 // wird von den Drähten davor teilweise verdeckt, vorne liegt das gewölbte Wabengitter. Das Glühen spiegelt sich im Glas,
 // auf den Glimmerscheiben und auf der glänzenden Fläche, auf der die Röhren stehen.
 // Beim Entsperren, zur vollen Stunde und auf Knopfdruck laufen die Ziffern wie ein Spielautomat durch.
-const settings = { mode: 0, arrange: 0, pos: 1, color: 0, glow: 6, flicker: 3, mirror: 0 };
+// Damit es wie gefilmt wirkt: dunkler Raum mit unscharfen Lichtern weit hinten, Staub auf dem Glas, Spiegelbild der Ziffer
+// in der gewölbten Glaswand, weiche Spiegelung auf dem Tisch und ein Kamera-Look (Lichthof, Körnung, Randabdunklung,
+// ganz leichtes Wackeln).
+// Kamera-Look (wird in mehrere Effekte eingebunden): Lichthof um helle Stellen, Körnung wie bei Video bei wenig Licht,
+// Randabdunklung und ein ganz leichtes Wackeln wie aus der Hand gefilmt.
+function makeCamera() {
+  let W = 1, H = 1, b1 = null, b2 = null, x1 = null, x2 = null, grainC = null, pat = null, patCtx = null, vig = null, vigA = -1;
+  function genGrain() {
+    const n = 256, c = mk(n, n), x = c.getContext('2d'), img = x.createImageData(n, n), d = img.data;
+    for (let i = 0; i < n * n; i++) {
+      const v = Math.random(), g = v * v * 255, tint = Math.random();
+      d[i * 4] = g * (0.9 + 0.2 * tint); d[i * 4 + 1] = g; d[i * 4 + 2] = g * (1.1 - 0.2 * tint); d[i * 4 + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+  return {
+    resize(w, h) {
+      W = w; H = h;
+      b1 = mk(Math.max(1, w >> 2), Math.max(1, h >> 2)); x1 = b1.getContext('2d');
+      b2 = mk(Math.max(1, w >> 3), Math.max(1, h >> 3)); x2 = b2.getContext('2d');
+      if (!grainC) grainC = genGrain();
+      pat = null; vig = null;
+    },
+    // kleine Verschiebung wie bei einer Handkamera (in Gerätepixeln)
+    shake(t, amount, dpr) {
+      const a = amount * dpr;
+      return [a * (Math.sin(t * 0.71) * 0.8 + Math.sin(t * 1.93 + 1) * 0.35), a * (Math.sin(t * 0.53 + 2) * 0.7 + Math.sin(t * 2.31) * 0.3)];
+    },
+    // Lichthof: verkleinerte, dadurch weiche Kopie des Bilds dazuaddieren. Die Kopie wird vorher mit sich selbst
+    // multipliziert (Helligkeit hoch 2 bzw. hoch 4), damit nur helle Stellen strahlen und das Dunkle nicht milchig wird.
+    bloom(ctx, strength, sharp) {
+      if (!b1 || strength <= 0) return;
+      x1.globalCompositeOperation = 'copy'; x1.imageSmoothingEnabled = true; x1.drawImage(ctx.canvas, 0, 0, b1.width, b1.height);
+      x1.globalCompositeOperation = 'multiply';
+      for (let i = 0; i < (sharp == null ? 1 : sharp); i++) x1.drawImage(b1, 0, 0);
+      x2.globalCompositeOperation = 'copy'; x2.imageSmoothingEnabled = true; x2.drawImage(b1, 0, 0, b2.width, b2.height);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'lighter'; ctx.imageSmoothingEnabled = true;
+      ctx.globalAlpha = Math.min(1, strength * 0.5); ctx.drawImage(b1, 0, 0, W, H);
+      ctx.globalAlpha = Math.min(1, strength); ctx.drawImage(b2, 0, 0, W, H);
+      ctx.restore();
+    },
+    vignette(ctx, amount) {
+      if (amount <= 0) return;
+      if (!vig || vigA !== amount) {
+        vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.hypot(W, H) * 0.62);
+        vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,' + amount + ')'); vigA = amount;
+      }
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      ctx.fillStyle = vig; ctx.fillRect(0, 0, W, H); ctx.restore();
+    },
+    // Körnung: bei jedem Bild an anderer Stelle, damit sie lebt
+    grain(ctx, amount, dpr) {
+      if (amount <= 0 || !grainC) return;
+      if (!pat || patCtx !== ctx) { pat = ctx.createPattern(grainC, 'repeat'); patCtx = ctx; }
+      const s = Math.max(1, dpr * 0.75);
+      ctx.save(); ctx.setTransform(s, 0, 0, s, -Math.random() * 256 * s, -Math.random() * 256 * s);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = amount;
+      ctx.fillStyle = pat; ctx.fillRect(0, 0, W / s + 256, H / s + 256);
+      ctx.restore();
+    },
+  };
+}
+
+const settings = { mode: 0, arrange: 0, pos: 1, color: 0, glow: 6, flicker: 3, mirror: 0, room: 0, video: 0 };
 const controls = [
   { type: 'choice', id: 'mode', label: 'Anzeige', options: ['Uhrzeit', 'Mit Sekunden'] },
   { type: 'choice', id: 'arrange', label: 'Anordnung', options: ['Gestapelt', 'In einer Reihe'] },
@@ -95,7 +160,10 @@ const controls = [
   { type: 'range', id: 'glow', label: 'Glühen', min: 1, max: 10, fmt: lvl },
   { type: 'range', id: 'flicker', label: 'Flackern', min: 0, max: 10, fmt: lvl },
   { type: 'choice', id: 'mirror', label: 'Spiegelung', options: ['An', 'Aus'] },
+  { type: 'choice', id: 'room', label: 'Umgebung', options: ['Dunkler Raum', 'Schwarz'] },
+  { type: 'choice', id: 'video', label: 'Kamera-Look', options: ['An', 'Aus'] },
 ];
+const cam = makeCamera();
 const COLORS = [
   { core: [255, 236, 200], hot: [255, 196, 96], glow: [255, 124, 30], outer: [255, 70, 8] },
   { core: [230, 248, 255], hot: [150, 215, 255], glow: [80, 175, 255], outer: [40, 105, 255] },
@@ -135,6 +203,8 @@ function digitPath(x, d, x0, y0, s) {
 let W = 1, H = 1, dpr = 1, t = 0;
 let tubes = [], rows = [], seps = [], st = [], lit = [], occ = [], tangle = null, back = null, front = null, inner = null, halo = null, dot = null;
 let tw = 1, th = 1, dh = 1, pad = 1, m = 1, tipH = 1, mb = 1, lastMin = -1, lastHour = -1, sepOff = 0, aging = [], weak = -1, refl = null, rx = null;
+let bg = null, bgM = 0, bokeh = [], dust = [], speck = null, lean = [], pool = null;
+const RS = 3; // Tischspiegelung in einem Drittel der Auflösung: wird beim Hochskalieren weich wie auf echtem Lack
 
 function layout() {
   const n = settings.mode ? 6 : 4;
@@ -168,7 +238,67 @@ function layout() {
   }
   dh = th * 0.44;
   m = Math.ceil(tw * 0.1 + 4); tipH = Math.ceil(tw * 0.08); mb = Math.ceil(th * 0.14);
-  refl = mk(W, Math.ceil(th * 0.45) + 2); rx = refl.getContext('2d');
+  refl = mk(Math.ceil(W / RS) + 2, Math.ceil(th * 0.45 / RS) + 2); rx = refl.getContext('2d');
+}
+
+// Raum hinter den Röhren in halber Auflösung (ist ohnehin unscharf): dunkle Wand, vom Glühen schwach angestrahlt,
+// unscharfe Lichter weit hinten und vorne die Tischfläche, auf der die Röhren stehen.
+function newRoom() {
+  // Lichter weit hinten im Raum (Lichterkette, Standby-Lämpchen, Fenster gegenüber), meist warm, selten kühl
+  bokeh = [];
+  const n = rint(6, 9), band = rnd(0.25, 0.6);
+  for (let i = 0; i < n; i++) {
+    const warm = Math.random() < 0.75, near = Math.random() < 0.25;
+    bokeh.push({ u: rnd(-0.05, 1.05), v: clamp(band + rnd(-0.22, 0.22), 0.04, 0.92), r: near ? rnd(0.05, 0.075) : rnd(0.018, 0.04),
+      a: near ? rnd(0.05, 0.08) : rnd(0.1, 0.2), c: warm ? [255, rint(130, 190), rint(50, 110)] : [rint(70, 130), rint(150, 200), 255] });
+  }
+  dust = [];
+  for (let i = 0; i < 6; i++) {
+    const L = [], k = rint(4, 9);
+    for (let j = 0; j < k; j++) L.push([rnd(0.06, 0.94), rnd(0.03, 0.97), rnd(0.5, 1.5), rnd(0.35, 1)]);
+    dust.push(L);
+  }
+}
+function genBg() {
+  bg = null;
+  if (settings.room !== 0 || !rows.length) return;
+  const C = COLORS[settings.color], s = 0.5;
+  bgM = Math.ceil(6 * dpr);
+  const bw = Math.ceil((W + 2 * bgM) * s), bh = Math.ceil((H + 2 * bgM) * s);
+  bg = mk(bw, bh);
+  const x = bg.getContext('2d');
+  x.scale(s, s); x.translate(bgM, bgM); // ab hier in Bildschirmkoordinaten
+  const last = rows[rows.length - 1], floor = last.bottom, horizon = floor - th * 0.05;
+  const cx = W / 2, cy = (rows[0].top + floor) / 2, big = Math.max(W, H);
+  x.fillStyle = '#030303'; x.fillRect(-bgM, -bgM, W + 2 * bgM, H + 2 * bgM);
+  // Wand: das Glühen fällt warm auf die Wand direkt hinter den Röhren
+  let g = x.createRadialGradient(cx, cy, 0, cx, cy, big * 0.5);
+  g.addColorStop(0, rgba(C.outer, 0.08)); g.addColorStop(0.4, rgba(C.outer, 0.025)); g.addColorStop(1, rgba(C.outer, 0));
+  x.fillStyle = g; x.fillRect(-bgM, -bgM, W + 2 * bgM, horizon + bgM);
+  // Lichter weit hinten: runde, unscharfe Scheiben mit etwas hellerem Rand wie bei einem echten Objektiv
+  x.globalCompositeOperation = 'lighter';
+  for (const b of bokeh) {
+    const bx = b.u * W, by = b.v * horizon, r = b.r * Math.min(W, H) * 1.6;
+    const bg2 = x.createRadialGradient(bx, by, 0, bx, by, r);
+    bg2.addColorStop(0, rgba(b.c, b.a * 0.6)); bg2.addColorStop(0.75, rgba(b.c, b.a * 0.78));
+    bg2.addColorStop(0.9, rgba(b.c, b.a)); bg2.addColorStop(1, rgba(b.c, 0));
+    x.fillStyle = bg2; x.beginPath(); x.arc(bx, by, r, 0, TAU); x.fill();
+  }
+  x.globalCompositeOperation = 'source-over';
+  // Tisch: Kante hinter den Röhren, Lack glänzt dort flach im Gegenlicht und wird nach vorne dunkel
+  g = x.createLinearGradient(0, horizon, 0, H + bgM);
+  g.addColorStop(0, 'rgb(14,12,11)'); g.addColorStop(0.03, 'rgb(7,6,6)'); g.addColorStop(1, 'rgb(1,1,1)');
+  x.fillStyle = g; x.fillRect(-bgM, horizon, W + 2 * bgM, H + bgM - horizon);
+  g = x.createRadialGradient(cx, floor, 0, cx, floor, big * 0.45);
+  g.addColorStop(0, rgba(C.outer, 0.12)); g.addColorStop(0.5, rgba(C.outer, 0.03)); g.addColorStop(1, rgba(C.outer, 0));
+  x.save(); x.beginPath(); x.rect(-bgM, horizon, W + 2 * bgM, H + bgM - horizon); x.clip();
+  x.translate(cx, floor); x.scale(1, 0.35); x.translate(-cx, -floor);
+  x.fillStyle = g; x.fillRect(-bgM, floor - big * 0.45, W + 2 * bgM, big * 0.9);
+  x.restore();
+  // feine Lichtkante an der Tischkante
+  g = x.createLinearGradient(0, 0, W, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, rgba(C.hot, 0.07)); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(-bgM, horizon, W + 2 * bgM, Math.max(1, dpr * 0.8));
 }
 const digitX = tb => tb.x + tw / 2 - dh * 0.3, digitY = tb => tb.y + th * 0.195;
 // Lage einer Ziffer im Stapel: hintere etwas kleiner und (Blick leicht von oben) etwas höher
@@ -186,7 +316,7 @@ function glassPath(x, ox, oy) {
 }
 // Wabengitter auf einem Zylinder: zum Rand hin gestaucht und leicht nach oben gebogen
 function meshPath(x, ox, oy) {
-  const R = tw * 0.36, cx = ox + tw / 2, hs = dh / 15, hh = hs * Math.sqrt(3), umax = 1.4, smax = R * umax;
+  const R = tw * 0.36, cx = ox + tw / 2, hs = dh / 20, hh = hs * Math.sqrt(3), umax = 1.4, smax = R * umax;
   x.beginPath();
   for (let v = oy + th * 0.11, row = 0; v < oy + th * 0.72; v += hh / 2, row++) {
     for (let s = -smax + (row % 2) * hs * 1.5; s < smax + hs * 3; s += hs * 3) {
@@ -271,12 +401,12 @@ function genSprites() {
   back = mk(bw, bh);
   const bx = back.getContext('2d');
   bx.save(); glassPath(bx, ox, oy); bx.clip();
-  bx.fillStyle = 'rgba(255,255,255,0.018)'; bx.fillRect(0, 0, bw, bh);
+  bx.fillStyle = 'rgba(255,255,255,0.008)'; bx.fillRect(0, 0, bw, bh);
   const gt = bx.createRadialGradient(ox + r, oy + r * 0.85, 0, ox + r, oy + r * 0.85, r);
   gt.addColorStop(0, 'rgba(170,170,182,0.2)'); gt.addColorStop(0.6, 'rgba(120,120,130,0.1)'); gt.addColorStop(1, 'rgba(120,120,130,0)');
   bx.fillStyle = gt; bx.fillRect(ox, oy, tw, r * 2);
   const band = bx.createLinearGradient(0, oy + th * 0.84, 0, oy + th);
-  band.addColorStop(0, 'rgba(175,195,185,0)'); band.addColorStop(1, 'rgba(175,195,185,0.12)');
+  band.addColorStop(0, 'rgba(175,195,185,0)'); band.addColorStop(1, 'rgba(175,195,185,0.07)');
   bx.fillStyle = band; bx.fillRect(ox, oy + th * 0.84, tw, th * 0.16);
   bx.restore();
   for (const xr of [0.13, 0.87]) {
@@ -315,8 +445,12 @@ function genSprites() {
   streak(fx, ox, oy, tw * 0.11, tw * 0.1, 0.3, th * 0.05, th * 0.9);
   streak(fx, ox, oy, tw * 0.765, tw * 0.06, 0.13, th * 0.12, th * 0.86);
   fx.restore();
+  // Kontur: kein gleichmäßiger Strich, sondern Licht, das die Kante links stärker trifft als rechts
   glassPath(fx, ox, oy);
-  fx.lineWidth = Math.max(1, dpr * 0.7); fx.strokeStyle = 'rgba(255,255,255,0.15)'; fx.stroke();
+  const eg = fx.createLinearGradient(ox, 0, ox + tw, 0);
+  eg.addColorStop(0, 'rgba(255,255,255,0.2)'); eg.addColorStop(0.3, 'rgba(255,255,255,0.07)');
+  eg.addColorStop(0.7, 'rgba(255,255,255,0.04)'); eg.addColorStop(1, 'rgba(255,255,255,0.13)');
+  fx.lineWidth = Math.max(1, dpr * 0.7); fx.strokeStyle = eg; fx.stroke();
   fx.lineCap = 'round';
   fx.beginPath(); fx.arc(ox + r, oy + r, r * 0.84, PI * 1.12, PI * 1.42);
   fx.lineWidth = Math.max(1, tw * 0.035); fx.strokeStyle = 'rgba(255,255,255,0.22)'; fx.stroke();
@@ -357,11 +491,33 @@ function genSprites() {
     ix.fillStyle = mg; ix.beginPath(); ix.arc(0, 0, micaRx, 0, TAU); ix.fill();
     ix.restore();
   }
-  ix.save(); ix.translate(ox + r, oy + th); ix.scale(1, 0.22);
-  const pg = ix.createRadialGradient(0, 0, 0, 0, 0, tw * 0.95);
-  pg.addColorStop(0, rgba(C.glow, 0.22)); pg.addColorStop(1, rgba(C.glow, 0));
-  ix.fillStyle = pg; ix.fillRect(-tw, -tw, tw * 2, tw * 2);
+  // Wabengitter rund um die Ziffer fängt ihr Licht von hinten
+  const mc = mk(bw, bh), mx = mc.getContext('2d');
+  mx.beginPath(); mx.rect(ox + tw * 0.14, oy + th * 0.12, tw * 0.72, th * 0.59); mx.clip();
+  meshPath(mx, ox, oy);
+  mx.lineJoin = 'round'; mx.lineWidth = Math.max(1, dpr * 0.6); mx.strokeStyle = rgba(C.hot, 1); mx.stroke();
+  mx.globalCompositeOperation = 'destination-in';
+  const mv = mx.createLinearGradient(0, oy + th * 0.12, 0, oy + th * 0.71);
+  mv.addColorStop(0, 'rgba(0,0,0,0)'); mv.addColorStop(0.3, 'rgba(0,0,0,0.3)'); mv.addColorStop(0.7, 'rgba(0,0,0,0.3)'); mv.addColorStop(1, 'rgba(0,0,0,0)');
+  mx.fillStyle = mv; mx.fillRect(0, 0, bw, bh);
+  const mhz = mx.createLinearGradient(ox + tw * 0.14, 0, ox + tw * 0.86, 0);
+  mhz.addColorStop(0, 'rgba(0,0,0,0)'); mhz.addColorStop(0.3, 'rgba(0,0,0,1)'); mhz.addColorStop(0.7, 'rgba(0,0,0,1)'); mhz.addColorStop(1, 'rgba(0,0,0,0)');
+  mx.fillStyle = mhz; mx.fillRect(0, 0, bw, bh);
+  ix.drawImage(mc, 0, 0);
+  // Getterspiegel in der Kuppel spiegelt das Glühen
+  ix.save(); glassPath(ix, ox, oy); ix.clip();
+  const gg = ix.createRadialGradient(ox + r, oy + r * 1.05, r * 0.2, ox + r, oy + r * 1.05, r * 1.02);
+  gg.addColorStop(0, rgba(C.glow, 0)); gg.addColorStop(0.75, rgba(C.glow, 0.05)); gg.addColorStop(0.95, rgba(C.hot, 0.12)); gg.addColorStop(1, rgba(C.glow, 0));
+  ix.fillStyle = gg; ix.fillRect(ox, oy, tw, r * 1.1);
   ix.restore();
+  // Lichtfleck auf der Fläche unter der Röhre (eigenes Bild, damit er nicht am Rand der Röhre abgeschnitten wird)
+  const PW = Math.ceil(tw * 1.1), PH = Math.ceil(tw * 0.26);
+  pool = mk(PW * 2, PH * 2);
+  const plx = pool.getContext('2d');
+  plx.translate(PW, PH); plx.scale(1, PH / PW);
+  const pg = plx.createRadialGradient(0, 0, 0, 0, 0, PW);
+  pg.addColorStop(0, rgba(C.glow, 0.24)); pg.addColorStop(0.45, rgba(C.glow, 0.08)); pg.addColorStop(1, rgba(C.glow, 0));
+  plx.fillStyle = pg; plx.fillRect(-PW, -PW, PW * 2, PW * 2);
   // weiter Schein um die Röhre
   const R = Math.round(th * 0.7);
   halo = mk(R * 2, R * 2);
@@ -377,6 +533,12 @@ function genSprites() {
   ddx.fillStyle = ddg; ddx.fillRect(0, 0, D * 2, D * 2);
   ddx.beginPath(); ddx.arc(D, D, D * 0.32, PI * 1.1, PI * 1.6);
   ddx.lineWidth = Math.max(1, D * 0.05); ddx.strokeStyle = 'rgba(255,255,255,0.35)'; ddx.lineCap = 'round'; ddx.stroke();
+  // Staubkorn auf dem Glas: winziger, weicher Punkt, der im Licht der Ziffer aufleuchtet
+  const SP = 16;
+  speck = mk(SP, SP);
+  const spx = speck.getContext('2d'), spg = spx.createRadialGradient(SP / 2, SP / 2, 0, SP / 2, SP / 2, SP / 2);
+  spg.addColorStop(0, 'rgba(255,246,232,1)'); spg.addColorStop(0.35, 'rgba(255,236,210,0.45)'); spg.addColorStop(1, 'rgba(255,230,200,0)');
+  spx.fillStyle = spg; spx.fillRect(0, 0, SP, SP);
 }
 
 function timeNow() {
@@ -394,6 +556,8 @@ function setDigit(s, d, fast) { if (d === s.cur) return; s.prev = s.cur; s.cur =
 function cycleAll(base, stepT) { for (let i = 0; i < st.length; i++) { st[i].cyc = t + base + i * stepT; st[i].step = 0; } sepOff = base * 0.6; }
 function newSet() {
   aging = []; for (let i = 0; i < 6; i++) aging.push(rnd(0.86, 1));
+  // echte Röhren stehen nie ganz gerade im Sockel
+  lean = []; for (let i = 0; i < 6; i++) lean.push(rnd(-0.007, 0.007));
   weak = Math.random() < 0.7 ? rint(0, 5) : -1;
 }
 
@@ -401,22 +565,36 @@ return {
   maxDpr: 3,
   settings, controls,
   actionLabel: 'Durchlaufen',
-  resize(w, h, d) { W = w; H = h; dpr = d; if (!aging.length) newSet(); layout(); genSprites(); if (!st.length) initState(); },
-  newPattern() { newSet(); genSprites(); },
+  resize(w, h, d) {
+    W = w; H = h; dpr = d; cam.resize(w, h);
+    if (!aging.length) newSet();
+    if (!bokeh.length) newRoom();
+    layout(); genSprites(); genBg();
+    if (!st.length) initState();
+  },
+  newPattern() { newSet(); newRoom(); genSprites(); genBg(); },
   action() { cycleAll(0.3, 0.12); },
   wake() { cycleAll(0.45, 0.2); },
-  change(id) { if (id === 'flicker' || id === 'mirror') return; layout(); genSprites(); },
+  change(id) {
+    if (id === 'flicker' || id === 'mirror' || id === 'video') return;
+    if (id === 'room') { genBg(); return; }
+    layout(); genSprites(); genBg();
+  },
   frame(ctx, dt) {
     t += dt;
-    const T = timeNow(), n = settings.mode ? 6 : 4, fl = settings.flicker / 10;
+    const T = timeNow(), n = settings.mode ? 6 : 4, fl = settings.flicker / 10, vid = settings.video === 0;
     // Minutenwechsel: geänderte Röhren laufen kurz durch, zur vollen Stunde alle
     if (T.m !== lastMin) {
       if (T.h !== lastHour) cycleAll(0.5, 0.15);
       else for (let i = 0; i < 4; i++) if (st[i].cur !== T.arr[i]) { st[i].cyc = t + 0.35 + i * 0.06; st[i].step = 0; }
       lastMin = T.m; lastHour = T.h;
     }
+    // Kamera: ganz leichtes Wackeln wie bei einer Aufnahme vom Stativ auf einem Tisch, an dem jemand sitzt
+    const sh = vid ? cam.shake(t, 0.7, dpr) : [0, 0], ox = sh[0], oy = sh[1];
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    if (bg) { ctx.imageSmoothingEnabled = true; ctx.setTransform(1, 0, 0, 1, ox, oy); ctx.drawImage(bg, -bgM, -bgM, W + 2 * bgM, H + 2 * bgM); }
+    else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.setTransform(1, 0, 0, 1, ox, oy); }
     sepOff = Math.max(0, sepOff - dt);
     let ri = 0;
     for (let i = 0; i < n; i++) {
@@ -431,8 +609,12 @@ return {
       if (s.gT > 0) s.gT -= dt; else if (fl > 0 && Math.random() < per(fl * 0.035 * wk, dt)) { s.ghost = (s.cur + rint(1, 9)) % 10; s.gT = rnd(0.05, 0.3); s.gLv = rnd(0.1, 0.35); }
       const bri = Math.min(1, aging[i] * (1 - fl * 0.07 * Math.random()) * (s.drop > 0 ? s.dropLv : 1));
       const px = digitX(tb) - pad, py = digitY(tb) - pad, sx = tb.x - m, sy = tb.y - m - tipH;
+      // Röhre um ihren Fußpunkt minimal geneigt zeichnen
+      const la = lean[i] || 0, ca = Math.cos(la), sa = Math.sin(la), fx0 = tb.x + tw / 2, fy0 = tb.y + th;
+      ctx.setTransform(ca, sa, -sa, ca, ox + fx0 - (ca * fx0 - sa * fy0), oy + fy0 - (sa * fx0 + ca * fy0));
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = bri;
       ctx.drawImage(halo, tb.x + tw / 2 - halo.width / 2, tb.y + th * 0.415 - halo.height / 2);
+      ctx.drawImage(pool, fx0 - pool.width / 2, fy0 - pool.height / 2);
       ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
       ctx.drawImage(back, sx, sy);
       ctx.drawImage(tangle, px, py);
@@ -441,35 +623,55 @@ return {
       if (e < 1) { ctx.globalAlpha = bri * (1 - e); ctx.drawImage(lit[s.prev], px, py); }
       ctx.globalAlpha = bri * e; ctx.drawImage(lit[s.cur], px, py);
       if (s.gT > 0 && s.ghost !== s.cur) { ctx.globalAlpha = s.gLv * bri; ctx.drawImage(lit[s.ghost], px, py); }
+      // Spiegelbild der Ziffer in der gewölbten Glaswand links und rechts: schmal gestaucht und seitenverkehrt
+      const lw = lit[s.cur].width;
+      for (const [xr, k, a] of [[0.075, 0.13, 0.15], [0.93, 0.1, 0.1]]) {
+        ctx.save(); ctx.translate(tb.x + tw * xr, 0); ctx.scale(-k, 1);
+        ctx.globalAlpha = bri * e * a; ctx.drawImage(lit[s.cur], -lw / 2, py);
+        if (e < 1) { ctx.globalAlpha = bri * (1 - e) * a; ctx.drawImage(lit[s.prev], -lw / 2, py); }
+        ctx.restore();
+      }
       ctx.globalCompositeOperation = 'source-over';
       if (occ[s.cur]) { ctx.globalAlpha = 0.4 + 0.6 * bri; ctx.drawImage(occ[s.cur], px, py); }
       ctx.globalAlpha = 1;
       ctx.drawImage(front, sx, sy);
       ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = bri;
       ctx.drawImage(inner, sx, sy);
+      // Staub auf dem Glas leuchtet dort auf, wo das Licht der Ziffer hinkommt
+      const L = dust[i % dust.length];
+      if (L && speck) {
+        for (const d of L) {
+          const du = (d[0] - 0.5) * 1.6, dv = (d[1] - 0.42) * 1.25, near = Math.exp(-(du * du + dv * dv) * 3.2);
+          const sz = d[2] * dpr * 2.2;
+          ctx.globalAlpha = d[3] * (0.05 + 0.4 * near * bri);
+          ctx.drawImage(speck, tb.x + d[0] * tw - sz / 2, tb.y + d[1] * th - sz / 2, sz, sz);
+        }
+      }
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      ctx.setTransform(1, 0, 0, 1, ox, oy);
       // Spiegelung, sobald eine Reihe fertig ist
       const row = rows[ri];
       if (row && (i === n - 1 || (tubes[i + 1] && tubes[i + 1].y !== tb.y))) {
         if (settings.mirror === 0) {
           const rh = Math.max(1, Math.min(th * 0.42, row.room)), x0 = Math.max(0, row.x0), w = Math.min(W, row.x1) - x0, fy = row.bottom;
-          const hh = Math.floor(Math.min(rh, H - fy, refl.height));
-          if (w > 1 && hh > 2) {
-            // Ausschnitt über der Fläche gespiegelt kopieren, nach unten ausblenden und dazuaddieren
-            rx.save(); rx.globalCompositeOperation = 'copy'; rx.globalAlpha = 1;
-            rx.translate(0, hh); rx.scale(1, -1);
-            rx.drawImage(ctx.canvas, x0, fy - hh, w, hh, x0, 0, w, hh);
+          const hh = Math.floor(Math.min(rh, H - fy, (refl.height - 2) * RS));
+          if (w > RS * 2 && hh > RS * 2) {
+            // Ausschnitt über der Fläche verkleinert und gespiegelt kopieren, nach unten ausblenden und weich dazuaddieren
+            const lx = x0 / RS, lw2 = w / RS, lh = hh / RS, srcX = clamp(x0 + ox, 0, W - w), srcY = clamp(fy - hh + oy, 0, H - hh);
+            rx.save(); rx.globalCompositeOperation = 'copy'; rx.globalAlpha = 1; rx.imageSmoothingEnabled = true;
+            rx.translate(0, lh); rx.scale(1, -1);
+            rx.drawImage(ctx.canvas, srcX, srcY, w, hh, lx, 0, lw2, lh);
             rx.restore();
             rx.globalCompositeOperation = 'destination-in';
-            const fg = rx.createLinearGradient(0, 0, 0, hh);
+            const fg = rx.createLinearGradient(0, 0, 0, lh);
             fg.addColorStop(0, 'rgba(0,0,0,1)'); fg.addColorStop(0.35, 'rgba(0,0,0,0.45)'); fg.addColorStop(1, 'rgba(0,0,0,0)');
-            rx.fillStyle = fg; rx.fillRect(x0, 0, w, hh);
-            const sg = rx.createLinearGradient(x0, 0, x0 + w, 0);
+            rx.fillStyle = fg; rx.fillRect(lx, 0, lw2, lh);
+            const sg = rx.createLinearGradient(lx, 0, lx + lw2, 0);
             sg.addColorStop(0, 'rgba(0,0,0,0)'); sg.addColorStop(0.18, 'rgba(0,0,0,1)'); sg.addColorStop(0.82, 'rgba(0,0,0,1)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
-            rx.fillStyle = sg; rx.fillRect(x0, 0, w, hh);
+            rx.fillStyle = sg; rx.fillRect(lx, 0, lw2, lh);
             rx.globalCompositeOperation = 'source-over';
-            ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.26;
-            ctx.drawImage(refl, x0, 0, w, hh, x0, fy, w, hh);
+            ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3; ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(refl, lx, 0, lw2, lh, x0, fy, w, hh);
             ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
           }
         }
@@ -485,6 +687,13 @@ return {
       else { ctx.drawImage(dot, sp.x - D, sp.y - off * 1.4 - D); ctx.drawImage(dot, sp.x - D, sp.y + off * 1.4 - D); }
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Kamera-Look: Lichthof um das Glühen, Randabdunklung, Körnung wie bei Video im Dunkeln
+    if (vid) {
+      cam.bloom(ctx, 0.45, 1);
+      cam.vignette(ctx, 0.55);
+      cam.grain(ctx, 0.04, dpr);
+    }
   },
 };
 
@@ -546,11 +755,28 @@ for (const c of E.controls) {
   }
 }
 if (E.bindUI) E.bindUI({ set: setVal });
+if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
-cv.addEventListener('click', () => { sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+// Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
+// öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
+let dragged = false, downX = 0, downY = 0, downT = 0;
+if (E.touch) {
+  cv.style.touchAction = 'none';
+  const P = (e, type) => E.touch(type, e.clientX * dpr, e.clientY * dpr, e.pointerId);
+  cv.addEventListener('pointerdown', e => { dragged = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (err) {} P(e, 'down'); });
+  cv.addEventListener('pointermove', e => {
+    if (!e.buttons && e.pointerType === 'mouse') return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragged = true;
+    P(e, 'move');
+  });
+  const up = e => { if (performance.now() - downT > 350) dragged = true; P(e, 'up'); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente

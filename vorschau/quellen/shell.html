@@ -139,11 +139,28 @@ for (const c of E.controls) {
   }
 }
 if (E.bindUI) E.bindUI({ set: setVal });
+if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
-cv.addEventListener('click', () => { sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+// Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
+// öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
+let dragged = false, downX = 0, downY = 0, downT = 0;
+if (E.touch) {
+  cv.style.touchAction = 'none';
+  const P = (e, type) => E.touch(type, e.clientX * dpr, e.clientY * dpr, e.pointerId);
+  cv.addEventListener('pointerdown', e => { dragged = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (err) {} P(e, 'down'); });
+  cv.addEventListener('pointermove', e => {
+    if (!e.buttons && e.pointerType === 'mouse') return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragged = true;
+    P(e, 'move');
+  });
+  const up = e => { if (performance.now() - downT > 350) dragged = true; P(e, 'up'); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente

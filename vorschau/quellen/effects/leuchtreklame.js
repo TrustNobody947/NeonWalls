@@ -1,9 +1,15 @@
-// Leuchtreklame: ein eigener Text als Neonschild an einer dunklen Betonwand, in vielen Schriften von Google Fonts.
+// Leuchtreklame: ein eigener Text als echtes Neonschild an einer Wand, in vielen Schriften von Google Fonts.
+// Jede Röhre wird Pixel für Pixel als Glasrohr berechnet: leuchtend mit überbelichteter Mitte und Glanzlicht auf dem Glas,
+// ausgeschaltet als milchiges Glas. Jeder Buchstabe wirft sein eigenes farbiges Licht auf die Wand (Backstein, Beton oder
+// Holz); fällt ein Buchstabe aus, wird auch die Wand um ihn herum dunkel. Außerhalb des Lichts bleibt alles schwarz.
+// Halterung wie in echt: Röhrenhalter mit Drahtschlaufe und schwarze Elektrodenkappen an den Röhrenenden, oder eine
+// Acrylplatte auf vier Abstandshaltern mit Kabel. Dazu ein Kamera-Look wie bei einem Handyvideo.
 // Gesunde Röhren leuchten ruhig, defekte stottern, glimmen nur schwach, brummen oder fallen ganz aus.
 // Schreibschrift ist wie beim echten Neonschild eine durchgehende Röhre pro Wort, sonst ist jeder Buchstabe eine eigene Röhre.
 // Sonderbuchstaben aus "Schriftarten"-Tastaturen (z. B. 𝕿𝖗𝖚𝖘𝖙) werden in normale Buchstaben umgewandelt; dabei wird
 // automatisch eine passende Schrift gewählt (Fraktur → Altdeutsch, Schreibschrift-Zeichen → Schreibschrift).
 // Beim Entsperren zündet das Schild Röhre für Röhre, mit dem typischen Flackern beim Einschalten.
+//#include camera.js
 const FALL = { 'Neon & klar': 'system-ui, Roboto, sans-serif', 'Schreibschrift': 'cursive', 'Altdeutsch': 'serif', 'Retro': 'system-ui, sans-serif', 'Technik': 'system-ui, sans-serif' };
 const FONTS = [
   { g: 'Neon & klar', n: 'Tilt Neon', q: 'Tilt+Neon' },
@@ -57,15 +63,18 @@ const FONTS = [
 const famOf = f => '"' + f.n + '", ' + FALL[f.g];
 const fontStr = (f, size) => (f.w || 400) + ' ' + size + 'px ' + famOf(f);
 const FRAKTUR_IDX = FONTS.findIndex(f => f.n === 'UnifrakturMaguntia'), SCRIPT_IDX = FONTS.findIndex(f => f.n === 'Great Vibes');
-const settings = { text: 'NEON WALLS', font: 0, tube: 0, color: 0, broken: 3, flicker: 4, pos: 1 };
+const settings = { text: 'NEON WALLS', font: 0, tube: 0, color: 0, broken: 3, flicker: 4, pos: 1, wall: 0, mount: 0, video: 0 };
 const controls = [
   { type: 'text', id: 'text', label: 'Text (bis 24 Zeichen)', max: 60 },
   { type: 'grid', id: 'font', label: 'Schrift', options: FONTS.map(f => ({ label: f.label || f.n, font: famOf(f), weight: f.w, group: f.g })) },
   { type: 'choice', id: 'tube', label: 'Röhre', options: ['Automatisch', 'Gefüllt', 'Umriss'] },
   { type: 'choice', id: 'color', label: 'Farbe', options: ['Pink', 'Rot', 'Orange', 'Grün', 'Blau', 'Bunt'] },
+  { type: 'choice', id: 'wall', label: 'Wand', options: ['Backstein', 'Beton', 'Holz', 'Keine'] },
+  { type: 'choice', id: 'mount', label: 'Halterung', options: ['Röhrenhalter', 'Acrylplatte'] },
   { type: 'range', id: 'broken', label: 'Defekte Buchstaben', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'flicker', label: 'Flackern', min: 0, max: 10, fmt: lvl },
   { type: 'choice', id: 'pos', label: 'Position', options: ['Oben', 'Mitte', 'Unten'] },
+  { type: 'choice', id: 'video', label: 'Kamera-Look', options: ['An', 'Aus'] },
 ];
 const COLS = [
   { glow: [255, 45, 190], core: [255, 226, 248], dim: [125, 62, 104] },
@@ -75,12 +84,32 @@ const COLS = [
   { glow: [50, 160, 255], core: [223, 242, 255], dim: [56, 86, 126] },
 ];
 const BUNT = [0, 4, 3, 2, 1];
-const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (a < 0 ? 0 : a > 1 ? 1 : a).toFixed(3) + ')';
+const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + (a < 0 ? 0 : a > 1 ? 1 : a).toFixed(3) + ')';
+const smooth = (a, b, x) => { const u = clamp((x - a) / (b - a), 0, 1); return u * u * (3 - 2 * u); };
+const TAU = Math.PI * 2;
 // Sonderbuchstaben: mathematische Fraktur und Schreibschrift aus dem Unicode-Block 1D400
 const FRAKTUR_RE = /[\u{1D504}-\u{1D537}\u{1D56C}-\u{1D59F}]/u, SCRIPT_RE = /[\u{1D49C}-\u{1D503}]/u;
+// Licht der Umgebung auf dem Glas: von links oben vorne
+const LDIR = (() => { const v = [-0.42, -0.62, 0.66], l = Math.hypot(v[0], v[1], v[2]); return v.map(c => c / l); })();
+const HDIR = (() => { const v = [LDIR[0], LDIR[1], LDIR[2] + 1], l = Math.hypot(v[0], v[1], v[2]); return v.map(c => c / l); })();
+// Wo die Röhre bei normalen Buchstaben anfängt und aufhört (im Rahmen des Zeichens, 0 = links/oben, 1 = rechts/unten).
+// Ein einzelner Punkt: Anfang und Ende liegen nebeneinander.
+const ELEC = {
+  A: [[0, 1], [1, 1]], B: [[0, 1]], C: [[1, 0.15], [1, 0.85]], D: [[0, 1]], E: [[1, 0], [1, 1]], F: [[1, 0], [0, 1]],
+  G: [[1, 0.15], [0.6, 0.55]], H: [[0, 1], [1, 1]], I: [[0.5, 0], [0.5, 1]], J: [[1, 0], [0, 0.8]], K: [[0, 1], [1, 1]],
+  L: [[0, 0], [1, 1]], M: [[0, 1], [1, 1]], N: [[0, 1], [1, 0]], O: [[0.5, 1]], P: [[0, 1]], Q: [[0.5, 1]], R: [[0, 1], [1, 1]],
+  S: [[1, 0.15], [0, 0.85]], T: [[0.5, 1], [0, 0]], U: [[0, 0], [1, 0]], V: [[0, 0], [1, 0]], W: [[0, 0], [1, 0]],
+  X: [[0, 1], [1, 1]], Y: [[0.5, 1], [0, 0]], Z: [[0, 0], [1, 1]], '0': [[0.5, 1]], '1': [[0.5, 1], [0, 0.2]],
+  '2': [[0, 0.2], [1, 1]], '3': [[0, 0.15], [0, 0.85]], '4': [[0.7, 1], [1, 0.7]], '5': [[1, 0], [0, 0.85]], '6': [[0.8, 0.05], [0.5, 1]],
+  '7': [[0, 0], [0.4, 1]], '8': [[0.5, 1]], '9': [[0.2, 0.95], [0.5, 0]], 'ß': [[0, 1], [0.3, 1]],
+};
+// Auflösungen: Wand halb, nahes Licht ein Viertel, weites Licht ein Sechzehntel (ist ohnehin weich)
+const AS = 0.5, LN = 0.25, LF = 1 / 16;
 
-let W = 1, H = 1, dpr = 1, t = 0, ui = null;
-let units = [], fs = 10, block = { x: 0, y: 0, w: 1, h: 1 }, tex = null, wall = null, wallDue = -1, mctx = null;
+let W = 1, H = 1, dpr = 1, t = 0, ui = null, pendingText = 0;
+let units = [], fs = 10, block = { x: 0, y: 0, w: 1, h: 1 }, mctx = null, bgM = 0;
+let alb = null, ln = null, lnx = null, lf = null, lfx = null, wc = null, wcx = null, plate = null, avgCol = [255, 255, 255];
+const cam = makeCamera();
 const fstate = {};
 
 // Zeichen richtig zerlegen: ein sichtbares Zeichen kann aus mehreren Unicode-Teilen bestehen
@@ -124,7 +153,7 @@ function layoutText() {
   units = [];
   const txt = cleanText(settings.text);
   if (!txt) return;
-  const F = FONTS[settings.font] || FONTS[0], k = F.k || 1, maxW = W * 0.84, cap = Math.min(W * 0.2 * k, H * 0.12 * k);
+  const F = FONTS[settings.font] || FONTS[0], k = F.k || 1, maxW = W * 0.8, cap = Math.min(W * 0.19 * k, H * 0.11 * k);
   let lines = [txt];
   fs = Math.min(cap, maxW / Math.max(1, measure(txt, 100)) * 100);
   if (fs < W * 0.115 * k && txt.indexOf(' ') > 0) {
@@ -135,7 +164,7 @@ function layoutText() {
   }
   fs = Math.max(8 * dpr, fs);
   const lh = fs * (F.s ? 1.15 : 1.25), bh = lines.length * lh;
-  const cy = [0.3, 0.5, 0.68][settings.pos] * H, top = clamp(cy - bh / 2, H * 0.08, H * 0.92 - bh);
+  const cy = [0.3, 0.5, 0.68][settings.pos] * H, top = clamp(cy - bh / 2, H * 0.1, H * 0.9 - bh);
   let bw = 0, word = 0;
   lines.forEach((line, li) => {
     const lw = measure(line, fs), x0 = (W - lw) / 2, base = top + li * lh + fs * 0.85;
@@ -143,20 +172,20 @@ function layoutText() {
     if (F.s) {
       let start = 0;
       for (const w of line.split(' ')) {
-        if (w) units.push({ text: w, x: x0 + measure(line.slice(0, start), fs), y: base, word });
+        if (w) units.push({ text: w, x: x0 + measure(line.slice(0, start), fs), y: base, word, isWord: true });
         start += w.length + 1; word++;
       }
     } else {
       let start = 0;
       for (const g of graphemes(line)) {
         if (g === ' ') word++;
-        else units.push({ text: g, x: x0 + measure(line.slice(0, start), fs), y: base, word });
+        else units.push({ text: g, x: x0 + measure(line.slice(0, start), fs), y: base, word, isWord: false });
         start += g.length;
       }
       word++;
     }
   });
-  for (const u of units) Object.assign(u, { lv: 0, tg: 0, seq: [], kind: 'ok' });
+  for (const u of units) Object.assign(u, { lv: 0, tg: 0, a: 0, seq: [], kind: 'ok', sup: [], el: [] });
   block = { x: (W - bw) / 2, y: top, w: bw, h: bh };
 }
 
@@ -164,80 +193,350 @@ function colorOf(u, i, nWords) {
   if (settings.color < 5) return COLS[settings.color];
   return COLS[BUNT[(nWords > 1 ? u.word : i) % BUNT.length]];
 }
+
+// Abstand zum nächsten Nullpixel (Fasenmaß 1 / Wurzel 2), zwei Durchläufe
+function chamfer(D, w, h) {
+  const R2 = 1.4142;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; let v = D[i];
+    if (v === 0) continue;
+    if (x > 0 && D[i - 1] + 1 < v) v = D[i - 1] + 1;
+    if (y > 0) {
+      if (D[i - w] + 1 < v) v = D[i - w] + 1;
+      if (x > 0 && D[i - w - 1] + R2 < v) v = D[i - w - 1] + R2;
+      if (x < w - 1 && D[i - w + 1] + R2 < v) v = D[i - w + 1] + R2;
+    }
+    D[i] = v;
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const i = y * w + x; let v = D[i];
+    if (v === 0) continue;
+    if (x < w - 1 && D[i + 1] + 1 < v) v = D[i + 1] + 1;
+    if (y < h - 1) {
+      if (D[i + w] + 1 < v) v = D[i + w] + 1;
+      if (x < w - 1 && D[i + w + 1] + R2 < v) v = D[i + w + 1] + R2;
+      if (x > 0 && D[i + w - 1] + R2 < v) v = D[i + w - 1] + R2;
+    }
+    D[i] = v;
+  }
+}
+
+// Glasrohr aus der Buchstabenform: Abstand zum Rand und zur Mittellinie ergeben für jedes Pixel, wo es auf dem
+// runden Rohr liegt. Leuchtend: Helligkeit wie der Weg durch das Gas, Mitte überbelichtet. Aus: milchiges Glas.
+function shadeTube(mask, x0, y0, w, h, C) {
+  const n = w * h, src = mask.getContext('2d').getImageData(x0, y0, w, h).data;
+  const A = new Float32Array(n), DE = new Float32Array(n), DA = new Float32Array(n);
+  for (let i = 0; i < n; i++) { A[i] = src[i * 4 + 3] / 255; DE[i] = A[i] >= 0.5 ? 1e6 : 0; }
+  chamfer(DE, w, h);
+  let maxDe = 0;
+  for (let i = 0; i < n; i++) { DE[i] = A[i] >= 0.5 ? DE[i] - 1 + A[i] : A[i]; if (DE[i] > maxDe) maxDe = DE[i]; }
+  const axis = [];
+  for (let i = 0; i < n; i++) DA[i] = 1e6;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x, v = DE[i];
+    if (v < 0.9) continue;
+    const l = DE[i - 1], r = DE[i + 1], u = DE[i - w], d = DE[i + w];
+    if ((v >= l && v >= r && (v > l || v > r)) || (v >= u && v >= d && (v > u || v > d))) { DA[i] = 0; axis.push(x, y, v); }
+  }
+  if (axis.length) chamfer(DA, w, h);
+  else for (let i = 0; i < n; i++) DA[i] = Math.max(0, maxDe - DE[i]);
+  const lit = mk(w, h), off = mk(w, h), lctx = lit.getContext('2d'), octx = off.getContext('2d');
+  const li = lctx.createImageData(w, h), oi = octx.createImageData(w, h), L = li.data, O = oi.data;
+  const g = C.glow, c = C.core;
+  const coat = [C.dim[0] * 0.45 + 120, C.dim[1] * 0.45 + 120, C.dim[2] * 0.45 + 124];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x, a = A[i];
+    if (a < 0.004) continue;
+    const de = DE[i], da = DA[i], hw = de + da, xo = hw > 1e-3 ? Math.min(1, da / hw) : 1;
+    const nz = Math.sqrt(Math.max(0, 1 - xo * xo));
+    const gx = x > 0 && x < w - 1 ? DE[i + 1] - DE[i - 1] : 0, gy = y > 0 && y < h - 1 ? DE[i + w] - DE[i - w] : 0;
+    const gl = Math.hypot(gx, gy) || 1, nx = -gx / gl * xo, ny = -gy / gl * xo;
+    const ndl = nx * LDIR[0] + ny * LDIR[1] + nz * LDIR[2], ndh = Math.max(0, nx * HDIR[0] + ny * HDIR[1] + nz * HDIR[2]);
+    const sp = Math.pow(ndh, 40), p = i * 4;
+    // leuchtend
+    const I = nz, s = 0.85 * smooth(0.8, 1, I), e = 0.25 + I * 0.95;
+    L[p] = Math.min(255, g[0] * e + (c[0] - g[0]) * s + 110 * sp);
+    L[p + 1] = Math.min(255, g[1] * e + (c[1] - g[1]) * s + 110 * sp);
+    L[p + 2] = Math.min(255, g[2] * e + (c[2] - g[2]) * s + 110 * sp);
+    L[p + 3] = a * 255;
+    // aus: matte Leuchtstoffschicht hinter Glas, Rand dunkler, Glanzlicht oben links
+    const dif = 0.2 + 0.7 * Math.max(0, ndl), rim = 0.45 + 0.55 * nz;
+    O[p] = Math.min(255, coat[0] * dif * rim + 235 * sp);
+    O[p + 1] = Math.min(255, coat[1] * dif * rim + 235 * sp);
+    O[p + 2] = Math.min(255, coat[2] * dif * rim + 240 * sp);
+    O[p + 3] = a * 255 * (0.75 + 0.25 * nz);
+  }
+  lctx.putImageData(li, 0, 0); octx.putImageData(oi, 0, 0);
+  return { lit, off, axis };
+}
+
+// Punkt auf der Mittellinie, der einem Zielpunkt am nächsten liegt (nur dort, wo die Röhre richtig dick ist)
+function nearestAxis(axis, tx, ty, minR) {
+  let best = -1, bd = 1e18;
+  for (let k = 0; k < axis.length; k += 3) {
+    if (axis[k + 2] < minR) continue;
+    const dx = axis[k] - tx, dy = axis[k + 1] - ty, d = dx * dx + dy * dy;
+    if (d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+// Richtung der Röhre an einer Stelle: Hauptachse der Mittellinienpunkte in der Nähe
+function axisAngle(axis, k, R) {
+  const cx = axis[k], cy = axis[k + 1];
+  let sxx = 0, syy = 0, sxy = 0, n = 0;
+  for (let j = 0; j < axis.length; j += 3) {
+    const dx = axis[j] - cx, dy = axis[j + 1] - cy;
+    if (dx * dx + dy * dy > R * R) continue;
+    sxx += dx * dx; syy += dy * dy; sxy += dx * dy; n++;
+  }
+  return n > 2 ? 0.5 * Math.atan2(2 * sxy, sxx - syy) : 0;
+}
+
 function makeSprites() {
   const F = FONTS[settings.font] || FONTS[0], font = fontStr(F, fs);
   const outline = settings.tube === 2 || (settings.tube === 0 && F.o);
-  const nWords = units.length ? units[units.length - 1].word + 1 : 0, pad = Math.ceil(fs * 0.55), tube = Math.max(1, fs * 0.03);
+  const nWords = units.length ? units[units.length - 1].word + 1 : 0, pad = Math.ceil(fs * 0.55), tube = Math.max(1.5, fs * 0.05);
+  let cr = 0, cg = 0, cb = 0;
   units.forEach((u, i) => {
     const C = colorOf(u, i, nWords);
+    cr += C.glow[0]; cg += C.glow[1]; cb += C.glow[2];
     mctx.font = font;
     const mt = mctx.measureText(u.text);
     const left = isFinite(mt.actualBoundingBoxLeft) ? mt.actualBoundingBoxLeft : fs * 0.05;
     const right = isFinite(mt.actualBoundingBoxRight) ? mt.actualBoundingBoxRight : mt.width;
     const asc = isFinite(mt.actualBoundingBoxAscent) ? mt.actualBoundingBoxAscent : fs * 0.85;
     const desc = isFinite(mt.actualBoundingBoxDescent) ? mt.actualBoundingBoxDescent : fs * 0.3;
-    const w = Math.ceil(Math.max(1, left + right) + pad * 2), h = Math.ceil(Math.max(1, asc + desc) + pad * 2), bx = pad + left, by = pad + asc;
+    const gw = Math.max(1, left + right), gh = Math.max(1, asc + desc);
+    const w = Math.ceil(gw + pad * 2), h = Math.ceil(gh + pad * 2), bx = pad + left, by = pad + asc;
     u.ox = -bx; u.oy = -by; u.col = C;
+    // gleich hell wirkendes Licht für alle Farben (Grün erscheint dem Auge viel heller als Rot), Umriss hat doppelte Röhren
+    const lum = (0.2126 * C.glow[0] + 0.7152 * C.glow[1] + 0.0722 * C.glow[2]) / 255;
+    u.lk = clamp(0.4 / lum, 0.5, 1.1) * (outline ? 0.7 : 1);
+    // enger Rahmen um die Röhre (absolut)
+    u.bb = [u.x - left, u.y - asc, u.x + right, u.y + desc];
+    const setup = x => { x.font = font; x.textBaseline = 'alphabetic'; x.lineJoin = 'round'; x.lineCap = 'round'; };
+    const shape = (x, lw) => { if (outline) { x.lineWidth = lw; x.strokeText(u.text, bx, by); } else x.fillText(u.text, bx, by); };
+    // Form der Röhre
+    const mask = mk(w, h), mx = mask.getContext('2d');
+    setup(mx); mx.fillStyle = '#fff'; mx.strokeStyle = '#fff'; shape(mx, tube);
+    const m = Math.ceil(tube + 2), x0 = Math.max(0, Math.floor(pad - m)), y0 = Math.max(0, Math.floor(pad - m));
+    const x1 = Math.min(w, Math.ceil(w - pad + m)), y1 = Math.min(h, Math.ceil(h - pad + m));
+    const R = shadeTube(mask, x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0), C);
+    // leuchtend: Schein in der Luft, darüber das berechnete Rohr
     const on = mk(w, h), x = on.getContext('2d');
-    x.font = font; x.textBaseline = 'alphabetic'; x.lineJoin = 'round'; x.lineCap = 'round';
-    if (outline) {
-      x.shadowColor = rgba(C.glow, 1); x.shadowBlur = fs * 0.4; x.strokeStyle = rgba(C.glow, 0.55); x.lineWidth = tube * 2.4; x.strokeText(u.text, bx, by);
-      x.shadowBlur = fs * 0.12; x.strokeStyle = rgba(C.glow, 0.9); x.lineWidth = tube * 1.5; x.strokeText(u.text, bx, by);
-      x.shadowBlur = 0; x.strokeStyle = rgba(C.core, 1); x.lineWidth = Math.max(1, tube * 0.6); x.strokeText(u.text, bx, by);
-    } else {
-      x.shadowColor = rgba(C.glow, 1); x.shadowBlur = fs * 0.42; x.fillStyle = rgba(C.glow, 0.5); x.fillText(u.text, bx, by);
-      x.shadowBlur = fs * 0.14; x.fillStyle = rgba(C.glow, 0.85); x.fillText(u.text, bx, by);
-      x.shadowBlur = 0; x.fillStyle = rgba(C.core, 1); x.fillText(u.text, bx, by);
-      x.lineWidth = Math.max(1, fs * 0.02); x.strokeStyle = rgba(C.glow, 0.9); x.strokeText(u.text, bx, by);
+    setup(x);
+    x.shadowColor = rgba(C.glow, 1); x.shadowBlur = fs * 0.22; x.fillStyle = x.strokeStyle = rgba(C.glow, 0.16); shape(x, tube * 1.6);
+    x.shadowBlur = fs * 0.06; x.fillStyle = x.strokeStyle = rgba(C.glow, 0.42); shape(x, tube * 1.2);
+    x.shadowBlur = 0; x.globalCompositeOperation = 'lighter'; x.drawImage(R.lit, x0, y0);
+    u.on = on;
+    u.off = R.off; u.offX = x0 - bx; u.offY = y0 - by;
+    // Licht auf der Wand: nah (scharf, kräftig) und weit (weich). Die Form wird dafür verdickt und mehrfach
+    // weichgezeichnet aufaddiert, damit genug Licht auf die Wand kommt.
+    const lightSprite = (S, LP, fat, passes) => {
+      const c2 = mk(Math.ceil((gw + 2 * LP) * S), Math.ceil((gh + 2 * LP) * S)), x2 = c2.getContext('2d');
+      x2.font = fontStr(F, fs * S); x2.textBaseline = 'alphabetic'; x2.lineJoin = 'round'; x2.lineCap = 'round';
+      x2.globalCompositeOperation = 'lighter';
+      // nur der weiche Schatten der Form landet im Bild (die Form selbst wird weit daneben gezeichnet)
+      const OFF = 4096 + c2.width, tx = (LP + left) * S, ty = (LP + asc) * S;
+      x2.shadowOffsetX = OFF; x2.fillStyle = x2.strokeStyle = '#fff';
+      x2.lineWidth = Math.max(1, (outline ? tube : 0) + fat * S);
+      for (const [b, a] of passes) {
+        x2.shadowColor = rgba(C.glow, a); x2.shadowBlur = b * S;
+        x2.strokeText(u.text, tx - OFF, ty); if (!outline) x2.fillText(u.text, tx - OFF, ty);
+      }
+      return c2;
+    };
+    const LPn = fs * 1.5, LPf = fs * 4.2;
+    u.ln = lightSprite(LN, LPn, fs * 0.1, [[fs * 0.95, 0.6], [fs * 0.38, 0.45], [fs * 0.12, 0.3]]);
+    u.lnX = u.x - left - LPn; u.lnY = u.y - asc - LPn;
+    u.lf = lightSprite(LF, LPf, fs * 0.35, [[fs * 2.6, 0.75], [fs * 1.4, 0.6]]);
+    u.lfX = u.x - left - LPf; u.lfY = u.y - asc - LPf;
+    // Halter und Elektroden auf der Mittellinie (lokale Koordinaten im engen Rahmen → absolut)
+    u.sup = []; u.el = [];
+    const ax = R.axis;
+    if (ax.length) {
+      const rs = []; for (let k = 2; k < ax.length; k += 3) rs.push(ax[k]);
+      rs.sort((a, b) => a - b);
+      const rMed = rs[rs.length >> 1], minR = Math.max(1, rMed * 0.7);
+      const gx0 = bx - left - x0, gy0 = by - asc - y0, abs = k => [u.x + u.ox + x0 + ax[k], u.y + u.oy + y0 + ax[k + 1]];
+      let targets;
+      if (u.isWord) { const nS = Math.max(2, Math.round(gw / (fs * 0.95))); targets = []; for (let k = 0; k < nS; k++) targets.push([(k + 0.5) / nS, k % 2 ? 0.38 : 0.66]); }
+      else if (gw < gh * 0.38) targets = [[0.5, 0.28], [0.5, 0.74]];
+      else targets = [[0.24, 0.66], [0.76, 0.34]];
+      for (const [tx, ty] of targets) {
+        const k = nearestAxis(ax, gx0 + tx * gw, gy0 + ty * gh, minR);
+        if (k < 0) continue;
+        const [sx, sy] = abs(k);
+        if (u.sup.some(q => Math.hypot(q.x - sx, q.y - sy) < fs * 0.28)) continue;
+        u.sup.push({ x: sx, y: sy, r: Math.max(1.5, ax[k + 2]), a: axisAngle(ax, k, Math.max(4, rMed * 2.5)) + Math.PI / 2 });
+      }
+      // Röhrenenden: Mittellinienpunkte, deren Nachbarn nur auf einer Seite liegen. Dort sitzen die Elektroden,
+      // das letzte Stück ist schwarz lackiert und biegt nach hinten in die Wand.
+      const ends = [], RR = Math.max(4, rMed * 3.2), step = Math.max(1, Math.floor(ax.length / 3 / 180)) * 3;
+      for (let k = 0; k < ax.length; k += step) {
+        if (ax[k + 2] < minR) continue;
+        let sx = 0, sy = 0, n = 0;
+        for (let j = 0; j < ax.length; j += 3) {
+          const dx = ax[j] - ax[k], dy = ax[j + 1] - ax[k + 1];
+          if (dx * dx + dy * dy <= RR * RR) { sx += dx; sy += dy; n++; }
+        }
+        if (n < 4) continue;
+        const e = Math.hypot(sx / n, sy / n) / RR;
+        if (e > 0.34) ends.push([k, e, sx / n, sy / n]);
+      }
+      ends.sort((a, b) => b[1] - a[1]);
+      // bei normalen Buchstaben ist bekannt, wo die Röhre anfängt und aufhört
+      const base = (u.text.normalize ? u.text.normalize('NFD') : u.text).charAt(0).toUpperCase();
+      const known = !u.isWord && u.text.length <= 2 ? ELEC[base] : null;
+      if (known) {
+        u.el = [];
+        for (const [tx, ty] of known) {
+          const k = nearestAxis(ax, gx0 + tx * gw, gy0 + ty * gh, minR);
+          if (k < 0) continue;
+          const [ex, ey] = abs(k);
+          if (u.el.some(q => Math.hypot(q.x - ex, q.y - ey) < fs * 0.12)) continue;
+          // Richtung ins Röhreninnere: Schwerpunkt der Mittellinie in der Nähe
+          let sx = 0, sy = 0, n = 0;
+          for (let j = 0; j < ax.length; j += 3) { const dx = ax[j] - ax[k], dy = ax[j + 1] - ax[k + 1]; if (dx * dx + dy * dy <= RR * RR) { sx += dx; sy += dy; n++; } }
+          const dl = Math.hypot(sx, sy) || 1;
+          u.el.push({ x: ex, y: ey, r: Math.max(1.5, ax[k + 2]), dx: n ? sx / dl : 0, dy: n ? sy / dl : 0 });
+        }
+        ends.length = 0;
+      }
+      if (u.isWord && ax.length) {
+        // Schreibschrift: Röhre beginnt am ersten und endet am letzten Buchstaben
+        let kl = -1, kr = -1;
+        for (let k = 0; k < ax.length; k += 3) { if (ax[k + 2] < minR) continue; if (kl < 0 || ax[k] < ax[kl]) kl = k; if (kr < 0 || ax[k] > ax[kr]) kr = k; }
+        ends.length = 0;
+        for (const [k, dir] of [[kl, 1], [kr, -1]]) if (k >= 0) ends.push([k, 1, dir, 0]);
+      }
+      const picked = [];
+      for (const en of ends) {
+        const [ex, ey] = abs(en[0]);
+        if (picked.some(q => Math.hypot(q.x - ex, q.y - ey) < Math.max(fs * 0.18, RR * 1.5))) continue;
+        const dl = Math.hypot(en[2], en[3]) || 1;
+        picked.push({ x: ex, y: ey, r: Math.max(1.5, ax[en[0] + 2]), dx: en[2] / dl, dy: en[3] / dl });
+      }
+      picked.sort((a, b) => b.y - a.y);
+      if (!known) u.el = picked.slice(0, 2);
+      if (!u.el.length) {
+        const k = nearestAxis(ax, gx0 + gw * 0.5, gy0 + gh, minR);
+        if (k >= 0) { const [ex, ey] = abs(k); u.el.push({ x: ex, y: ey, r: Math.max(1.5, ax[k + 2]), dx: 0, dy: 0 }); }
+      }
     }
-    const off = mk(w, h), y = off.getContext('2d');
-    y.font = font; y.textBaseline = 'alphabetic'; y.lineJoin = 'round'; y.lineCap = 'round';
-    if (outline) { y.strokeStyle = rgba(C.dim, 0.55); y.lineWidth = Math.max(1, tube * 0.9); y.strokeText(u.text, bx, by); }
-    else {
-      y.fillStyle = rgba(C.dim, 0.5); y.fillText(u.text, bx, by);
-      y.lineWidth = Math.max(1, fs * 0.012); y.strokeStyle = 'rgba(255,255,255,0.09)'; y.strokeText(u.text, bx, by);
-    }
-    u.on = on; u.off = off;
   });
+  if (units.length) avgCol = [cr / units.length, cg / units.length, cb / units.length];
+  makePlate();
 }
 
-// Betonwand: einmal als graue Struktur, dann mit dem Licht des Schilds multipliziert
+// Acrylplatte: Umriss um alle Buchstaben, vier Abstandshalter, Kabel nach unten
+function makePlate() {
+  plate = null;
+  if (!units.length) return;
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const u of units) { x0 = Math.min(x0, u.bb[0]); y0 = Math.min(y0, u.bb[1]); x1 = Math.max(x1, u.bb[2]); y1 = Math.max(y1, u.bb[3]); }
+  const mg = fs * 0.34;
+  const p = { x: Math.max(W * 0.03, x0 - mg), y: y0 - mg, r: fs * 0.12 };
+  p.w = Math.min(W * 0.97, x1 + mg) - p.x; p.h = y1 + mg - p.y;
+  const so = Math.max(5 * dpr, Math.min(14 * dpr, fs * 0.075)), ins = mg * 0.42 + so * 0.4;
+  p.so = so;
+  p.caps = [[p.x + ins, p.y + ins], [p.x + p.w - ins, p.y + ins], [p.x + ins, p.y + p.h - ins], [p.x + p.w - ins, p.y + p.h - ins]];
+  // Abstandshalter: gebürsteter Stahl, einmal dunkel (Grundform) und einmal nur die Lichtreflexe
+  const S = Math.ceil(so * 2 + 4), base = mk(S, S), lit = mk(S, S), bx = base.getContext('2d'), lx = lit.getContext('2d'), c = S / 2;
+  let g = bx.createRadialGradient(c - so * 0.3, c - so * 0.35, 0, c, c, so);
+  g.addColorStop(0, '#2a2a2e'); g.addColorStop(0.7, '#151518'); g.addColorStop(1, '#08080a');
+  bx.fillStyle = g; bx.beginPath(); bx.arc(c, c, so, 0, TAU); bx.fill();
+  g = lx.createRadialGradient(c - so * 0.35, c - so * 0.4, 0, c - so * 0.2, c - so * 0.2, so * 1.1);
+  g.addColorStop(0, rgba([255, 255, 255], 0.75)); g.addColorStop(0.25, rgba(avgCol, 0.45)); g.addColorStop(0.7, rgba(avgCol, 0.08)); g.addColorStop(1, rgba(avgCol, 0));
+  lx.fillStyle = g; lx.beginPath(); lx.arc(c, c, so, 0, TAU); lx.fill();
+  lx.lineWidth = Math.max(1, so * 0.12); lx.strokeStyle = rgba(avgCol, 0.55); lx.beginPath(); lx.arc(c, c, so * 0.9, Math.PI * 0.15, Math.PI * 0.85); lx.stroke();
+  p.capBase = base; p.capLit = lit;
+  // Kabel vom rechten unteren Rand der Platte nach unten aus dem Bild
+  const kx = p.x + p.w * 0.84, ky = p.y + p.h - fs * 0.04;
+  p.cable = [kx, ky, kx + fs * 0.05, ky + fs * 1.1, kx + fs * 0.45, ky + (H - ky) * 0.55, kx + fs * 0.3, H + 30 * dpr];
+  p.cw = Math.max(2 * dpr, fs * 0.04);
+  plate = p;
+}
+function rrect(x, X, Y, w, h, r) {
+  x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r);
+  x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath();
+}
+
+// Wandstruktur (nur Farbe und Relief, das Licht kommt jedes Bild neu vom Schild)
 function vnoise(x, y) {
   const h = (a, b) => { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); };
   const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf);
   const a = h(xi, yi), b = h(xi + 1, yi), c = h(xi, yi + 1), d = h(xi + 1, yi + 1);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
-function genTexture() {
-  const tw = Math.max(1, W >> 2), th = Math.max(1, H >> 2), c = mk(tw, th), x = c.getContext('2d'), img = x.createImageData(tw, th), d = img.data;
-  const sc = 2 / (60 * dpr);
-  for (let yy = 0; yy < th; yy++) for (let xx = 0; xx < tw; xx++) {
-    const n = 0.6 * vnoise(xx * sc * 2, yy * sc * 2) + 0.3 * vnoise(xx * sc * 7 + 9, yy * sc * 7) + 0.1 * vnoise(xx * sc * 25, yy * sc * 25 + 3);
-    const v = (0.5 + 0.38 * n + (Math.random() - 0.5) * 0.12) * 255, p = (yy * tw + xx) * 4;
-    d[p] = v; d[p + 1] = v; d[p + 2] = v * 1.02; d[p + 3] = 255;
+const hash2 = (a, b) => { const s = Math.sin(a * 91.7 + b * 47.3 + 3.1) * 15731.743; return s - Math.floor(s); };
+function genAlbedo() {
+  alb = null;
+  if (settings.wall === 3) return;
+  const aw = Math.ceil((W + 2 * bgM) * AS), ah = Math.ceil((H + 2 * bgM) * AS);
+  const c = mk(aw, ah), x = c.getContext('2d'), img = x.createImageData(aw, ah), d = img.data;
+  const U = Math.min(W, H * 0.6), wall = settings.wall;
+  // Backstein
+  const bL = U * 0.21, bH = bL * 0.31, mo = bH * 0.13, cw = bL + mo, ch = bH + mo;
+  // Beton: Schalungstafeln mit Ankerlöchern
+  const pw = U * 0.62, ph = pw * 0.5, hole = U * 0.014;
+  // Holz: senkrechte Bretter
+  const bw = U * 0.17;
+  for (let py = 0; py < ah; py++) for (let px = 0; px < aw; px++) {
+    const X = px / AS - bgM, Y = py / AS - bgM, q = (py * aw + px) * 4;
+    let r, g, b;
+    const big = 0.82 + 0.3 * vnoise(X / (U * 0.5), Y / (U * 0.5));
+    if (wall === 0) {
+      const row = Math.floor(Y / ch), ly = Y - row * ch, shift = (row & 1) ? cw * 0.5 : 0;
+      const col = Math.floor((X + shift) / cw), lx = X + shift - col * cw;
+      const fine = vnoise(X / (U * 0.012), Y / (U * 0.012)), grain = (Math.random() - 0.5) * 0.14;
+      if (lx < bL && ly < bH) {
+        const hs = hash2(col, row), hs2 = hash2(row + 7, col - 3);
+        let br = 0.55 + 0.2 * hs, bg = br * (0.4 + 0.12 * hs2), bb = br * (0.33 + 0.1 * hs2);
+        if (hs2 > 0.86) { br *= 0.55; bg *= 0.55; bb *= 0.6; }
+        else if (hs2 < 0.08) { br *= 1.08; bg *= 1.25; bb *= 1.2; }
+        const edge = Math.min(lx, bL - lx, ly, bH - ly) / (bH * 0.16) + (fine - 0.5) * 0.9;
+        const ao = 0.5 + 0.5 * smooth(0, 1, edge);
+        const tex = 0.8 + 0.28 * fine + grain + 0.12 * vnoise(X / (U * 0.04) + col * 3.7, Y / (U * 0.04));
+        r = br * ao * tex; g = bg * ao * tex; b = bb * ao * tex;
+      } else {
+        const tex = 0.7 + 0.35 * fine + grain * 1.4;
+        r = 0.3 * tex; g = 0.29 * tex; b = 0.275 * tex;
+      }
+    } else if (wall === 1) {
+      const fine = vnoise(X / (U * 0.02), Y / (U * 0.02)), mid = vnoise(X / (U * 0.11) + 5, Y / (U * 0.11));
+      let v = 0.42 + 0.14 * mid + 0.1 * fine + (Math.random() - 0.5) * 0.08;
+      const sx = ((X % pw) + pw) % pw, sy = ((Y % ph) + ph) % ph;
+      if (Math.min(sx, pw - sx) < 1.2 / AS || Math.min(sy, ph - sy) < 1.2 / AS) v *= 0.7;
+      const hx = sx - pw * 0.25 - Math.round((sx - pw * 0.25) / (pw * 0.5)) * pw * 0.5, hy = sy - ph * 0.5;
+      const hd = Math.hypot(hx, hy);
+      if (hd < hole) v *= 0.32 + 0.3 * (hd / hole); else if (hd < hole * 1.5) v *= 1.08;
+      const cx2 = Math.floor(X / (U * 0.02)), cy2 = Math.floor(Y / (U * 0.02));
+      if (hash2(cx2, cy2) > 0.965) {
+        const px2 = (cx2 + 0.5) * U * 0.02, py2 = (cy2 + 0.5) * U * 0.02, pr = U * 0.0045 * (0.5 + hash2(cy2, cx2));
+        if (Math.hypot(X - px2, Y - py2) < pr) v *= 0.45;
+      }
+      r = v; g = v * 0.985; b = v * 0.97;
+    } else {
+      const col = Math.floor(X / bw), lx = X - col * bw, hs = hash2(col, 11);
+      const gn = vnoise(X / (U * 0.006) + col * 13, Y / (U * 0.12)), rings = Math.sin((lx / bw) * 18 + gn * 9 + hs * 20);
+      let v = 0.75 + 0.18 * rings * (0.5 + 0.5 * gn) + 0.12 * vnoise(X / (U * 0.03), Y / (U * 0.4)) + (Math.random() - 0.5) * 0.06;
+      if (lx < 1.4 / AS || lx > bw - 1.4 / AS) v *= 0.25;
+      const knot = Math.hypot(lx - bw * hs, (Y % (U * 1.7)) - U * 0.9 * hash2(col, 5));
+      if (knot < U * 0.03) v *= 0.7 + 0.3 * knot / (U * 0.03);
+      const base = 0.62 + 0.25 * hs;
+      r = v * 0.5 * base; g = v * 0.34 * base; b = v * 0.22 * base;
+    }
+    r *= big; g *= big; b *= big;
+    d[q] = Math.min(255, r * 255); d[q + 1] = Math.min(255, g * 255); d[q + 2] = Math.min(255, b * 255); d[q + 3] = 255;
   }
   x.putImageData(img, 0, 0);
-  tex = c;
+  alb = c;
 }
-function genWall() {
-  if (!tex) genTexture();
-  const tw = Math.max(1, W >> 1), th = Math.max(1, H >> 1);
-  wall = mk(tw, th);
-  const x = wall.getContext('2d');
-  x.fillStyle = '#000'; x.fillRect(0, 0, tw, th);
-  if (units.length) {
-    let r = 0, g = 0, b = 0;
-    for (const u of units) { r += u.col.glow[0]; g += u.col.glow[1]; b += u.col.glow[2]; }
-    const n = units.length, col = [r / n | 0, g / n | 0, b / n | 0];
-    const cx = (block.x + block.w / 2) / 2, cy = (block.y + block.h / 2) / 2, rx = (block.w * 0.62 + fs * 1.2) / 2, ry = (block.h * 0.7 + fs * 1.8) / 2;
-    x.save(); x.translate(cx, cy); x.scale(rx / ry, 1);
-    const gr = x.createRadialGradient(0, 0, 0, 0, 0, ry * 1.8);
-    gr.addColorStop(0, rgba(col, 0.42)); gr.addColorStop(0.35, rgba(col, 0.15)); gr.addColorStop(1, rgba(col, 0));
-    x.fillStyle = gr; x.fillRect(-ry * 1.8, -ry * 1.8, ry * 3.6, ry * 3.6);
-    x.restore();
-    x.globalCompositeOperation = 'multiply'; x.imageSmoothingEnabled = true; x.drawImage(tex, 0, 0, tw, th);
-    x.globalCompositeOperation = 'source-over';
-  }
+function makeLightCanvases() {
+  ln = mk(Math.ceil((W + 2 * bgM) * LN), Math.ceil((H + 2 * bgM) * LN)); lnx = ln.getContext('2d');
+  lf = mk(Math.ceil((W + 2 * bgM) * LF), Math.ceil((H + 2 * bgM) * LF)); lfx = lf.getContext('2d');
+  wc = mk(Math.ceil((W + 2 * bgM) * AS), Math.ceil((H + 2 * bgM) * AS)); wcx = wc.getContext('2d');
 }
 
 // Defekte Röhren auswählen
@@ -283,37 +582,137 @@ function rebuild(keepState) {
   if (keepState && old.length === units.length) units.forEach((u, i) => { u.kind = old[i].kind; u.seq = old[i].seq; u.lv = old[i].lv; });
   else pickKinds();
   makeSprites();
-  wallDue = 0.25;
+}
+
+// Halterung zeichnen: hinter den Röhren (Fuß der Halter, Platte, Kabel) und davor (Drahtschlaufen, Kappen)
+function hardwareBack(ctx, avg) {
+  const amb = Math.min(1, avg);
+  if (settings.mount === 1) {
+    const p = plate;
+    if (!p) return;
+    // Kabel hinter der Platte
+    const cb = p.cable;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cb[0], cb[1]); ctx.bezierCurveTo(cb[2], cb[3], cb[4], cb[5], cb[6], cb[7]);
+    ctx.strokeStyle = '#050506'; ctx.lineWidth = p.cw; ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 * amb;
+    ctx.save(); ctx.translate(-p.cw * 0.22, 0);
+    ctx.strokeStyle = rgba(avgCol, 0.8); ctx.lineWidth = Math.max(1, p.cw * 0.25); ctx.stroke();
+    ctx.restore();
+    // Schatten der Plattenkante auf der Wand, dann die Kanten selbst: poliertes Acryl leitet das Licht zum Rand
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.55;
+    rrect(ctx, p.x + fs * 0.02, p.y + fs * 0.07, p.w, p.h, p.r);
+    ctx.strokeStyle = '#000'; ctx.lineWidth = Math.max(2, fs * 0.05); ctx.stroke();
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'lighter';
+    rrect(ctx, p.x, p.y, p.w, p.h, p.r);
+    ctx.fillStyle = rgba(avgCol, 0.025 * amb); ctx.fill();
+    ctx.strokeStyle = rgba(avgCol, 0.55 * amb); ctx.lineWidth = Math.max(1.5, 1.6 * dpr); ctx.stroke();
+    ctx.strokeStyle = rgba([255, 255, 255], 0.2 * amb); ctx.lineWidth = Math.max(0.6, 0.5 * dpr); ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+  } else {
+    for (const u of units) {
+      // Fuß der Röhrenhalter: kleiner Kunststoffsockel hinter der Röhre, vom Licht der Röhre angestrahlt
+      for (const s of u.sup) {
+        const R = Math.max(s.r * 2, 3.2 * dpr);
+        ctx.globalAlpha = 0.6; ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(s.x + R * 0.12, s.y + R * 0.3, R * 1.1, 0, TAU); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = '#121214';
+        ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, TAU); ctx.fill();
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, 0.7 * u.a + 0.12 * amb);
+        ctx.strokeStyle = rgba(u.col.glow, 0.75); ctx.lineWidth = Math.max(1, R * 0.16);
+        ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.88, 0, TAU); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // Gummikappe der Elektrode hinter dem Röhrenende
+      for (const e of u.el) {
+        const R = Math.max(e.r * 1.6, 3.5 * dpr);
+        ctx.globalAlpha = 1; ctx.fillStyle = '#070708';
+        ctx.beginPath(); ctx.arc(e.x, e.y, R, 0, TAU); ctx.fill();
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, 0.5 * u.a + 0.08 * amb);
+        ctx.strokeStyle = rgba(u.col.glow, 0.6); ctx.lineWidth = Math.max(1, R * 0.12);
+        ctx.beginPath(); ctx.arc(e.x, e.y, R * 0.92, Math.PI * 0.95, Math.PI * 1.85); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+function hardwareFront(ctx, avg) {
+  const amb = Math.min(1, avg);
+  if (settings.mount === 1) {
+    const p = plate;
+    if (!p) return;
+    const h = p.capBase.width / 2;
+    for (const [cx, cy] of p.caps) {
+      ctx.globalAlpha = 0.5; ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(cx + p.so * 0.25, cy + p.so * 0.55, p.so * 1.05, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1; ctx.drawImage(p.capBase, cx - h, cy - h);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = amb; ctx.drawImage(p.capLit, cx - h, cy - h);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+  } else {
+    ctx.lineCap = 'round';
+    for (const u of units) {
+      for (const s of u.sup) {
+        const c = Math.cos(s.a), sn = Math.sin(s.a), L = Math.max(s.r * 1.5, 3.4 * dpr);
+        ctx.globalAlpha = 1; ctx.strokeStyle = 'rgba(24,24,28,0.92)'; ctx.lineWidth = Math.max(1.2, s.r * 0.3, 0.9 * dpr);
+        ctx.beginPath(); ctx.moveTo(s.x - c * L, s.y - sn * L); ctx.lineTo(s.x + c * L, s.y + sn * L); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, 0.55 * u.a + 0.1 * amb);
+        ctx.strokeStyle = rgba(u.col.core, 0.9); ctx.lineWidth = Math.max(0.5, s.r * 0.08);
+        const o = s.r * 0.06;
+        ctx.beginPath(); ctx.moveTo(s.x - c * L - sn * o, s.y - sn * L + c * o); ctx.lineTo(s.x + c * L - sn * o, s.y + sn * L + c * o); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // schwarz lackiertes Röhrenende, das nach hinten in die Kappe biegt
+      for (const e of u.el) {
+        const L = e.r * 1.3;
+        ctx.globalAlpha = 0.96; ctx.strokeStyle = '#0c0c0e'; ctx.lineWidth = e.r * 2.15;
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + e.dx * L, e.y + e.dy * L); ctx.stroke();
+        ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, 0.35 * u.a + 0.1 * amb);
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = Math.max(0.6, e.r * 0.25);
+        ctx.beginPath(); ctx.moveTo(e.x - e.dy * e.r * 0.45 - e.dx * e.r * 0.3, e.y + e.dx * e.r * 0.45 - e.dy * e.r * 0.3);
+        ctx.lineTo(e.x - e.dy * e.r * 0.45 + e.dx * L, e.y + e.dx * e.r * 0.45 + e.dy * L); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 return {
-  maxDpr: 3,
+  maxDpr: 2,
   settings, controls,
   actionLabel: 'Einschalten',
   bindUI(api) { ui = api; },
   resize(w, h, d) {
-    W = w; H = h; dpr = d; tex = null;
+    W = w; H = h; dpr = d; bgM = Math.ceil(8 * d);
+    cam.resize(w, h);
     if (!mctx) { mctx = mk(4, 4).getContext('2d'); FONTS.forEach((_, i) => ensureCss(i)); ensureFont(settings.font); }
+    makeLightCanvases(); genAlbedo();
     rebuild(true);
   },
-  newPattern() { pickKinds(); makeSprites(); wallDue = 0.01; },
+  newPattern() { pickKinds(); },
   action() { ignite(true); },
   wake() { ignite(true); },
   change(id) {
     if (id === 'broken') { pickKinds(); return; }
-    if (id === 'flicker') return;
+    if (id === 'flicker' || id === 'video' || id === 'mount') return;
+    if (id === 'wall') { genAlbedo(); return; }
     if (id === 'text') {
       // Sonderbuchstaben erkannt: passende Schriftgruppe wählen
       const raw = String(settings.text || ''), g = (FONTS[settings.font] || FONTS[0]).g;
       if (FRAKTUR_RE.test(raw) && g !== 'Altdeutsch' && FRAKTUR_IDX >= 0) { settings.font = FRAKTUR_IDX; if (ui) ui.set('font', FRAKTUR_IDX); }
       else if (SCRIPT_RE.test(raw) && g !== 'Schreibschrift' && SCRIPT_IDX >= 0) { settings.font = SCRIPT_IDX; if (ui) ui.set('font', SCRIPT_IDX); }
+      ensureFont(settings.font);
+      pendingText = 0.25; // erst nach kurzer Tipp-Pause neu berechnen
+      return;
     }
-    if (id === 'font' || id === 'text') ensureFont(settings.font);
+    if (id === 'font') ensureFont(settings.font);
     rebuild(id === 'pos' || id === 'color' || id === 'tube');
   },
   frame(ctx, dt) {
     t += dt;
-    if (wallDue > 0) { wallDue -= dt; if (wallDue <= 0) genWall(); }
+    if (pendingText > 0) { pendingText -= dt; if (pendingText <= 0) rebuild(false); }
     let sum = 0;
     for (const u of units) {
       if (!u.seq.length) nextSeq(u);
@@ -321,20 +720,52 @@ return {
       s[0] -= dt; u.tg = s[1];
       if (s[0] <= 0) u.seq.shift();
       u.lv += (u.tg - u.lv) * Math.min(1, dt * 45);
-      sum += u.lv;
+      u.a = clamp(u.kind === 'buzz' ? u.lv * (0.85 + 0.15 * Math.random()) : u.lv, 0, 1);
+      sum += u.a;
     }
-    const avg = units.length ? sum / units.length : 0;
+    const avg = units.length ? sum / units.length : 0, vid = settings.video === 0;
+    const sh = vid ? cam.shake(t, 0.8, dpr) : [0, 0], ox = sh[0], oy = sh[1];
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    if (wall) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = clamp(avg, 0, 1); ctx.imageSmoothingEnabled = true; ctx.drawImage(wall, 0, 0, W, H); }
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    for (const u of units) ctx.drawImage(u.off, u.x + u.ox, u.y + u.oy);
+    ctx.setTransform(1, 0, 0, 1, ox, oy);
+    ctx.imageSmoothingEnabled = true;
+    // Wand: jedes Bild neu vom Licht der einzelnen Buchstaben beleuchtet
+    if (alb && units.length && ln && lf) {
+      for (const [c2, x2] of [[lf, lfx], [ln, lnx]]) {
+        x2.globalCompositeOperation = 'source-over'; x2.globalAlpha = 1; x2.fillStyle = '#000'; x2.fillRect(0, 0, c2.width, c2.height);
+        x2.globalCompositeOperation = 'lighter';
+      }
+      for (const u of units) {
+        if (u.a < 0.01) continue;
+        lfx.globalAlpha = u.a * u.lk; lfx.drawImage(u.lf, (u.lfX + bgM) * LF, (u.lfY + bgM) * LF);
+        lnx.globalAlpha = u.a * u.lk; lnx.drawImage(u.ln, (u.lnX + bgM) * LN, (u.lnY + bgM) * LN);
+      }
+      // Licht mal Wandfarbe in halber Auflösung, dann doppelt hell auf den Bildschirm (so kippt die Farbe erst
+      // ganz nah an der Röhre ins Weiße, wie bei einer echten Kamera)
+      wcx.imageSmoothingEnabled = true; wcx.globalAlpha = 1;
+      wcx.globalCompositeOperation = 'copy'; wcx.drawImage(lf, 0, 0, lf.width / LF * AS, lf.height / LF * AS);
+      wcx.globalCompositeOperation = 'lighter'; wcx.drawImage(ln, 0, 0, ln.width / LN * AS, ln.height / LN * AS);
+      wcx.globalCompositeOperation = 'multiply'; wcx.drawImage(alb, 0, 0);
+      wcx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(wc, -bgM, -bgM, wc.width / AS, wc.height / AS);
+      ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(wc, -bgM, -bgM, wc.width / AS, wc.height / AS);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    hardwareBack(ctx, avg);
+    // Röhren aus: milchiges Glas, vom Schild selbst beleuchtet
+    ctx.globalAlpha = 0.12 + 0.6 * Math.min(1, avg);
+    for (const u of units) ctx.drawImage(u.off, u.x + u.offX, u.y + u.offY);
+    // Röhren an
     ctx.globalCompositeOperation = 'lighter';
     for (const u of units) {
-      const a = u.kind === 'buzz' ? u.lv * (0.85 + 0.15 * Math.random()) : u.lv;
-      if (a < 0.01) continue;
-      ctx.globalAlpha = Math.min(1, a); ctx.drawImage(u.on, u.x + u.ox, u.y + u.oy);
+      if (u.a < 0.01) continue;
+      ctx.globalAlpha = u.a; ctx.drawImage(u.on, u.x + u.ox, u.y + u.oy);
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    hardwareFront(ctx, avg);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Kamera-Look
+    if (vid) { cam.bloom(ctx, 0.4, 1); cam.vignette(ctx, 0.6); cam.grain(ctx, 0.045, dpr); }
   },
 };

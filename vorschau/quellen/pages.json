@@ -103,5 +103,12 @@
     "sub": "Kantige Metall-Uhr mit echter Zeit und Datum. Über Broken Screen läuft der Riss mitten durch die Ziffern.",
     "accent": "#cfd6e2",
     "aria": "Animierter Hintergrund: kantige Metall-Uhr mit echter Uhrzeit, wahlweise über flackernden Glitch-Streifen"
+  },
+  "plasmaschirm": {
+    "title": "Plasma-Bildschirm",
+    "name": "Plasma-Bildschirm",
+    "sub": "Lichtbögen wie bei der Jakobsleiter über den ganzen Bildschirm. Mit dem Finger ziehst du die Blitze an.",
+    "accent": "#b98cff",
+    "aria": "Animierter Hintergrund: Plasma-Lichtbögen über den ganzen Bildschirm, die auf Berührung reagieren"
   }
 }
