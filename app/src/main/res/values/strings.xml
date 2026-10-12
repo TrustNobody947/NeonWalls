@@ -63,9 +63,10 @@
     <string name="f_black">Schwarzchrom</string>
     <string name="f_copper">Kupfer</string>
     <string name="f_neon">Neon</string>
+    <string name="f_white">Weiß (Original)</string>
     <string name="c_pos">Position der Uhr</string>
     <string name="c_top">Oben</string>
-    <string name="c_size">Größe der Uhr</string>
+    <string name="c_size">Größe der Uhr (5 = wie Original)</string>
     <string name="c_date">Datum</string>
     <string name="c_date_orig">Wie Original</string>
     <string name="c_date_de">Deutsch</string>

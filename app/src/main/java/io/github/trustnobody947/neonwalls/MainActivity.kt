@@ -36,6 +36,7 @@ import io.github.trustnobody947.neonwalls.pegel.PegelAudio
 import io.github.trustnobody947.neonwalls.pegel.PegelPrefs
 import io.github.trustnobody947.neonwalls.pegel.PegelView
 import io.github.trustnobody947.neonwalls.pegel.PegelWallpaperService
+import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 
 /**
@@ -278,10 +279,10 @@ class MainActivity : Activity() {
             setPadding(0, dpi(2), 0, 0)
         })
         addSwitch(getString(R.string.c_show), cp, onKey, reapply)
-        addChoice(getString(R.string.c_finish), cp, ClockPrefs.FINISH, 0, listOf(
+        addChoice(getString(R.string.c_finish), cp, ClockPrefs.FINISH, ClockFace.WHITE, listOf(
             getString(R.string.f_chrome), getString(R.string.f_gold), getString(R.string.f_steel),
             getString(R.string.f_rose), getString(R.string.f_black), getString(R.string.f_copper),
-            getString(R.string.f_neon))) { reapply() }
+            getString(R.string.f_neon), getString(R.string.f_white))) { reapply() }
         addChoice(getString(R.string.c_pos), cp, ClockPrefs.POS, 0,
             listOf(getString(R.string.c_top), getString(R.string.p_mid), getString(R.string.p_bottom))) { reapply() }
         addSlider(getString(R.string.c_size), cp, ClockPrefs.SIZE, 5, 1, 10, 1, { it.toString() }, reapply)

@@ -22,7 +22,7 @@ object ClockPrefs {
         val p = prefs(ctx)
         if (!p.getBoolean(onKey, false)) return null
         val f = old ?: ClockFace()
-        f.configure(p.getInt(POS, 0), p.getInt(SIZE, 5), p.getInt(DATE, 0), p.getInt(FINISH, 0))
+        f.configure(p.getInt(POS, 0), p.getInt(SIZE, 5), p.getInt(DATE, 0), p.getInt(FINISH, ClockFace.WHITE))
         return f
     }
 

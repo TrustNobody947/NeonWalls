@@ -4,21 +4,22 @@ import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.Shader
 import java.util.Calendar
-import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.math.hypot
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
- * Schablonen-Uhr: kantige Ziffern aus abgeschrägten Balken mit schmalen Schablonen-Lücken, Uhrzeit und Datum.
- * Oberflächen: Chrom, Gold, Stahlblau, Roségold, Schwarzchrom, Kupfer (Metall mit Tiefe und Fasen) und Neon (leuchtend).
+ * Schablonen-Uhr: Uhrzeit und Datum in der Schrift der Original-Sperrbildschirm-Uhr.
+ * Die Schrift ist nach Screenshots vermessen: nur senkrechte Balken mit 45°-Fasen auf einem Raster (Zeichenhöhe
+ * 153 Einheiten = 9 × 17), Schablonen-Lücke zwischen linker und rechter Spalte, Doppelpunkt aus zwei Keilen.
+ * Licht von oben: Fläche, hellere Seitenfasen, dunklere Unterkanten und darunter eine dunkle Kante (Tiefe).
+ * Oberflächen: Chrom, Gold, Stahlblau, Roségold, Schwarzchrom, Kupfer, Neon (leuchtend) und Weiß (wie das Original).
  * Liefert ein fertiges Bild (layer) und seine Lage auf dem Bildschirm; neu gebaut wird nur, wenn sich Minute,
  * Datum, Einstellungen oder Bildschirmgröße ändern.
  */
@@ -26,11 +27,11 @@ class ClockFace {
 
     var pos = 0       // 0 = oben, 1 = Mitte, 2 = unten
         private set
-    var size = 5      // 1..10
+    var size = 5      // 1..10, 5 = so groß wie beim Original
         private set
     var date = 0      // 0 = wie Original (2026.10.11 SUN), 1 = deutsch (SO 11.10.2026), 2 = aus
         private set
-    var finish = 0    // Index in FIN
+    var finish = WHITE // Index in FIN
         private set
 
     var layer: Bitmap? = null
@@ -44,8 +45,9 @@ class ClockFace {
     private var cacheKey = ""
     private val sprites = HashMap<String, Sprite>()
 
-    private class Sprite(val bmp: Bitmap?, val w: Float, val pad: Int)
-    private class Glyph(val w: Float, val polys: List<Array<FloatArray>>)
+    private class Sprite(val bmp: Bitmap?, val pad: Int)
+    private class Glyph(val polys: List<Array<FloatArray>>, val x0: Float, val x1: Float, val w: Float)
+    private class Placed(val s: Sprite, val x: Float)
 
     fun configure(pos: Int, size: Int, date: Int, finish: Int) {
         this.pos = pos.coerceIn(0, 2)
@@ -77,13 +79,16 @@ class ClockFace {
     private fun two(v: Int) = if (v < 10) "0$v" else v.toString()
 
     // ---------- Bild zusammensetzen ----------
+    // Abstände wie beim Original (Einheiten der Zeichenhöhe 153): Ziffernzellen 52 breit im Abstand 102, der
+    // Doppelpunkt mittig in der Zelle dazwischen; Datumszeile 42 hoch, 51 unter der Uhrzeit, Proportionalschrift mit
+    // 39 Abstand, 50 um den Punkt und 350 zwischen Datum und Wochentag.
 
     private fun build(sw: Int, sh: Int, time: String, ds: String) {
-        val big = max(12, (sh * (0.04f + 0.008f * size)).roundToInt())
-        val small = max(8, (big * 0.27f).roundToInt())
-        val tl = line(time, big, 2.6f, 0.24f)
-        val dl = if (ds.isNotEmpty()) line(ds, small, 2.0f, 0.3f) else Pair(emptyList<Pair<Sprite, Float>>(), 0f)
-        val gap = if (ds.isNotEmpty()) (big * 0.24f).roundToInt() else 0
+        val big = max(12, (sh * 0.0628f * (0.6f + 0.08f * size)).roundToInt())
+        val small = max(7, (big * 42f / 153f).roundToInt())
+        val tl = timeLine(time, big)
+        val dl = if (ds.isNotEmpty()) dateLine(ds, small) else Pair(emptyList<Placed>(), 0f)
+        val gap = if (ds.isNotEmpty()) (big * 51f / 153f).roundToInt() else 0
         val m = (big * (if (FIN[finish].neon != 0) 0.34f else 0.12f)).roundToInt() + 4
         val lw = ceil(max(tl.second, dl.second) + m * 2f).toInt().coerceAtLeast(1)
         val lh = ceil(big + gap + (if (ds.isNotEmpty()) small else 0) + m * 2f).toInt().coerceAtLeast(1)
@@ -91,121 +96,111 @@ class ClockFace {
         val c = Canvas(bmp)
         val p = Paint(Paint.FILTER_BITMAP_FLAG)
         val tx = (lw - tl.second) / 2f
-        for ((s, gx) in tl.first) s.bmp?.let { c.drawBitmap(it, tx + gx - s.pad, (m - s.pad).toFloat(), p) }
+        for (g in tl.first) g.s.bmp?.let { c.drawBitmap(it, (tx + g.x - g.s.pad).roundToInt().toFloat(), (m - g.s.pad).toFloat(), p) }
         val dx0 = (lw - dl.second) / 2f
-        for ((s, gx) in dl.first) s.bmp?.let { c.drawBitmap(it, dx0 + gx - s.pad, (m + big + gap - s.pad).toFloat(), p) }
+        for (g in dl.first) g.s.bmp?.let { c.drawBitmap(it, (dx0 + g.x - g.s.pad).roundToInt().toFloat(), (m + big + gap - g.s.pad).toFloat(), p) }
         layer = bmp
-        val cy = floatArrayOf(0.17f, 0.42f, 0.66f)[pos] * sh
+        // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe
+        val cy = floatArrayOf(0.1466f, 0.42f, 0.66f)[pos] * sh
         x = (sw / 2f - lw / 2f).roundToInt().toFloat()
         y = (cy - lh / 2f).coerceIn(sh * 0.03f, max(sh * 0.03f, sh * 0.97f - lh)).roundToInt().toFloat()
     }
 
-    private fun line(str: String, hPx: Int, ha: Float, gapU: Float): Pair<List<Pair<Sprite, Float>>, Float> {
-        val u = hPx / ha
-        val list = ArrayList<Pair<Sprite, Float>>()
-        var w = 0f
-        for (ch in str) {
-            val s = sprite(ch, hPx, ha)
-            list.add(Pair(s, w))
-            w += s.w + gapU * u
+    /** Uhrzeit: feste Zellen, die 1 steht mittig in ihrer Zelle. */
+    private fun timeLine(str: String, hPx: Int): Pair<List<Placed>, Float> {
+        val u = hPx / GH
+        val list = ArrayList<Placed>()
+        for ((i, ch) in str.withIndex()) {
+            val g = glyph(ch)
+            list.add(Placed(sprite(ch, hPx, false), (i * 102f + (CW - g.w) / 2f) * u))
         }
-        return Pair(list, max(0f, w - gapU * u))
+        return Pair(list, max(0f, (str.length - 1) * 102f + CW) * u)
     }
 
-    // ---------- Zeichen aus Balken mit 45°-Stößen ----------
-    // Die Balken kacheln das Zeichen lückenlos und werden dann rundum etwas eingezogen: so entstehen die schmalen
-    // Schablonen-Lücken und die kantige Form.
+    /** Datum: Proportionalschrift wie beim Original. */
+    private fun dateLine(str: String, hPx: Int): Pair<List<Placed>, Float> {
+        val u = hPx / GH
+        val list = ArrayList<Placed>()
+        var x = 0f
+        var prev: Char? = null
+        for (ch in str) {
+            if (ch == ' ') { if (prev != null) x += 350f - 39f; prev = ' '; continue }
+            if (prev != null) x += if (ch == '.' || prev == '.') 50f else 39f
+            val g = glyph(ch)
+            list.add(Placed(sprite(ch, hPx, true), (x - g.x0) * u))
+            x += g.x1 - g.x0
+            prev = ch
+        }
+        return Pair(list, x * u)
+    }
+
+    // ---------- Schrift: Balken mit 45°-Fasen auf dem Raster der Original-Uhr ----------
 
     private fun pt(x: Float, y: Float) = floatArrayOf(x, y)
 
-    private fun quad(x0: Float, y0: Float, x1: Float, y1: Float, w: Float): Array<FloatArray> {
-        val dx = x1 - x0
-        val dy = y1 - y0
-        val len = hypot(dx, dy).takeIf { it > 0f } ?: 1f
-        val nx = -dy / len * w / 2f
-        val ny = dx / len * w / 2f
-        val p = arrayOf(pt(x0 + nx, y0 + ny), pt(x1 + nx, y1 + ny), pt(x1 - nx, y1 - ny), pt(x0 - nx, y0 - ny))
-        var a = 0f
-        for (i in 0 until 4) { val q = p[(i + 1) % 4]; a += p[i][0] * q[1] - q[0] * p[i][1] }
-        return if (a < 0f) p.reversedArray() else p
-    }
-
-    private fun segs(bw: Float, ha: Float, t: Float, th: Float): Map<Char, Array<FloatArray>> {
-        val m = ha / 2f
-        val cx = bw / 2f
-        return mapOf(
-            'a' to arrayOf(pt(0f, 0f), pt(bw, 0f), pt(bw - t, th), pt(t, th)),
-            'd' to arrayOf(pt(t, ha - th), pt(bw - t, ha - th), pt(bw, ha), pt(0f, ha)),
-            'f' to arrayOf(pt(0f, 0f), pt(t, th), pt(t, m - th / 2f), pt(0f, m)),
-            'b' to arrayOf(pt(bw, 0f), pt(bw, m), pt(bw - t, m - th / 2f), pt(bw - t, th)),
-            'e' to arrayOf(pt(0f, m), pt(t, m + th / 2f), pt(t, ha - th), pt(0f, ha)),
-            'c' to arrayOf(pt(bw, m), pt(bw, ha), pt(bw - t, ha - th), pt(bw - t, m + th / 2f)),
-            'g' to arrayOf(pt(0f, m), pt(t, m - th / 2f), pt(bw - t, m - th / 2f), pt(bw, m), pt(bw - t, m + th / 2f), pt(t, m + th / 2f)),
-            'G' to arrayOf(pt(0f, m), pt(t, m - th / 2f), pt(cx + t * 0.4f, m - th / 2f), pt(cx + t * 0.4f, m + th / 2f), pt(t, m + th / 2f)),
-            'i' to arrayOf(pt(cx - t / 2f, th), pt(cx + t / 2f, th), pt(cx + t / 2f, m - th / 2f), pt(cx - t / 2f, m - th / 2f)),
-            'l' to arrayOf(pt(cx - t / 2f, m + th / 2f), pt(cx + t / 2f, m + th / 2f), pt(cx + t / 2f, ha - th), pt(cx - t / 2f, ha - th)),
-            'h' to quad(t + t * 0.35f, th + t * 0.35f, cx - t * 0.45f, m - th / 2f - t * 0.2f, t * 0.8f),
-            'j' to quad(bw - t - t * 0.35f, th + t * 0.35f, cx + t * 0.45f, m - th / 2f - t * 0.2f, t * 0.8f),
-            'k' to quad(cx - t * 0.45f, m + th / 2f + t * 0.2f, t + t * 0.35f, ha - th - t * 0.35f, t * 0.8f),
-            'm' to quad(cx + t * 0.45f, m + th / 2f + t * 0.2f, bw - t - t * 0.35f, ha - th - t * 0.35f, t * 0.8f)
+    /** Balken in einer Spalte von y0 bis y1; Fase oben/unten links ('l'), rechts ('r') oder gerade ('-'). */
+    private fun bar(x0: Float, y0: Float, y1: Float, top: Char, bot: Char, w: Float = BW): Array<FloatArray> {
+        val x1 = x0 + w
+        return arrayOf(
+            pt(x0, y0 + (if (top == 'l') CH else 0f)), pt(x1, y0 + (if (top == 'r') CH else 0f)),
+            pt(x1, y1 - (if (bot == 'r') CH else 0f)), pt(x0, y1 - (if (bot == 'l') CH else 0f))
         )
     }
 
-    private fun diamond(c: Float, y: Float, s: Float) = arrayOf(pt(c, y - s), pt(c + s, y), pt(c, y + s), pt(c - s, y))
+    /** Balken über die ganze Höhe mit spitzer Kerbe in der Mitte (rechte Spalte von 3 und 8, linke Spalte von 8). */
+    private fun notchR(x0: Float) = arrayOf(pt(x0, 0f), pt(x0 + BW, CH), pt(x0 + BW, 62f), pt(x0 + 3.5f, 76.5f),
+        pt(x0 + BW, 91f), pt(x0 + BW, GH - CH), pt(x0, GH))
+    private fun notchL(x0: Float) = arrayOf(pt(x0, CH), pt(x0 + BW, 0f), pt(x0 + BW, GH), pt(x0, GH - CH),
+        pt(x0, 91f), pt(x0 + BW - 3.5f, 76.5f), pt(x0, 62f))
 
-    private fun glyph(ch: Char, ha: Float): Glyph {
-        val big = ha > 2.3f
-        val t = 0.3f
-        val th = if (big) 0.24f else 0.26f
-        val gp = if (big) 0.075f else 0.085f
-        var w = 1f
-        var list: List<Array<FloatArray>> = emptyList()
-        when {
-            ch in '0'..'9' -> {
-                val s = segs(1f, ha, t, th)
-                list = SEG7[ch]!!.map { s[it]!! }
-                if (ch == '1') list = list.map { p -> Array(p.size) { i -> pt(p[i][0] - (1f - t) / 2f, p[i][1]) } }
-            }
-            ch == ':' -> { w = 0.42f; list = listOf(diamond(0.21f, ha * 0.33f, 0.17f), diamond(0.21f, ha * 0.67f, 0.17f)) }
-            ch == '.' -> { w = 0.36f; list = listOf(diamond(0.18f, ha - 0.2f, 0.17f)) }
-            ch == ' ' -> { w = 0.55f }
-            SEG14.containsKey(ch) -> {
-                w = LW[ch] ?: 1f
-                val s = segs(w, ha, t, th)
-                list = SEG14[ch]!!.map { s[it]!! }
-            }
-        }
-        return Glyph(w, list.map { insetPoly(it, gp / 2f) })
+    /** Waagerechter Balken mit schräg abgeschnittenem rechtem Ende (E, F). */
+    private fun hbar(y0: Float) = arrayOf(pt(0f, y0), pt(CW - BW, y0), pt(CW, y0 + BW), pt(0f, y0 + BW))
+
+    private fun shapes(ch: Char): List<Array<FloatArray>> = when (ch) {
+        '0' -> listOf(bar(0f, 0f, GH, 'l', 'l'), bar(XR, 0f, GH, 'r', 'r'))
+        '1' -> listOf(bar(XM, 0f, GH, 'l', 'l'))
+        '2' -> listOf(bar(0f, 0f, 52f, 'l', 'l'), bar(0f, 85f, GH, 'l', '-'), bar(XR, 0f, 85f, 'r', 'r'), bar(XR, 118f, GH, 'r', '-'))
+        '3' -> listOf(bar(0f, 0f, 52f, 'l', 'l'), bar(0f, 101f, GH, 'l', 'l'), notchR(XR))
+        '4' -> listOf(bar(0f, 0f, 102f, 'l', 'l'), bar(XR, 0f, GH, 'l', 'l'))
+        '5' -> listOf(bar(0f, 0f, 85f, '-', 'l'), bar(0f, 101f, GH, 'l', 'l'), bar(XR, 0f, 35f, '-', 'r'), bar(XR, 68f, GH, 'r', 'r'))
+        '6' -> listOf(bar(0f, 0f, GH, 'l', 'l'), bar(XR, 0f, 35f, 'r', '-'), bar(XR, 68f, GH, 'r', 'r'))
+        '7' -> listOf(bar(0f, 0f, 35f, '-', 'r'), bar(XR, 0f, GH, '-', 'r'))
+        '8' -> listOf(notchL(0f), notchR(XR))
+        '9' -> listOf(bar(0f, 0f, 85f, 'l', 'l'), bar(0f, 118f, GH, '-', 'l'), bar(XR, 0f, GH, 'r', 'r'))
+        ':' -> listOf(arrayOf(pt(0f, 17f), pt(28.5f, 0f), pt(28.5f, 52f), pt(0f, 35f)),
+            arrayOf(pt(0f, 118f), pt(28.5f, 101f), pt(28.5f, GH), pt(0f, 136f)))
+        '.' -> listOf(arrayOf(pt(0f, GH - 17f), pt(16f, GH - 17f), pt(16f, GH), pt(0f, GH)))
+        'A' -> listOf(bar(0f, 0f, GH, 'l', '-'), bar(XR, 0f, GH, 'r', '-'))
+        'D' -> listOf(bar(0f, 0f, GH, '-', '-'), bar(XR, 0f, GH, 'r', 'r'))
+        'E' -> listOf(hbar(0f), hbar(66f), hbar(GH - BW))
+        'F' -> listOf(hbar(0f), arrayOf(pt(0f, 66f), pt(CW - BW, 66f), pt(CW, 66f + BW), pt(BW, 66f + BW), pt(BW, GH), pt(0f, GH)))
+        'H' -> listOf(bar(0f, 0f, GH, '-', '-'), bar(XR, 0f, GH, '-', '-'), arrayOf(pt(BW, 68f), pt(XR, 85f), pt(BW, 85f)))
+        'I' -> listOf(bar(0f, 0f, GH, '-', '-'))
+        'M' -> listOf(bar(0f, 0f, GH, 'l', '-'), bar(M3, 0f, GH, '-', '-'), bar(2 * M3, 0f, GH, 'r', '-'))
+        'N' -> listOf(bar(0f, 0f, GH, '-', '-'), bar(XR, 0f, GH, 'r', '-'))
+        'O' -> listOf(bar(0f, 0f, GH, 'l', 'l'), bar(XR, 0f, GH, 'r', 'r'))
+        'R' -> listOf(bar(0f, 0f, GH, 'l', '-'), arrayOf(pt(XR, 0f), pt(CW, CH), pt(CW, 66f), pt(XR + 1f, 84f), pt(CW, 84f), pt(CW, GH), pt(XR, GH)))
+        'S' -> listOf(bar(0f, 0f, 85f, 'l', 'l'), bar(0f, 102f, GH, 'l', 'l'), bar(XR, 0f, 51f, 'r', 'r'), bar(XR, 68f, GH, 'r', 'r'))
+        'T' -> listOf(arrayOf(pt(0f, 0f), pt(CW, 0f), pt(CW, BW), pt(XM + BW, BW), pt(XM + BW, GH), pt(XM, GH), pt(XM, BW), pt(0f, BW)))
+        'U' -> listOf(arrayOf(pt(0f, 0f), pt(BW, 0f), pt(BW, GH - CH), pt(XR, GH - CH), pt(XR, 0f), pt(CW, 0f), pt(CW, GH - CH),
+            pt(XR, GH), pt(BW, GH), pt(0f, GH - CH)))
+        'W' -> listOf(bar(0f, 0f, GH, '-', 'l'), bar(M3, 0f, GH, '-', '-'), bar(2 * M3, 0f, GH, '-', 'r'))
+        else -> emptyList()
     }
 
-    /** Kante nach innen versetzen (für die Lücken und die Fasen). */
-    private fun insetPoly(p: Array<FloatArray>, b: Float): Array<FloatArray> {
-        val n = p.size
-        val lines = Array(n) { i ->
-            val a = p[i]
-            val q = p[(i + 1) % n]
-            val dx = q[0] - a[0]
-            val dy = q[1] - a[1]
-            val len = hypot(dx, dy).takeIf { it > 0f } ?: 1e-9f
-            floatArrayOf(a[0] - dy / len * b, a[1] + dx / len * b, dx, dy)
+    /** Zeichen mit Tintengrenzen; Ziffern sind immer eine volle Zelle breit (die 1 steht mittig darin). */
+    private fun glyph(ch: Char): Glyph {
+        val s = shapes(ch)
+        var x0 = 0f
+        var x1 = 0f
+        if (s.isNotEmpty()) {
+            x0 = Float.MAX_VALUE; x1 = -Float.MAX_VALUE
+            for (p in s) for (q in p) { x0 = min(x0, q[0]); x1 = max(x1, q[0]) }
         }
-        return Array(n) { i ->
-            val la = lines[(i - 1 + n) % n]
-            val lb = lines[i]
-            val den = la[2] * lb[3] - la[3] * lb[2]
-            if (abs(den) < 1e-12f) pt(lb[0], lb[1])
-            else {
-                val tt = ((lb[0] - la[0]) * lb[3] - (lb[1] - la[1]) * lb[2]) / den
-                pt(la[0] + la[2] * tt, la[1] + la[3] * tt)
-            }
-        }
+        return Glyph(s, x0, x1, if (ch in '0'..'9') CW else x1)
     }
 
-    private fun minThick(p: Array<FloatArray>): Float {
-        var x0 = Float.MAX_VALUE; var x1 = -Float.MAX_VALUE; var y0 = Float.MAX_VALUE; var y1 = -Float.MAX_VALUE
-        for (q in p) { x0 = min(x0, q[0]); x1 = max(x1, q[0]); y0 = min(y0, q[1]); y1 = max(y1, q[1]) }
-        return min(x1 - x0, y1 - y0)
-    }
+    // ---------- Zeichen als Bild ----------
 
     private fun mix(a: Int, b: Int, k: Float): Int {
         val q = k.coerceIn(0f, 1f)
@@ -216,32 +211,106 @@ class ClockFace {
         )
     }
 
-    /** Zeichen als Metall: dunkle Tiefe nach rechts unten, Fläche mit Verlauf, Fasen je nach Kantenrichtung. */
-    private fun sprite(ch: Char, hPx: Int, ha: Float): Sprite {
-        val k = "$finish|$ch|$hPx|$ha"
+    /** Flächenfarbe in der Höhe v (0 oben, 1 unten) aus dem Verlauf der Oberfläche. */
+    private fun faceAt(f: Finish, v: Float): Int {
+        val pos = f.facePos
+        if (v <= pos[0]) return f.face[0]
+        for (i in 1 until pos.size) if (v <= pos[i]) return mix(f.face[i - 1], f.face[i], (v - pos[i - 1]) / (pos[i] - pos[i - 1]))
+        return f.face[f.face.size - 1]
+    }
+
+    /**
+     * Ein Teilstück mit Fasen einfärben: jedes Pixel bekommt die Farbe der nächsten Kante, wenn es näher als die
+     * Fasenbreite an ihr liegt (Licht von oben: Oberkanten hell, Seiten mittel, Unterkanten dunkel), sonst die
+     * Flächenfarbe. So stimmen auch spitze Kerben und dünne Stellen.
+     */
+    private fun shadePoly(c: Canvas, poly: List<FloatArray>, f: Finish, bev: Float, top: Float, hPx: Int) {
+        var minX = Float.MAX_VALUE; var minY = Float.MAX_VALUE; var maxX = -Float.MAX_VALUE; var maxY = -Float.MAX_VALUE
+        for (q in poly) { minX = min(minX, q[0]); minY = min(minY, q[1]); maxX = max(maxX, q[0]); maxY = max(maxY, q[1]) }
+        val bx = floor(minX).toInt() - 1
+        val by = floor(minY).toInt() - 1
+        val bw = ceil(maxX).toInt() - bx + 2
+        val bh = ceil(maxY).toInt() - by + 2
+        if (bw <= 0 || bh <= 0) return
+        val tmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+        val path = Path()
+        path.moveTo(poly[0][0] - bx, poly[0][1] - by)
+        for (i in 1 until poly.size) path.lineTo(poly[i][0] - bx, poly[i][1] - by)
+        path.close()
+        Canvas(tmp).drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        val px = IntArray(bw * bh)
+        tmp.getPixels(px, 0, bw, 0, 0, bw, bh)
+        // Kanten: Anfang, Richtung, Länge², Farbe der Fase
+        val n = poly.size
+        val ex = FloatArray(n); val ey = FloatArray(n); val edx = FloatArray(n); val edy = FloatArray(n); val el2 = FloatArray(n)
+        val ecol = IntArray(n)
+        var ne = 0
+        for (i in 0 until n) {
+            val a = poly[i]
+            val b = poly[(i + 1) % n]
+            val dx = b[0] - a[0]
+            val dy = b[1] - a[1]
+            val l2 = dx * dx + dy * dy
+            if (l2 < 1e-6f) continue
+            val lam = dx / sqrt(l2)
+            ex[ne] = a[0]; ey[ne] = a[1]; edx[ne] = dx; edy[ne] = dy; el2[ne] = l2
+            ecol[ne] = if (lam > 0f) mix(f.mid, f.lit, lam) else mix(f.mid, f.shade, -lam)
+            ne++
+        }
+        for (yy in 0 until bh) {
+            val pyy = by + yy + 0.5f
+            val fc = faceAt(f, (pyy - top) / hPx)
+            for (xx in 0 until bw) {
+                val o = yy * bw + xx
+                val alpha = px[o] ushr 24
+                if (alpha == 0) continue
+                val pxx = bx + xx + 0.5f
+                var best = Float.MAX_VALUE
+                var col = f.mid
+                for (e in 0 until ne) {
+                    var k = ((pxx - ex[e]) * edx[e] + (pyy - ey[e]) * edy[e]) / el2[e]
+                    k = if (k < 0f) 0f else if (k > 1f) 1f else k
+                    val qx = ex[e] + edx[e] * k - pxx
+                    val qy = ey[e] + edy[e] * k - pyy
+                    val dd = qx * qx + qy * qy
+                    if (dd < best) { best = dd; col = ecol[e] }
+                }
+                val rgb = mix(col, fc, sqrt(best) - bev + 0.5f)
+                px[o] = (alpha shl 24) or (rgb and 0xffffff)
+            }
+        }
+        tmp.setPixels(px, 0, bw, 0, 0, bw, bh)
+        c.drawBitmap(tmp, bx.toFloat(), by.toFloat(), null)
+        tmp.recycle()
+    }
+
+    /** Zeichen als fertiges Bild: Uhrzeit mit Fasen und Tiefe, Datum flach (wie beim Original). */
+    private fun sprite(ch: Char, hPx: Int, flat: Boolean): Sprite {
+        val k = "$finish|$ch|$hPx|$flat"
         sprites[k]?.let { return it }
         val f = FIN[finish]
-        val gl = glyph(ch, ha)
-        val u = hPx / ha
-        val depth = max(1, (hPx * 0.035f).roundToInt())
-        val pad = depth + 3 + (if (f.neon != 0) (hPx * 0.3f).roundToInt() else 0)
+        val gl = glyph(ch)
+        val u = hPx / GH
+        val depth = if (flat) 0 else max(1, (hPx * 0.026f).roundToInt())
+        val pad = depth + 3 + (if (f.neon != 0) (hPx * (if (flat) 0.45f else 0.3f)).roundToInt() else 0)
         val bev = max(1f, hPx * 0.026f)
-        if (gl.polys.isEmpty()) return Sprite(null, gl.w * u, pad).also { sprites[k] = it }
-        val cw = max(1, ceil(gl.w * u + pad * 2 + depth).toInt())
+        if (gl.polys.isEmpty()) return Sprite(null, pad).also { sprites[k] = it }
+        val cw = max(1, ceil(gl.w * u + pad * 2).toInt())
         val chh = max(1, ceil(hPx + pad * 2f + depth).toInt())
         val bmp = Bitmap.createBitmap(cw, chh, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        fun path(polys: List<Array<FloatArray>>, ox: Float = 0f, oy: Float = 0f): Path {
+        val polys = gl.polys.map { poly -> poly.map { q -> floatArrayOf(pad + q[0] * u, pad + q[1] * u) } }
+        fun path(oy: Float): Path {
             val path = Path()
             for (poly in polys) {
-                path.moveTo(pad + poly[0][0] * u + ox, pad + poly[0][1] * u + oy)
-                for (i in 1 until poly.size) path.lineTo(pad + poly[i][0] * u + ox, pad + poly[i][1] * u + oy)
+                path.moveTo(poly[0][0], poly[0][1] + oy)
+                for (i in 1 until poly.size) path.lineTo(poly[i][0], poly[i][1] + oy)
                 path.close()
             }
             return path
         }
-        val outer = path(gl.polys)
+        val outer = path(0f)
         if (f.neon != 0) {
             // Schein: weich und weit, dann eng und kräftig
             for ((r, a) in listOf(Pair(hPx * 0.22f, 0.5f), Pair(hPx * 0.065f, 0.8f))) {
@@ -251,77 +320,70 @@ class ClockFace {
             }
             p.maskFilter = null
         }
-        for (d in depth downTo 1) {
-            p.color = mix(f.side0, f.side1, d / depth.toFloat())
-            c.drawPath(path(gl.polys, d * 0.55f, d * 0.85f), p)
-        }
-        val inner = gl.polys.map { insetPoly(it, min(bev / u, minThick(it) * 0.4f)) }
-        p.shader = LinearGradient(0f, pad.toFloat(), 0f, (pad + hPx).toFloat(), f.face, f.facePos, Shader.TileMode.CLAMP)
-        c.drawPath(path(inner), p)
-        p.shader = null
-        // Fasen: Licht von links oben
-        val lx = -0.5f
-        val ly = -0.87f
-        val facet = Path()
-        gl.polys.forEachIndexed { si, o ->
-            val inn = inner[si]
-            for (i in o.indices) {
-                val j = (i + 1) % o.size
-                val dx = o[j][0] - o[i][0]
-                val dy = o[j][1] - o[i][1]
-                val len = hypot(dx, dy).takeIf { it > 0f } ?: 1f
-                val lam = (dy / len) * lx + (-dx / len) * ly
-                facet.reset()
-                facet.moveTo(pad + o[i][0] * u, pad + o[i][1] * u)
-                facet.lineTo(pad + o[j][0] * u, pad + o[j][1] * u)
-                facet.lineTo(pad + inn[j][0] * u, pad + inn[j][1] * u)
-                facet.lineTo(pad + inn[i][0] * u, pad + inn[i][1] * u)
-                facet.close()
-                p.color = if (lam > 0f) mix(f.mid, f.lit, lam) else mix(f.mid, f.shade, -lam)
-                c.drawPath(facet, p)
+        if (flat) {
+            p.color = f.date
+            c.drawPath(outer, p)
+        } else {
+            // Tiefe: dieselbe Form mehrfach nach unten versetzt, dunkler je tiefer
+            for (d in depth downTo 1) {
+                p.color = mix(f.side0, f.side1, (d - 1) / max(1, depth - 1).toFloat())
+                c.drawPath(path(d.toFloat()), p)
             }
+            for (poly in polys) shadePoly(c, poly, f, bev, pad.toFloat(), hPx)
         }
-        return Sprite(bmp, gl.w * u, pad).also { sprites[k] = it }
+        return Sprite(bmp, pad).also { sprites[k] = it }
     }
 
     private class Finish(
         val face: IntArray, val facePos: FloatArray, val lit: Int, val mid: Int, val shade: Int,
-        val side0: Int, val side1: Int, val neon: Int = 0
+        val side0: Int, val side1: Int, val date: Int, val neon: Int = 0
     )
 
-    private companion object {
-        val EN = arrayOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
-        val DE = arrayOf("SO", "MO", "DI", "MI", "DO", "FR", "SA")
-        val SEG7 = mapOf('0' to "abcdef", '1' to "bc", '2' to "abged", '3' to "abgcd", '4' to "fgbc",
-            '5' to "afgcd", '6' to "afgecd", '7' to "abc", '8' to "abcdefg", '9' to "abcdfg")
-        val SEG14 = mapOf('A' to "abcefg", 'D' to "abcdil", 'E' to "adefG", 'F' to "aefG", 'H' to "bcefg", 'I' to "adil",
-            'M' to "bcefhj", 'N' to "bcefhm", 'O' to "abcdef", 'R' to "abefgm", 'S' to "afgcd", 'T' to "ail", 'U' to "bcdef", 'W' to "bcefkm")
-        val LW = mapOf('M' to 1.35f, 'W' to 1.35f, 'N' to 1.15f, 'I' to 0.9f, 'T' to 1.05f)
+    companion object {
+        /** Index der Oberfläche „Weiß wie das Original“ (Voreinstellung). */
+        const val WHITE = 7
+
+        // Raster der Schrift: Zeichenhöhe GH, Balkenbreite BW, Lücke GAP, Zellenbreite CW, Fase CH
+        private const val GH = 153f
+        private const val BW = 18.5f
+        private const val GAP = 15f
+        private const val CW = 2 * BW + GAP
+        private const val CH = 17f
+        private const val XR = BW + GAP
+        private const val XM = (CW - BW) / 2f
+        private const val M3 = BW + GAP
+
+        private val EN = arrayOf("SUN", "MON", "TUE", "WED", "THUR", "FRI", "SAT")
+        private val DE = arrayOf("SO", "MO", "DI", "MI", "DO", "FR", "SA")
         private fun c(s: String) = Color.parseColor(s)
         private val P5 = floatArrayOf(0f, 0.4f, 0.49f, 0.56f, 1f)
-        val FIN = arrayOf(
+        private val FIN = arrayOf(
             // Chrom
             Finish(intArrayOf(c("#ffffff"), c("#e4e7ed"), c("#a2a7b1"), c("#d6dae2"), c("#aab0ba")), P5,
-                Color.rgb(255, 255, 255), Color.rgb(196, 201, 210), Color.rgb(62, 66, 74), c("#55595f"), c("#141518")),
+                Color.rgb(255, 255, 255), Color.rgb(196, 201, 210), Color.rgb(62, 66, 74), c("#55595f"), c("#141518"), Color.rgb(212, 216, 222)),
             // Gold
             Finish(intArrayOf(c("#fff8de"), c("#f1d37e"), c("#9e7924"), c("#e7c56b"), c("#b68b2f")), P5,
-                Color.rgb(255, 248, 220), Color.rgb(214, 176, 90), Color.rgb(86, 60, 16), c("#6a4e18"), c("#1c1405")),
+                Color.rgb(255, 248, 220), Color.rgb(214, 176, 90), Color.rgb(86, 60, 16), c("#6a4e18"), c("#1c1405"), Color.rgb(232, 196, 112)),
             // Stahlblau
             Finish(intArrayOf(c("#f2f8ff"), c("#bfd4ee"), c("#5f7995"), c("#aac3e0"), c("#7189a6")), P5,
-                Color.rgb(240, 248, 255), Color.rgb(150, 175, 205), Color.rgb(28, 42, 60), c("#2c3d52"), c("#0b1119")),
+                Color.rgb(240, 248, 255), Color.rgb(150, 175, 205), Color.rgb(28, 42, 60), c("#2c3d52"), c("#0b1119"), Color.rgb(172, 196, 226)),
             // Roségold
             Finish(intArrayOf(c("#fff1ea"), c("#f0bba6"), c("#99604e"), c("#e5aa94"), c("#b67b67")), P5,
-                Color.rgb(255, 240, 232), Color.rgb(218, 162, 142), Color.rgb(92, 50, 40), c("#6e4135"), c("#1d100b")),
+                Color.rgb(255, 240, 232), Color.rgb(218, 162, 142), Color.rgb(92, 50, 40), c("#6e4135"), c("#1d100b"), Color.rgb(232, 176, 156)),
             // Schwarzchrom: dunkler Spiegel, nur die Kanten blitzen hell
             Finish(intArrayOf(c("#a4aab4"), c("#3b3e46"), c("#0b0c0f"), c("#2d3038"), c("#14161a")), P5,
-                Color.rgb(225, 230, 240), Color.rgb(74, 78, 88), Color.rgb(6, 7, 9), c("#26282d"), c("#040405")),
+                Color.rgb(225, 230, 240), Color.rgb(74, 78, 88), Color.rgb(6, 7, 9), c("#26282d"), c("#040405"), Color.rgb(118, 124, 134)),
             // Kupfer
             Finish(intArrayOf(c("#fff0de"), c("#e99b62"), c("#8a4a22"), c("#da8b52"), c("#a95d2c")), P5,
-                Color.rgb(255, 236, 214), Color.rgb(206, 130, 82), Color.rgb(80, 36, 14), c("#6a3516"), c("#1c0c04")),
+                Color.rgb(255, 236, 214), Color.rgb(206, 130, 82), Color.rgb(80, 36, 14), c("#6a3516"), c("#1c0c04"), Color.rgb(222, 146, 98)),
             // Neon: helle Fläche mit türkisem Schein
             Finish(intArrayOf(c("#ffffff"), c("#e6fdff"), c("#a8f1ff")), floatArrayOf(0f, 0.45f, 1f),
-                Color.rgb(255, 255, 255), Color.rgb(176, 242, 255), Color.rgb(52, 168, 205), c("#0d4b5d"), c("#021116"),
-                neon = Color.rgb(40, 225, 255))
+                Color.rgb(255, 255, 255), Color.rgb(176, 242, 255), Color.rgb(52, 168, 205), c("#0d4b5d"), c("#021116"), Color.rgb(196, 246, 255),
+                neon = Color.rgb(40, 225, 255)),
+            // Weiß wie das Original: matte weiße Fläche, Fasen hellgrau, Unterkanten grau, dunkle Kante darunter
+            Finish(intArrayOf(c("#ffffff"), c("#ffffff")), floatArrayOf(0f, 1f),
+                Color.rgb(255, 255, 255), Color.rgb(220, 221, 222), Color.rgb(172, 174, 178), Color.rgb(60, 64, 68), Color.rgb(24, 26, 28),
+                Color.rgb(218, 218, 218))
         )
     }
 }

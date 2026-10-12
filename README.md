@@ -4,7 +4,7 @@ Live-Hintergründe für Android:
 
 - **Broken Screen** – flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss, Abzweig und zufälligen Glitch-Ausbrüchen.
 - **Pegelanzeige** – LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy (Visualizer) oder auf das Mikrofon; beides braucht die Mikrofon-Berechtigung. Ohne Berechtigung läuft ein Demo-Beat.
-- **Uhr** – Schablonen-Uhr mit echter Uhrzeit und Datum, bei jedem Hintergrund einzeln einschaltbar (Chrom, Gold, Stahlblau, Roségold, Schwarzchrom, Kupfer, Neon). Bei Broken Screen läuft ein Haarriss durch die Ziffern, der große Riss versetzt sie und Glitches zerlegen sie kurz.
+- **Uhr** – Schablonen-Uhr mit echter Uhrzeit und Datum in der nachgezeichneten Schrift der Original-Sperrbildschirm-Uhr, bei jedem Hintergrund einzeln einschaltbar (Weiß wie das Original, Chrom, Gold, Stahlblau, Roségold, Schwarzchrom, Kupfer, Neon). Bei Broken Screen läuft ein Haarriss durch die Ziffern, der große Riss versetzt sie und Glitches zerlegen sie kurz.
 
 In der App wählt man oben zwischen den Hintergründen; die Uhr stellt man unten in den Einstellungen des jeweiligen Hintergrunds ein.
 
