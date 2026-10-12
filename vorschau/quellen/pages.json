@@ -110,5 +110,12 @@
     "sub": "Lichtbögen wie bei der Jakobsleiter über den ganzen Bildschirm. Mit dem Finger ziehst du die Blitze an.",
     "accent": "#b98cff",
     "aria": "Animierter Hintergrund: Plasma-Lichtbögen über den ganzen Bildschirm, die auf Berührung reagieren"
+  },
+  "elektroplasma": {
+    "title": "Elektro-Plasma",
+    "name": "Elektro-Plasma",
+    "sub": "Nachbau deiner alten Plasma-App: zuckende Leuchtlinien, Farben und Einstellungen wie im Original. Wischen verformt das Plasma.",
+    "accent": "#5a8cff",
+    "aria": "Animierter Hintergrund: leuchtende, zuckende Plasma-Linien auf Schwarz, die auf Berührung reagieren"
   }
 }

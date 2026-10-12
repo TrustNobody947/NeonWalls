@@ -42,6 +42,7 @@ Unter `vorschau/` liegen die Browser-Vorschauen der Hintergründe, jeweils als e
 - `nebelkammer.html` – Nebelkammer mit Teilchenspuren
 - `pegel.html` – LED-Pegelanzeige (in der Vorschau simulierter Beat; in der App mit Musik oder Mikrofon)
 - `uhr.html` – Schablonen-Uhr, wahlweise über Broken Screen
+- `elektroplasma.html` – Elektro-Plasma: Nachbau der alten Plasma-App (zuckende Leuchtlinien, Farbwechsel, Symmetrie, Ringe unter dem Finger), als WebGL-Shader
 - `plasmaschirm.html` – Plasma-Bildschirm (Lichtbögen über den ganzen Bildschirm, folgen dem Finger)
 
 Alle Seiten außer `broken-screen.html` werden aus `vorschau/quellen/` gebaut (`python3 build.py`, Test ohne Browser: `node test.js <name>`). Gemeinsame Bausteine liegen in `vorschau/quellen/lib/` und werden mit einer Zeile `//#include name.js` eingebunden (z. B. der Kamera-Look). Änderungen unter `vorschau/` lösen keinen App-Build aus.
