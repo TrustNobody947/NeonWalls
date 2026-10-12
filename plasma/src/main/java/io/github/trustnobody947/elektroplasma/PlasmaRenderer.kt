@@ -129,11 +129,12 @@ class PlasmaRenderer {
         }
     }
 
-    /** Kurz einen Finger vorführen (Ringe an zufälliger Stelle). */
-    fun demoTouch() {
+    /** Kurz einen Finger vorführen (Ringe an zufälliger Stelle zwischen [top] und [bottom], Anteil der Bildhöhe). */
+    fun demoTouch(top: Float = 0.4f, bottom: Float = 0.9f) {
         val asp = sh.toFloat() / sw
+        val y = top + Random.nextFloat() * (bottom - top)
         synchronized(touches) {
-            touches.add(Touch(-99, 0.25f + Random.nextFloat() * 0.5f, (0.4f + Random.nextFloat() * 0.5f) * asp, true, 0.9f))
+            touches.add(Touch(-99, 0.25f + Random.nextFloat() * 0.5f, y * asp, true, 0.9f))
         }
     }
 

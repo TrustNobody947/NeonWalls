@@ -235,7 +235,7 @@ class SettingsActivity : Activity() {
 
         addButtonRow(
             getString(R.string.b_new) to { renderer.newPattern() },
-            getString(R.string.b_ring) to { renderer.demoTouch() },
+            getString(R.string.b_ring) to { showDemoTouch() },
             getString(R.string.b_fullscreen) to { showPanel(false) }
         )
         panel.addView(makeButton(getString(R.string.b_set), true) { openPicker() },
@@ -422,6 +422,13 @@ class SettingsActivity : Activity() {
     }
 
     // ---------- Vorschau ----------
+
+    /** Berührung vorführen – im sichtbaren Teil über den Einstellungen, damit man die Ringe auch sieht. */
+    private fun showDemoTouch() {
+        val visible = if (sheet.visibility == View.VISIBLE && root.height > 0) sheet.top.toFloat() / root.height else 1f
+        val v = visible.coerceIn(0.25f, 1f)
+        renderer.demoTouch(v * 0.25f, v * 0.75f)
+    }
 
     private fun previewTouch(v: View, e: MotionEvent) {
         val w = v.width.coerceAtLeast(1).toFloat()
