@@ -34,6 +34,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .row label,.row .lbl{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px}
 .row output{font:12px var(--mono);color:var(--fg)}
 input[type=range]{width:100%;accent-color:var(--accent)}
+/* Regler mit eigener Farbspur (z. B. Farbspektrum) */
+input[type=range].track{-webkit-appearance:none;appearance:none;height:16px;margin:6px 0;border-radius:8px;background:var(--track);border:1px solid var(--line);outline:none}
+input[type=range].track::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000,0 1px 4px rgba(0,0,0,.6)}
+input[type=range].track::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000}
 .row input[type=text]{width:100%;box-sizing:border-box;font:600 15px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
   border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
@@ -329,9 +333,10 @@ for (const c of E.controls) {
       '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
     box.appendChild(row);
     const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
-    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); };
+    if (c.track) { el.classList.add('track'); el.style.setProperty('--track', c.track); }
+    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
     ui[c.id](S[c.id]);
-    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); save(); if (E.change) E.change(c.id); });
+    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
   } else if (c.type === 'choice' || c.type === 'grid') {
     // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
     row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';
@@ -358,11 +363,28 @@ for (const c of E.controls) {
   }
 }
 if (E.bindUI) E.bindUI({ set: setVal });
+if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
 document.getElementById('actBtn').onclick = () => E.action();
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
-cv.addEventListener('click', () => { sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+// Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
+// öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
+let dragged = false, downX = 0, downY = 0, downT = 0;
+if (E.touch) {
+  cv.style.touchAction = 'none';
+  const P = (e, type) => E.touch(type, e.clientX * dpr, e.clientY * dpr, e.pointerId);
+  cv.addEventListener('pointerdown', e => { dragged = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (err) {} P(e, 'down'); });
+  cv.addEventListener('pointermove', e => {
+    if (!e.buttons && e.pointerType === 'mouse') return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragged = true;
+    P(e, 'move');
+  });
+  const up = e => { if (performance.now() - downT > 350) dragged = true; P(e, 'up'); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente

@@ -43,7 +43,7 @@ const elements = {};
 function el(id) {
   if (!elements[id]) {
     const e = id === 'c' ? makeCanvas() : {
-      hidden: true, value: '0', textContent: '', className: '', style: {},
+      hidden: true, value: '0', textContent: '', className: '', style: { setProperty: noop },
       classList: { add: noop, remove: noop, toggle: noop },
       listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
       appendChild: noop, querySelector() { return el('q' + Math.random()); }, querySelectorAll: () => [],

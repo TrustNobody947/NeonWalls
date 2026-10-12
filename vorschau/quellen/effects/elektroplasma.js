@@ -1,39 +1,66 @@
 // Elektro-Plasma: Nachbau der alten Plasma-Live-Wallpaper-App (Version 2.7.0) nach dem Video vom Original.
-// Bild: leuchtende, zuckende Höhenlinien eines bewegten Rauschfelds (3D-Simplex in mehreren Lagen) mit hellem Kern,
-// farbigem Schein und schwachem Dunst dazwischen. Gerechnet als Shader (WebGL) in reduzierter Auflösung.
-// Einstellungen wie im Original: Farbe aus Voreinstellungen oder eigene Farbe, Farbwechsel (fest, Zufall, Wechsel,
-// Akku, Neigung, Kompass), Geschwindigkeit, Komplexität, Symmetrie, Berührung und komplexe Bewegung.
+// Bild: leuchtende, zuckende Höhenlinien eines bewegten Rauschfelds (3D-Simplex in mehreren Lagen). Jede Linie hat
+// drei Farbschichten wie im Original: eine ganz dünne Mittellinie, eine dünne Linie drumherum (Rand) und außen den
+// Nebel. Jede Schicht hat einen Regler über das ganze Farbspektrum (ganz links aus, ganz rechts weiß); je heller die
+// Nebelfarbe, desto stärker der Nebel. Gerechnet als Shader (WebGL) in reduzierter Auflösung.
+// Einstellungen wie im Original: Farbe (Voreinstellungen oder eigene), Farbwechsel (fest, Zufall, Wechsel, Akku,
+// Neigung, Kompass), Geschwindigkeit, Komplexität, Symmetrie, Berührung und komplexe Bewegung.
 // Berührung: unter dem Finger wölbt sich das Feld auf; dort entstehen dünne, glatte Ringe um den Finger.
-const settings = { color: 0, cr: 80, cg: 170, cb: 255, mode: 0, speed: 78, complexity: 3, glow: 5, sym: 0, touch: 1, move: 0 };
+const settings = { color: 0, k1: 100, k2: 60.5, k3: 66, mode: 0, speed: 78, complexity: 3, glow: 5, sym: 0, touch: 1, move: 0 };
+// Voreinstellungen als Reglerstellungen für Mittellinie, Rand und Nebel
 const PRESETS = [
-  { label: 'Elektroblau', rgb: [40, 92, 255] },
-  { label: 'Hellgrün', rgb: [30, 255, 96] },
-  { label: 'Lila', rgb: [118, 64, 255] },
-  { label: 'Dunkelrot', rgb: [225, 26, 12] },
-  { label: 'Feuer', rgb: [255, 112, 16] },
-  { label: 'Gelb', rgb: [242, 224, 40] },
-  { label: 'Weiß', rgb: [226, 232, 255] },
+  { label: 'Elektroblau', k: [100, 60.5, 66] },
+  { label: 'Hellgrün', k: [100, 39, 40.5] },
+  { label: 'Lila', k: [100, 74, 66.5] },
+  { label: 'Dunkelrot', k: [95, 6, 4] },
+  { label: 'Feuer', k: [21, 13, 9] },
+  { label: 'Gelb', k: [100, 20, 18] },
+  { label: 'Weiß', k: [100, 100, 100] },
 ];
 const CUSTOM = PRESETS.length;
-// Farblisten für Wechsel, Akku (leer → voll) und Kompass (Norden → einmal herum)
-const CYCLE = PRESETS.slice(0, 6).map(p => p.rgb);
-const BATTERY = [[255, 30, 20], [245, 220, 40], [40, 255, 80], [40, 92, 255]];
-const COMPASS = [[255, 30, 20], [245, 220, 40], [40, 255, 80], [30, 230, 255], [40, 92, 255], [170, 60, 255]];
 const LEVELS = ['sehr einfach', 'einfach', 'mittel', 'komplex', 'sehr komplex'];
 const FREQ = [1.8, 2.4, 3.1, 4.0, 5.2];
+// Farbspektrum der Regler: 0 = aus (schwarz), dann Rot → Orange → Gelb → Grün → Türkis → Blau → Violett → Pink, am Ende Weiß
+function hueRGB(h) {
+  const f = n => { const k = (n + h * 6) % 6; return 255 * (1 - Math.max(0, Math.min(k, 4 - k, 1))); };
+  return [f(5), f(3), f(1)];
+}
+function spec(v) {
+  v = clamp(v, 0, 100);
+  if (v <= 6) return [255 * v / 6, 0, 0];
+  const c = hueRGB(Math.min(330, (v - 6) / 84 * 330) / 360);
+  return v <= 90 ? c : [c[0] + (255 - c[0]) * (v - 90) / 10, c[1] + (255 - c[1]) * (v - 90) / 10, c[2] + (255 - c[2]) * (v - 90) / 10];
+}
+function specName(v) {
+  if (v <= 0) return 'aus';
+  if (v < 5) return 'dunkelrot';
+  if (v >= 98) return 'weiß';
+  if (v > 90) return 'hellrosa';
+  const h = (v - 6) / 84 * 330;
+  return h < 15 ? 'rot' : h < 45 ? 'orange' : h < 70 ? 'gelb' : h < 100 ? 'gelbgrün' : h < 150 ? 'grün' : h < 195 ? 'türkis' : h < 250 ? 'blau' : h < 285 ? 'violett' : h < 320 ? 'magenta' : 'pink';
+}
+const css = c => 'rgb(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ')';
+const TRACK = 'linear-gradient(90deg,#000 0%,#f00 6%,#ff0 21.3%,#0f0 36.5%,#0ff 51.8%,#00f 67.1%,#f0f 82.4%,#ff0080 90%,#fff 100%)';
+const layer = (id, label) => ({ type: 'range', id, label, min: 0, max: 100, step: 0.5, fmt: specName, track: TRACK, swatch: v => css(spec(v)) });
 const controls = [
   { type: 'grid', id: 'color', label: 'Farbe', options: PRESETS.map(p => ({ label: p.label, group: 'Voreinstellungen' })).concat([{ label: 'Eigene Farbe', group: 'Eigene' }]) },
-  { type: 'range', id: 'cr', label: 'Eigene Farbe: Rot', min: 0, max: 255, fmt: v => String(v) },
-  { type: 'range', id: 'cg', label: 'Eigene Farbe: Grün', min: 0, max: 255, fmt: v => String(v) },
-  { type: 'range', id: 'cb', label: 'Eigene Farbe: Blau', min: 0, max: 255, fmt: v => String(v) },
+  layer('k1', 'Mittellinie'),
+  layer('k2', 'Rand um die Mittellinie'),
+  layer('k3', 'Nebel außen (heller = stärker)'),
   { type: 'grid', id: 'mode', label: 'Farbwechsel', options: ['Fest', 'Zufall', 'Wechsel', 'Akku', 'Neigung', 'Kompass'].map(l => ({ label: l })) },
   { type: 'range', id: 'speed', label: 'Geschwindigkeit', min: 0, max: 100, fmt: v => String(v) },
   { type: 'range', id: 'complexity', label: 'Komplexität', min: 1, max: 5, fmt: v => LEVELS[v - 1] },
-  { type: 'range', id: 'glow', label: 'Leuchten (5 = wie Original)', min: 1, max: 10, fmt: v => String(v) },
+  { type: 'range', id: 'glow', label: 'Linienstärke (5 = wie Original)', min: 1, max: 10, fmt: v => String(v) },
   { type: 'grid', id: 'sym', label: 'Symmetrie', options: [{ label: 'Asymmetrisch' }, { label: 'Gespiegelt' }, { label: 'Zweifach gespiegelt' }] },
   { type: 'choice', id: 'touch', label: 'Berührung verformt das Plasma', options: ['Aus', 'An'] },
   { type: 'choice', id: 'move', label: 'Komplexe Bewegung', options: ['Aus', 'An'] },
 ];
+// Farbe aus drei Reglerstellungen
+const tri = k => ({ k: spec(k[0]), g: spec(k[1]), h: spec(k[2]) });
+// Farblisten für Wechsel (die Voreinstellungen), Akku (leer → voll) und Kompass/Neigung (einmal herum)
+const CYCLE = PRESETS.slice(0, 6).map(p => tri(p.k));
+const BATTERY = [[255, 30, 20], [245, 220, 40], [40, 255, 80], [40, 110, 255]];
+const COMPASS = [[255, 30, 20], [245, 220, 40], [40, 255, 80], [30, 230, 255], [40, 110, 255], [170, 60, 255]];
 
 // ---------- Shader ----------
 const VS = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.0,1.0);}';
@@ -69,7 +96,7 @@ precision highp float;
 precision mediump float;
 #endif
 uniform vec2 uRes;uniform float uAsp;uniform float uT;uniform float uF;uniform float uSym;uniform float uMove;
-uniform float uThick;uniform vec3 uCol;uniform vec2 uDrift;uniform vec4 uTouch[4];uniform vec4 uLook;uniform vec3 uOct;
+uniform float uThick;uniform vec3 uK;uniform vec3 uG;uniform vec3 uH;uniform vec2 uDrift;uniform vec4 uTouch[4];uniform vec4 uLook;uniform vec3 uOct;
 ${NOISE}
 // Feld: grobe Lage für die Form, feinere Lagen für das Zucken der Linien
 float field(vec2 p){
@@ -100,10 +127,15 @@ void main(){
       n+=tc.z*exp(-dot(d,d)*55.0);
     }
   }
-  // Linien bei ganzzahligen Feldwerten: Kern hell, Schein in der Farbe, Dunst dazwischen
+  // Linien bei ganzzahligen Feldwerten. Drei Farbschichten: Nebel außen, Rand um die Mitte, ganz dünne Mittellinie
   float s=abs(sin(n*3.14159265));
   float I=pow(uThick/max(s,0.0005),uLook.x);
-  vec3 col=uCol*I+max(I-uLook.y,0.0)*uLook.z;
+  // von außen nach innen übereinander: Nebel, darüber der Rand, darüber die Mittellinie (schwarz = Schicht aus)
+  float wG=smoothstep(0.5,1.25,I),wK=smoothstep(2.4,4.6,I);
+  float aG=max(uG.r,max(uG.g,uG.b)),aK=max(uK.r,max(uK.g,uK.b));
+  vec3 col=uH*min(I,1.5)*uLook.y;
+  col=col*(1.0-wG*aG)+uG*wG*1.4;
+  col=col*(1.0-wK*aK)+uK*wK*2.2;
   col=1.0-exp(-col*uLook.w);
   gl_FragColor=vec4(col,1.0);
 }`;
@@ -135,25 +167,25 @@ function sn3(x, y, z) {
 let W = 1, H = 1, dpr = 1, t = 0, tz = rnd(0, 200), drift = [rnd(0, 50), rnd(0, 50)];
 let glc = null, gl = null, prog = null, U = {}, cpuC = null, cpuImg = null, rw = 1, rh = 1, tried = false;
 const touches = [];
-let col = PRESETS[0].rgb.slice(), randFrom = null, randTo = null, randT = 0, randNext = 0, cycleT = 0;
+let col = tri(PRESETS[0].k), randFrom = null, randTo = null, randT = 0, randNext = 0, cycleT = 0;
 const sens = { battery: null, tilt: null, heading: null, asked: false, since: 0 };
 let uiSet = null;
 
 const rate = () => 0.02 + 0.52 * Math.pow(settings.speed / 100, 1.6);
-// Aussehen der Linien: Abfall des Scheins, Schwelle und Stärke des weißen Kerns, Helligkeit, Linienstärke
-const LOOK = { exp: 1.1, core: 1.1, white: 0.5, gain: 1.3, thick: 0.17, o2: 0.25, o3: 0.1, o4: 0.05 };
+// Aussehen der Linien: Abfall des Scheins, Stärke des Nebels, Helligkeit, Linienstärke, Stärke der feineren Lagen
+const LOOK = { exp: 1.1, fog: 0.75, gain: 1.3, thick: 0.17, o2: 0.25, o3: 0.1, o4: 0.05 };
 const thick = () => LOOK.thick * Math.sqrt(FREQ[2] / FREQ[settings.complexity - 1]) * (0.55 + 0.09 * settings.glow);
 const mixRGB = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
+const mixTri = (a, b, k) => ({ k: mixRGB(a.k, b.k, k), g: mixRGB(a.g, b.g, k), h: mixRGB(a.h, b.h, k) });
+// aus einer einzelnen Farbe (Farbwechsel nach Sensor) eine Linie machen: Mittellinie bleibt, Rand und Nebel in der Farbe
+const fromOne = (c, base) => ({ k: base.k, g: c, h: c });
 const smooth = k => k * k * (3 - 2 * k);
+const sstep = (a, b, x) => smooth(clamp((x - a) / (b - a), 0, 1));
 // Farbe an Stelle v (0..1) einer Liste; rund = Kreis (Kompass, Neigung)
 function listColor(L, v, round) {
   const n = round ? L.length : L.length - 1, x = (round ? ((v % 1) + 1) % 1 : clamp(v, 0, 1)) * n;
   const i = Math.min(Math.floor(x), n - (round ? 0 : 1)), k = x - i;
   return mixRGB(L[i % L.length], L[(i + 1) % L.length], smooth(clamp(k, 0, 1)));
-}
-function hueRGB(h) {
-  const f = n => { const k = (n + h * 6) % 6; return 255 * (1 - Math.max(0, Math.min(k, 4 - k, 1))); };
-  return [f(5), f(3), f(1)];
 }
 // Hinweis unten einblenden (wie die Meldungen der Vorschau)
 function note(msg) {
@@ -178,30 +210,34 @@ function askSensors() {
   } catch (e) {}
 }
 function targetColor(dt) {
-  const base = settings.color === CUSTOM ? [settings.cr, settings.cg, settings.cb] : PRESETS[settings.color].rgb;
+  const base = tri(settings.color === CUSTOM ? [settings.k1, settings.k2, settings.k3] : PRESETS[settings.color].k);
   switch (settings.mode) {
-    case 1: { // Zufall: alle paar Sekunden zu einer neuen, kräftigen Farbe überblenden
+    case 1: { // Zufall: alle paar Sekunden zu einer neuen, kräftigen Farbe überblenden (Nebel etwas verschoben)
       randNext -= dt;
-      if (!randTo || randNext <= 0) { randFrom = randTo ? mixRGB(randFrom, randTo, smooth(clamp(randT, 0, 1))) : base; randTo = hueRGB(Math.random()); randT = 0; randNext = rnd(4, 8); }
+      if (!randTo || randNext <= 0) {
+        randFrom = randTo ? mixTri(randFrom, randTo, smooth(clamp(randT, 0, 1))) : base;
+        const h = Math.random();
+        randTo = { k: base.k, g: hueRGB(h), h: hueRGB((h + rnd(-0.06, 0.06) + 1) % 1) }; randT = 0; randNext = rnd(4, 8);
+      }
       randT += dt / 1.4;
-      return mixRGB(randFrom, randTo, smooth(clamp(randT, 0, 1)));
+      return mixTri(randFrom, randTo, smooth(clamp(randT, 0, 1)));
     }
-    case 2: { // Wechsel: der Reihe nach durch die Farbliste, je Farbe kurz stehen, dann weich überblenden
+    case 2: { // Wechsel: der Reihe nach durch die Voreinstellungen, je Farbe kurz stehen, dann weich überblenden
       cycleT += dt / 3.5;
       const i = Math.floor(cycleT) % CYCLE.length, k = clamp((cycleT % 1 - 0.55) / 0.45, 0, 1);
-      return mixRGB(CYCLE[i], CYCLE[(i + 1) % CYCLE.length], smooth(k));
+      return mixTri(CYCLE[i], CYCLE[(i + 1) % CYCLE.length], smooth(k));
     }
     case 3: { // Akku: leer rot … voll blau
       const v = sens.battery != null ? sens.battery : 0.5 + 0.5 * Math.sin(t * 0.15);
-      return listColor(BATTERY, v, false);
+      return fromOne(listColor(BATTERY, v, false), base);
     }
     case 4: { // Neigung: Richtung, in die das Handy gekippt ist
       const v = sens.tilt != null ? sens.tilt : t * 0.04;
-      return listColor(COMPASS, v, true);
+      return fromOne(listColor(COMPASS, v, true), base);
     }
     case 5: { // Kompass: Himmelsrichtung
       const v = sens.heading != null ? sens.heading : t * 0.025;
-      return listColor(COMPASS, v, true);
+      return fromOne(listColor(COMPASS, v, true), base);
     }
     default: return base;
   }
@@ -225,7 +261,7 @@ function initGL() {
   const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   const a = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uAsp', 'uT', 'uF', 'uSym', 'uMove', 'uThick', 'uCol', 'uDrift', 'uTouch', 'uLook', 'uOct']) U[n] = gl.getUniformLocation(prog, n);
+  for (const n of ['uRes', 'uAsp', 'uT', 'uF', 'uSym', 'uMove', 'uThick', 'uK', 'uG', 'uH', 'uDrift', 'uTouch', 'uLook', 'uOct']) U[n] = gl.getUniformLocation(prog, n);
 }
 function touchData() {
   const d = new Float32Array(16);
@@ -237,9 +273,10 @@ function renderGL() {
   gl.viewport(0, 0, rw, rh);
   gl.uniform2f(U.uRes, rw, rh); gl.uniform1f(U.uAsp, rh / rw); gl.uniform1f(U.uT, tz);
   gl.uniform1f(U.uF, FREQ[settings.complexity - 1]); gl.uniform1f(U.uSym, settings.sym); gl.uniform1f(U.uMove, settings.move);
-  gl.uniform1f(U.uThick, thick()); gl.uniform3f(U.uCol, col[0] / 255, col[1] / 255, col[2] / 255);
+  gl.uniform1f(U.uThick, thick());
+  gl.uniform3f(U.uK, col.k[0] / 255, col.k[1] / 255, col.k[2] / 255); gl.uniform3f(U.uG, col.g[0] / 255, col.g[1] / 255, col.g[2] / 255); gl.uniform3f(U.uH, col.h[0] / 255, col.h[1] / 255, col.h[2] / 255);
   gl.uniform2f(U.uDrift, drift[0], drift[1]); gl.uniform4fv(U.uTouch, touchData());
-  gl.uniform4f(U.uLook, LOOK.exp, LOOK.core, LOOK.white, LOOK.gain); gl.uniform3f(U.uOct, LOOK.o2, LOOK.o3, LOOK.o4);
+  gl.uniform4f(U.uLook, LOOK.exp, LOOK.fog, 0, LOOK.gain); gl.uniform3f(U.uOct, LOOK.o2, LOOK.o3, LOOK.o4);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 function renderCPU() {
@@ -259,7 +296,14 @@ function renderCPU() {
       n += tc.amp * Math.exp(-((px - tx) ** 2 + (py - ty) ** 2) * 55);
     }
     const I = Math.pow(th / Math.max(Math.abs(Math.sin(n * Math.PI)), 0.0005), LOOK.exp), o = (y * cw + x) * 4;
-    for (let c = 0; c < 3; c++) d[o + c] = 255 * (1 - Math.exp(-(col[c] / 255 * I + Math.max(I - LOOK.core, 0) * LOOK.white) * LOOK.gain));
+    const wh = Math.min(I, 1.5) * LOOK.fog, wg = sstep(0.5, 1.25, I), wk = sstep(2.4, 4.6, I);
+    const ag = Math.max(col.g[0], col.g[1], col.g[2]) / 255, ak = Math.max(col.k[0], col.k[1], col.k[2]) / 255;
+    for (let c = 0; c < 3; c++) {
+      let v = col.h[c] / 255 * wh;
+      v = v * (1 - wg * ag) + col.g[c] / 255 * wg * 1.4;
+      v = v * (1 - wk * ak) + col.k[c] / 255 * wk * 2.2;
+      d[o + c] = 255 * (1 - Math.exp(-v * LOOK.gain));
+    }
     d[o + 3] = 255;
   }
   cpuC.getContext('2d').putImageData(cpuImg, 0, 0);
@@ -283,7 +327,9 @@ return {
   look: LOOK,
   seek(v, dx, dy) { tz = v; drift = [dx || 0, dy || 0]; },
   change(id) {
-    if ((id === 'cr' || id === 'cg' || id === 'cb') && settings.color !== CUSTOM && uiSet) uiSet('color', CUSTOM);
+    // eigene Farbe: ein Regler bewegt → „Eigene Farbe“; eine Voreinstellung gewählt → Regler springen auf ihre Farben
+    if ((id === 'k1' || id === 'k2' || id === 'k3') && settings.color !== CUSTOM && uiSet) uiSet('color', CUSTOM);
+    if (id === 'color' && settings.color < CUSTOM && uiSet) { const P = PRESETS[settings.color].k; uiSet('k1', P[0]); uiSet('k2', P[1]); uiSet('k3', P[2]); }
     if (id === 'mode') {
       randTo = null; cycleT = 0;
       if (settings.mode >= 3) {
@@ -312,7 +358,7 @@ return {
     if (settings.move) { const a = t * 0.07 + Math.sin(t * 0.13) * 1.6; drift[0] += Math.cos(a) * dt * 0.45 * r; drift[1] += Math.sin(a) * dt * 0.45 * r; }
     // Farbe weich nachführen
     const tc = targetColor(dt), k = 1 - Math.exp(-dt * 6);
-    col = mixRGB(col, tc, k);
+    col = mixTri(col, tc, k);
     // Berührungen: unter dem Finger wächst der Hügel schnell, nach dem Loslassen sinkt er weich zurück
     for (let i = touches.length - 1; i >= 0; i--) {
       const o = touches[i];

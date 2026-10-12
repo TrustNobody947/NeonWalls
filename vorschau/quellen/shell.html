@@ -34,6 +34,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .row label,.row .lbl{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px}
 .row output{font:12px var(--mono);color:var(--fg)}
 input[type=range]{width:100%;accent-color:var(--accent)}
+/* Regler mit eigener Farbspur (z. B. Farbspektrum) */
+input[type=range].track{-webkit-appearance:none;appearance:none;height:16px;margin:6px 0;border-radius:8px;background:var(--track);border:1px solid var(--line);outline:none}
+input[type=range].track::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000,0 1px 4px rgba(0,0,0,.6)}
+input[type=range].track::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000}
 .row input[type=text]{width:100%;box-sizing:border-box;font:600 15px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
   border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
@@ -110,9 +114,10 @@ for (const c of E.controls) {
       '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
     box.appendChild(row);
     const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
-    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); };
+    if (c.track) { el.classList.add('track'); el.style.setProperty('--track', c.track); }
+    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
     ui[c.id](S[c.id]);
-    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); save(); if (E.change) E.change(c.id); });
+    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
   } else if (c.type === 'choice' || c.type === 'grid') {
     // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
     row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';

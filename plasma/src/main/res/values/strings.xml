@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Elektro-Plasma</string>
+    <string name="wp_desc">Leuchtende, zuckende Plasma-Linien in vielen Farben. Wischen verformt das Plasma.</string>
+    <string name="hint_tap">Vorschau antippen blendet die Einstellungen aus und ein. Wischen verformt das Plasma.</string>
+
+    <string name="s_color">Farbe</string>
+    <string name="c_blue">Elektroblau</string>
+    <string name="c_green">Hellgrün</string>
+    <string name="c_purple">Lila</string>
+    <string name="c_red">Dunkelrot</string>
+    <string name="c_fire">Feuer</string>
+    <string name="c_yellow">Gelb</string>
+    <string name="c_white">Weiß</string>
+    <string name="c_custom">Eigene</string>
+    <string name="s_core">Mittellinie</string>
+    <string name="s_rim">Rand um die Mittellinie</string>
+    <string name="s_fog">Nebel außen (heller = stärker)</string>
+
+    <string name="s_mode">Farbwechsel</string>
+    <string name="m_fixed">Fest</string>
+    <string name="m_random">Zufall</string>
+    <string name="m_cycle">Wechsel</string>
+    <string name="m_battery">Akku</string>
+    <string name="m_tilt">Neigung</string>
+    <string name="m_compass">Kompass</string>
+    <string name="m_note_battery">Die Farbe zeigt den Akkustand: leer rot, voll blau.</string>
+    <string name="m_note_tilt">Die Farbe folgt der Richtung, in die du das Handy kippst.</string>
+    <string name="m_note_compass">Die Farbe folgt der Himmelsrichtung.</string>
+    <string name="m_note_nosensor">Dieses Handy hat den Sensor nicht, die Farbe läuft deshalb von selbst durch.</string>
+
+    <string name="s_speed">Geschwindigkeit</string>
+    <string name="s_complexity">Komplexität</string>
+    <string name="cx_1">sehr einfach</string>
+    <string name="cx_2">einfach</string>
+    <string name="cx_3">mittel</string>
+    <string name="cx_4">komplex</string>
+    <string name="cx_5">sehr komplex</string>
+    <string name="s_glow">Linienstärke (5 = wie Original)</string>
+    <string name="s_sym">Symmetrie</string>
+    <string name="sym_0">Asymmetrisch</string>
+    <string name="sym_1">Gespiegelt</string>
+    <string name="sym_2">Zweifach</string>
+    <string name="s_touch">Berührung verformt das Plasma</string>
+    <string name="s_move">Komplexe Bewegung</string>
+
+    <string name="b_new">Neues Muster</string>
+    <string name="b_ring">Berührung zeigen</string>
+    <string name="b_fullscreen">Vollbild</string>
+    <string name="b_set">Als Hintergrund festlegen</string>
+    <string name="err_picker_any">Die Hintergrund-Auswahl lässt sich auf diesem Handy nicht öffnen. Bitte über die Einstellungen des Handys wählen.</string>
+    <string name="err_gl">Grafikfehler – bitte Screenshot an Claude schicken:</string>
+</resources>

@@ -6,4 +6,6 @@ local.properties
 .idea/
 .DS_Store
 app/debug.keystore
+plasma/debug.keystore
+plasma/build/
 vorschau/quellen/out/

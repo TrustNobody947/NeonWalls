@@ -50,8 +50,10 @@ jobs:
               print('::error::' + enc(p[:3500]))
           EOF
 
-      - name: APK umbenennen
-        run: cp app/build/outputs/apk/release/app-release.apk NeonWalls.apk
+      - name: APKs umbenennen
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk NeonWalls.apk
+          cp plasma/build/outputs/apk/release/plasma-release.apk ElektroPlasma.apk
 
       # Fertige APK als Download unter "Releases" veröffentlichen
       - uses: softprops/action-gh-release@v2
@@ -59,8 +61,13 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: Neon Walls ${{ github.run_number }}
           body: |
-            Zum Installieren auf dem Handy einfach NeonWalls.apk antippen und herunterladen.
-            Direkter Link zur jeweils neuesten Version:
+            Zum Installieren auf dem Handy die gewünschte APK antippen und herunterladen.
+            NeonWalls.apk – die Sammlung (Broken Screen, Pegelanzeige)
+            ElektroPlasma.apk – Elektro-Plasma als eigene App
+            Direkte Links zur jeweils neuesten Version:
             https://github.com/${{ github.repository }}/releases/latest/download/NeonWalls.apk
-          files: NeonWalls.apk
+            https://github.com/${{ github.repository }}/releases/latest/download/ElektroPlasma.apk
+          files: |
+            NeonWalls.apk
+            ElektroPlasma.apk
           make_latest: true

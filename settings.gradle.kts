@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "NeonWalls"
 include(":app")
+// Elektro-Plasma: eigene App (eigenes Paket, eigenes Symbol)
+include(":plasma")
