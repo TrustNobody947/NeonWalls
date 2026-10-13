@@ -14,6 +14,8 @@ object ClockPrefs {
     const val DATE = "date"
     const val FINISH = "finish"
     const val CRACK = "crack"
+    /** Wo die Uhr erscheint: 0 überall, 1 nur auf dem Startbildschirm, 2 nur auf dem Sperrbildschirm. */
+    const val WHERE = "where"
 
     fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
@@ -27,4 +29,13 @@ object ClockPrefs {
     }
 
     fun crack(ctx: Context): Int = prefs(ctx).getInt(CRACK, 5)
+
+    fun where(ctx: Context): Int = prefs(ctx).getInt(WHERE, 0).coerceIn(0, 2)
+
+    /** Soll die Uhr gerade zu sehen sein? locked = der Sperrbildschirm ist gerade zu sehen. */
+    fun shown(where: Int, locked: Boolean): Boolean = when (where) {
+        1 -> !locked
+        2 -> locked
+        else -> true
+    }
 }

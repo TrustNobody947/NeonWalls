@@ -54,6 +54,7 @@ jobs:
         run: |
           cp app/build/outputs/apk/release/app-release.apk NeonWalls.apk
           cp plasma/build/outputs/apk/release/plasma-release.apk ElektroPlasma.apk
+          cp brokenscreen/build/outputs/apk/release/brokenscreen-release.apk BrokenScreen.apk
 
       # Fertige APK als Download unter "Releases" veröffentlichen
       - uses: softprops/action-gh-release@v2
@@ -64,10 +65,13 @@ jobs:
             Zum Installieren auf dem Handy die gewünschte APK antippen und herunterladen.
             NeonWalls.apk – die Sammlung (Broken Screen, Pegelanzeige)
             ElektroPlasma.apk – Elektro-Plasma als eigene App
+            BrokenScreen.apk – Broken Screen als eigene App
             Direkte Links zur jeweils neuesten Version:
             https://github.com/${{ github.repository }}/releases/latest/download/NeonWalls.apk
             https://github.com/${{ github.repository }}/releases/latest/download/ElektroPlasma.apk
+            https://github.com/${{ github.repository }}/releases/latest/download/BrokenScreen.apk
           files: |
             NeonWalls.apk
             ElektroPlasma.apk
+            BrokenScreen.apk
           make_latest: true

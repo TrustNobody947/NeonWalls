@@ -42,7 +42,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Code verkleinern und unlesbar machen (schwerer nachzubauen, kleinere APK)
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -57,4 +60,8 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+dependencies {
+    implementation(project(":core"))
 }

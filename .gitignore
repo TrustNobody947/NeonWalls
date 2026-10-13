@@ -8,4 +8,7 @@ local.properties
 app/debug.keystore
 plasma/debug.keystore
 plasma/build/
+core/build/
+brokenscreen/build/
+brokenscreen/debug.keystore
 vorschau/quellen/out/

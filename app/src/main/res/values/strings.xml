@@ -1,24 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
     <string name="app_name">Neon Walls</string>
     <string name="wp_glitch_name">Broken Screen</string>
-    <string name="wp_glitch_desc">Flackernde Farbstreifen wie bei einem kaputten Display, mit Haarriss und zufälligen Glitch-Ausbrüchen.</string>
+    <string name="wp_glitch_desc">Flackernde Farbstreifen wie bei einem kaputten Display, hinter echten Glasrissen vom Aufschlag, mit zufälligen Glitch-Ausbrüchen.</string>
     <string name="hint_tap">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
-    <string name="s_calm">Grundflackern</string>
-    <string name="s_burst">Glitch-Ausbrüche</string>
-    <string name="s_count">Anzahl Streifen</string>
-    <string name="s_shear">Versatz am Riss</string>
-    <string name="s_random">Neues Muster bei jedem Einschalten</string>
-    <string name="s_mutate">Glitches verändern das Muster</string>
-    <string name="l_off">aus</string>
-    <string name="l_low">leicht</string>
-    <string name="l_mid">mittel</string>
-    <string name="l_high">stark</string>
-    <string name="b_new">Neues Muster</string>
-    <string name="b_glitch">Glitch jetzt</string>
-    <string name="b_fullscreen">Vollbild</string>
-    <string name="b_set">Als Hintergrund festlegen</string>
-    <string name="err_picker">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe „Broken Screen“ wählen.</string>
     <string name="wp_pegel_name">Pegelanzeige</string>
     <string name="wp_pegel_desc">LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy oder auf das Mikrofon, sonst läuft ein Demo-Beat.</string>
     <string name="p_source">Quelle</string>
@@ -42,8 +28,6 @@
     <string name="p_pos">Position</string>
     <string name="p_mid">Mitte</string>
     <string name="p_bottom">Unten</string>
-    <string name="on">An</string>
-    <string name="off">Aus</string>
     <string name="b_test">Selbsttest</string>
     <string name="b_drop">Bass-Drop</string>
     <string name="st_demo">Demo-Beat läuft, keine echte Musik.</string>
@@ -53,24 +37,4 @@
     <string name="st_fail_music">Dieses Handy gibt die Musik nicht frei. Probiere „Mikrofon“. Bis dahin läuft der Demo-Beat.</string>
     <string name="st_fail_mic">Mikrofon nicht verfügbar. Bis dahin läuft der Demo-Beat.</string>
     <string name="st_wait">Starte …</string>
-    <string name="c_title">Uhr</string>
-    <string name="c_show">Uhr anzeigen</string>
-    <string name="c_finish">Oberfläche</string>
-    <string name="f_chrome">Chrom</string>
-    <string name="f_gold">Gold</string>
-    <string name="f_steel">Stahlblau</string>
-    <string name="f_rose">Roségold</string>
-    <string name="f_black">Schwarzchrom</string>
-    <string name="f_copper">Kupfer</string>
-    <string name="f_neon">Neon</string>
-    <string name="f_white">Weiß (Original)</string>
-    <string name="c_pos">Position der Uhr</string>
-    <string name="c_top">Oben</string>
-    <string name="c_size">Größe der Uhr (5 = wie Original)</string>
-    <string name="c_date">Datum</string>
-    <string name="c_date_orig">Wie Original</string>
-    <string name="c_date_de">Deutsch</string>
-    <string name="c_crack">Riss durch die Uhr</string>
-    <string name="c_note">Die Uhr gilt für alle Hintergründe, an jedem Hintergrund einzeln einschaltbar.</string>
-    <string name="err_picker_any">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe den gewünschten Hintergrund wählen.</string>
 </resources>

@@ -1,5 +1,7 @@
 package io.github.trustnobody947.neonwalls.pegel
 
+import android.app.KeyguardManager
+import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Canvas
 import android.service.wallpaper.WallpaperService
@@ -27,11 +29,26 @@ class PegelWallpaperService : WallpaperService() {
         private var last = 0L
         private var useHw = true
         private val empty = FloatArray(0)
+        private val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager?
+        private var where = 0
+        private var lastLockCheck = 0L
+
+        /** Uhr nur auf dem Start- oder nur auf dem Sperrbildschirm: am Sperrbildschirm erkennen, wo wir gerade sind. */
+        private fun updateClockShown() {
+            val locked = try {
+                keyguard?.isKeyguardLocked ?: false
+            } catch (e: Exception) {
+                false
+            }
+            renderer.clockShown = isPreview || ClockPrefs.shown(where, locked)
+        }
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             PegelPrefs.applyTo(this@PegelWallpaperService, renderer)
             source = PegelPrefs.source(this@PegelWallpaperService)
+            where = ClockPrefs.where(this@PegelWallpaperService)
+            updateClockShown()
             prefs.registerOnSharedPreferenceChangeListener(this)
             clockPrefs.registerOnSharedPreferenceChangeListener(this)
         }
@@ -46,6 +63,8 @@ class PegelWallpaperService : WallpaperService() {
 
         override fun onSharedPreferenceChanged(p: SharedPreferences?, key: String?) {
             PegelPrefs.applyTo(this@PegelWallpaperService, renderer)
+            where = ClockPrefs.where(this@PegelWallpaperService)
+            updateClockShown()
             val s = PegelPrefs.source(this@PegelWallpaperService)
             if (s != source) {
                 source = s
@@ -55,6 +74,7 @@ class PegelWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(visible: Boolean) {
             if (visible) {
+                updateClockShown()
                 start()
                 audio.start(source)
                 renderer.wake()
@@ -91,6 +111,11 @@ class PegelWallpaperService : WallpaperService() {
             if (!running) return
             val dt = if (last == 0L) 0.016f else (frameTimeNanos - last) / 1_000_000_000f
             last = frameTimeNanos
+            // zweimal pro Sekunde nachsehen, ob der Sperrbildschirm zu sehen ist
+            if (where != 0 && frameTimeNanos - lastLockCheck > 500_000_000L) {
+                lastLockCheck = frameTimeNanos
+                updateClockShown()
+            }
             audio.bandCount = renderer.bandCount
             val levels = if (source < 2 && audio.status == PegelAudio.Status.OK) (audio.bands ?: empty) else null
             val holder = surfaceHolder

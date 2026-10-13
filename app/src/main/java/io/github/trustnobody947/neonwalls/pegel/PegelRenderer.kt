@@ -40,6 +40,8 @@ class PegelRenderer(private val density: Float) {
 
     val demo = PegelDemo()
     var clock: ClockFace? = null   // Uhr über der Anzeige (null = aus)
+    /** false = Uhr gerade ausgeblendet (nur auf dem Start- bzw. Sperrbildschirm gewünscht). */
+    var clockShown = true
 
     private var w = 0
     private var h = 0
@@ -280,7 +282,7 @@ class PegelRenderer(private val density: Float) {
             }
         }
         // Uhr obendrauf
-        clock?.let { ck ->
+        clock?.takeIf { clockShown }?.let { ck ->
             ck.update(canvas.width, canvas.height)
             ck.layer?.let { paint.alpha = 255; canvas.drawBitmap(it, ck.x, ck.y, paint) }
         }

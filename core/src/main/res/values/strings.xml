@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">aus</string>
+    <string name="l_low">leicht</string>
+    <string name="l_mid">mittel</string>
+    <string name="l_high">stark</string>
+    <string name="on">An</string>
+    <string name="off">Aus</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Neues Muster</string>
+    <string name="b_glitch">Glitch jetzt</string>
+    <string name="b_impact">Aufschlag antippen</string>
+    <string name="b_fullscreen">Vollbild</string>
+    <string name="b_set">Als Hintergrund festlegen</string>
+    <string name="err_picker_any">Bitte über die Einstellungen deines Handys unter Hintergrund → Live-Hintergründe den gewünschten Hintergrund wählen.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_name">Broken Screen</string>
+    <string name="bs_hint">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
+    <string name="s_cracks">Anzahl Risse</string>
+    <string name="cracks_none">keine</string>
+    <string name="s_impact">Aufschlagstelle</string>
+    <string name="impact_random">Zufällig</string>
+    <string name="impact_tap">Selbst angetippt</string>
+    <string name="s_splinter">Splitter am Aufschlag</string>
+    <string name="spl_0">Aus</string>
+    <string name="spl_1">Wenig</string>
+    <string name="spl_2">Viel</string>
+    <string name="s_auto">Risse wechseln von selbst</string>
+    <string name="auto_0">Aus</string>
+    <string name="auto_1">Bei Glitches</string>
+    <string name="auto_2">Nach Stunden</string>
+    <string name="s_hours">Wechsel nach Stunden: alle</string>
+    <string name="hours_1">1 Stunde</string>
+    <string name="hours_n">%d Stunden</string>
+    <string name="s_shear">Versatz am Riss</string>
+    <string name="s_calm">Grundflackern</string>
+    <string name="s_burst">Glitch-Ausbrüche</string>
+    <string name="s_count">Anzahl Streifen</string>
+    <string name="s_random">Neues Muster bei jedem Einschalten</string>
+    <string name="s_mutate">Glitches verändern das Muster</string>
+    <string name="tap_1">Tippe auf die Stelle, an der das Handy aufgeschlagen ist.</string>
+    <string name="tap_2">Und jetzt dorthin tippen, wohin der Riss laufen soll.</string>
+    <string name="tap_done">Fertig! „Neues Muster“ zeigt einen anderen Verlauf, unter „Aufschlagstelle“ geht es zurück auf Zufall.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Uhr</string>
+    <string name="c_note">Die Uhr gilt für alle Hintergründe, an jedem Hintergrund einzeln einschaltbar.</string>
+    <string name="c_show">Uhr anzeigen</string>
+    <string name="c_where">Uhr zeigen</string>
+    <string name="where_0">Überall</string>
+    <string name="where_1">Nur Start</string>
+    <string name="where_2">Nur Sperrbild</string>
+    <string name="where_note">„Nur Start“ zeigt die Uhr nur auf dem Startbildschirm, „Nur Sperrbild“ nur auf dem Sperrbildschirm. Die eigene Uhr des Handys lässt sich von einer App aus nicht ausblenden.</string>
+    <string name="c_finish">Oberfläche</string>
+    <string name="f_chrome">Chrom</string>
+    <string name="f_gold">Gold</string>
+    <string name="f_steel">Stahlblau</string>
+    <string name="f_rose">Roségold</string>
+    <string name="f_black">Schwarzchrom</string>
+    <string name="f_copper">Kupfer</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Weiß (Original)</string>
+    <string name="c_pos">Position der Uhr</string>
+    <string name="c_top">Oben</string>
+    <string name="c_mid">Mitte</string>
+    <string name="c_bottom">Unten</string>
+    <string name="c_size">Größe der Uhr (5 = wie Original)</string>
+    <string name="c_date">Datum</string>
+    <string name="c_date_orig">Wie Original</string>
+    <string name="c_date_de">Deutsch</string>
+    <string name="c_crack">Riss durch die Uhr</string>
+</resources>
