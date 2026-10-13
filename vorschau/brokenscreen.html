@@ -1,0 +1,994 @@
+<title>Broken Screen</title>
+<style>
+/* Layout: one full-screen canvas, single dark look; tapping the canvas reveals a control sheet */
+:root{
+  --bg:#000;
+  --panel:rgba(12,14,18,.9);
+  --fg:#e8ecf2;
+  --muted:#8a93a3;
+  --accent:#19e619;
+  --line:rgba(255,255,255,.12);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Roboto Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--bg);overflow:hidden}
+:root{padding:0!important}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:manipulation}
+.hint{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  font:500 12px/1 var(--mono);letter-spacing:.08em;color:var(--muted);text-transform:uppercase;
+  background:var(--panel);padding:10px 14px;border-radius:999px;border:1px solid var(--line);
+  transition:opacity .6s;pointer-events:none;white-space:nowrap;z-index:5}
+.hint.msg{white-space:normal;text-transform:none;letter-spacing:0;font:500 13px/1.45 var(--font);color:var(--fg);
+  width:max-content;max-width:calc(100vw - 32px);text-align:center;border-radius:14px}
+.hint.gone{opacity:0}
+.sheet{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;
+  max-height:calc(100% - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;
+  background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:16px;
+  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px)}
+.sheet h2{margin:0;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.sheet .sub{margin:-6px 0 0;color:var(--muted);font-size:13px}
+#controls{display:grid;gap:14px}
+.row{display:grid;gap:6px}
+.row label,.row .lbl{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:13px}
+.row output{font:12px var(--mono);color:var(--fg)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+/* Regler mit eigener Farbspur (z. B. Farbspektrum) */
+input[type=range].track{-webkit-appearance:none;appearance:none;height:16px;margin:6px 0;border-radius:8px;background:var(--track);border:1px solid var(--line);outline:none}
+input[type=range].track::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000,0 1px 4px rgba(0,0,0,.6)}
+input[type=range].track::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--sw,#fff);border:3px solid #fff;box-shadow:0 0 0 1px #000}
+.row input[type=text]{width:100%;box-sizing:border-box;font:600 15px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:0;padding:8px 6px;font-size:13px}
+.seg button.on{background:var(--accent);color:#000;border-color:transparent}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.grid .grp{grid-column:1/-1;margin-top:6px;font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.grid button{min-width:0;padding:10px 8px;font-size:18px;font-weight:400;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid button.on{background:var(--accent);color:#000;border-color:transparent}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(255,255,255,.06);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#000;border-color:transparent}
+</style>
+
+<canvas id="c" aria-label="Animierter Hintergrund: kaputtes Display mit flackernden Farbstreifen und Glasrissen"></canvas>
+<div class="hint" id="hint">Tippen für Einstellungen</div>
+
+<div class="sheet" id="sheet" hidden>
+  <h2>Broken Screen</h2>
+  <p class="sub">Flackernde Farbstreifen hinter echtem Glasbruch: Das Handy ist aufgeschlagen, die Risse laufen quer übers Bild.</p>
+  <div id="controls"></div>
+  <div class="btns">
+    <button id="newBtn" class="primary" type="button">Neues Muster</button>
+    <button id="actBtn" type="button">Effekt</button>
+    <button id="fsBtn" type="button">Vollbild</button>
+    <button id="closeBtn" type="button">Schließen</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+// Hilfsfunktionen für alle Effekte
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rint = (a, b) => Math.floor(rnd(a, b + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lvl = v => v == 0 ? 'aus' : v < 4 ? 'leicht' : v < 7 ? 'mittel' : 'stark';
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; };
+// Wahrscheinlichkeit für "rate mal pro Sekunde" bei Zeitschritt dt
+const per = (rate, dt) => 1 - Math.exp(-rate * dt);
+
+// ---------- Effekt ----------
+const E = (function () {
+// Broken Screen: flackernde Farbstreifen wie bei einem kaputten Display, dazu echte Glasrisse.
+// Das Handy ist an einer Ecke oder Kante aufgeschlagen (zufällig, „Neues Muster“ würfelt neu): Von dort laufen die
+// Risse sternförmig quer übers ganze Bild, manche mit Abzweig, an der Aufschlagstelle ein kleines Splitternetz.
+// Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
+// enden genau an der Risskante. Der Riss selbst: dunkle Bruchkante mit feinem Glanz daneben (Licht von oben).
+// Mit Uhr läuft ein Riss mitten durch die Ziffern und weiter übers ganze Bild; die Uhr zerfällt dort in Stücke.
+const settings = { cracks: 3, splinter: 1, shear: 5, calm: 4, burst: 5, countPos: 59, rndWake: 0, mutate: 0,
+  clock: 0, crack: 5, pos: 0, size: 5, date: 0, finish: 7 };
+const countFromPos = v => Math.round(3 * Math.pow(50, v / 100));
+const controls = [
+  { type: 'range', id: 'cracks', label: 'Anzahl Risse', min: 0, max: 6, fmt: v => v == 0 ? 'keine' : String(v) },
+  { type: 'choice', id: 'splinter', label: 'Splitter am Aufschlag', options: ['Aus', 'Wenig', 'Viel'] },
+  { type: 'range', id: 'shear', label: 'Versatz am Riss', min: 0, max: 10, fmt: lvl },
+  { type: 'range', id: 'calm', label: 'Grundflackern', min: 0, max: 10, fmt: lvl },
+  { type: 'range', id: 'burst', label: 'Glitch-Ausbrüche', min: 0, max: 10, fmt: lvl },
+  { type: 'range', id: 'countPos', label: 'Anzahl Streifen', min: 0, max: 100, fmt: countFromPos },
+  { type: 'choice', id: 'rndWake', label: 'Neues Muster bei jedem Einschalten', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'mutate', label: 'Glitches verändern das Muster', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'clock', label: 'Uhr', options: ['An', 'Aus'] },
+  { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl },
+  { type: 'choice', id: 'pos', label: 'Position der Uhr', options: ['Oben', 'Mitte', 'Unten'] },
+  { type: 'range', id: 'size', label: 'Größe der Uhr (5 = wie Original)', min: 1, max: 10, fmt: v => String(v) },
+  { type: 'choice', id: 'date', label: 'Datum', options: ['Wie Original', 'Deutsch', 'Aus'] },
+  { type: 'grid', id: 'finish', label: 'Oberfläche der Uhr', options: [
+    { label: 'Chrom', group: 'Metall' }, { label: 'Gold', group: 'Metall' }, { label: 'Stahlblau', group: 'Metall' },
+    { label: 'Roségold', group: 'Metall' }, { label: 'Schwarzchrom', group: 'Metall' }, { label: 'Kupfer', group: 'Metall' },
+    { label: 'Neon leuchtend', group: 'Leuchtend' }, { label: 'Weiß', group: 'Wie Original' }] },
+];
+// Schablonen-Uhr: Schrift, Oberflächen und Uhr-Ebene (gemeinsam für uhr.js und brokenscreen.js).
+// Erwartet im Effekt: settings (finish, size, date, pos), W, H (Gerätepixel) sowie mk, clamp aus dem Rahmen.
+const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+// face: Verlauf über die Zeichenhöhe; lit/mid/shade: Fasen oben/seitlich/unten; side: Tiefe (nah, fern); date: Datumszeile
+const FIN = [
+  { face: [[0, '#ffffff'], [0.4, '#e4e7ed'], [0.49, '#a2a7b1'], [0.56, '#d6dae2'], [1, '#aab0ba']], lit: [255, 255, 255], mid: [196, 201, 210], shade: [62, 66, 74], side: [hex('#55595f'), hex('#141518')], date: [212, 216, 222] },
+  { face: [[0, '#fff8de'], [0.4, '#f1d37e'], [0.49, '#9e7924'], [0.56, '#e7c56b'], [1, '#b68b2f']], lit: [255, 248, 220], mid: [214, 176, 90], shade: [86, 60, 16], side: [hex('#6a4e18'), hex('#1c1405')], date: [232, 196, 112] },
+  { face: [[0, '#f2f8ff'], [0.4, '#bfd4ee'], [0.49, '#5f7995'], [0.56, '#aac3e0'], [1, '#7189a6']], lit: [240, 248, 255], mid: [150, 175, 205], shade: [28, 42, 60], side: [hex('#2c3d52'), hex('#0b1119')], date: [172, 196, 226] },
+  // Roségold
+  { face: [[0, '#fff1ea'], [0.4, '#f0bba6'], [0.49, '#99604e'], [0.56, '#e5aa94'], [1, '#b67b67']], lit: [255, 240, 232], mid: [218, 162, 142], shade: [92, 50, 40], side: [hex('#6e4135'), hex('#1d100b')], date: [232, 176, 156] },
+  // Schwarzchrom: dunkler Spiegel, nur die Kanten blitzen hell
+  { face: [[0, '#a4aab4'], [0.4, '#3b3e46'], [0.49, '#0b0c0f'], [0.56, '#2d3038'], [1, '#14161a']], lit: [225, 230, 240], mid: [74, 78, 88], shade: [6, 7, 9], side: [hex('#26282d'), hex('#040405')], date: [118, 124, 134] },
+  // Kupfer
+  { face: [[0, '#fff0de'], [0.4, '#e99b62'], [0.49, '#8a4a22'], [0.56, '#da8b52'], [1, '#a95d2c']], lit: [255, 236, 214], mid: [206, 130, 82], shade: [80, 36, 14], side: [hex('#6a3516'), hex('#1c0c04')], date: [222, 146, 98] },
+  // Neon leuchtend: helle Fläche mit Schein, wie eine Leuchtröhre in Ziffernform
+  { neon: [40, 225, 255], face: [[0, '#ffffff'], [0.45, '#e6fdff'], [1, '#a8f1ff']], lit: [255, 255, 255], mid: [176, 242, 255], shade: [52, 168, 205], side: [hex('#0d4b5d'), hex('#021116')], date: [196, 246, 255] },
+  // Weiß wie das Original: matte weiße Fläche, Fasen hellgrau, Unterkanten grau, dunkle Kante darunter; Datum flach hellgrau
+  { face: [[0, '#ffffff'], [1, '#ffffff']], lit: [255, 255, 255], mid: [220, 221, 222], shade: [172, 174, 178], side: [[60, 64, 68], [24, 26, 28]], date: [218, 218, 218] },
+];
+const mixC = (a, b, k) => [a[0] + (b[0] - a[0]) * k | 0, a[1] + (b[1] - a[1]) * k | 0, a[2] + (b[2] - a[2]) * k | 0];
+const rgbS = c => 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+
+// ---------- Schrift: Balken mit 45°-Fasen auf dem Raster der Original-Uhr ----------
+// Einheiten: Zeichenhöhe GH = 153 (9 × 17). Zweispaltige Zeichen: linke Spalte 0..BW, rechte Spalte XR..CW.
+const GH = 153, BW = 18.5, GAP = 15, CW = 2 * BW + GAP, CH = 17, XR = BW + GAP, XM = (CW - BW) / 2;
+// Balken in einer Spalte von y0 bis y1; Fase oben/unten links ('l'), rechts ('r') oder gerade ('-')
+function bar(x0, y0, y1, top, bot, w) {
+  const x1 = x0 + (w || BW);
+  return [[x0, y0 + (top === 'l' ? CH : 0)], [x1, y0 + (top === 'r' ? CH : 0)], [x1, y1 - (bot === 'r' ? CH : 0)], [x0, y1 - (bot === 'l' ? CH : 0)]];
+}
+// Balken über die ganze Höhe mit spitzer Kerbe in der Mitte (rechte Spalte von 3 und 8, linke Spalte von 8)
+const notchR = x0 => [[x0, 0], [x0 + BW, CH], [x0 + BW, 62], [x0 + 3.5, 76.5], [x0 + BW, 91], [x0 + BW, GH - CH], [x0, GH]];
+const notchL = x0 => [[x0, CH], [x0 + BW, 0], [x0 + BW, GH], [x0, GH - CH], [x0, 91], [x0 + BW - 3.5, 76.5], [x0, 62]];
+// waagerechter Balken mit schräg abgeschnittenem rechtem Ende (E, F)
+const hbar = y0 => [[0, y0], [CW - BW, y0], [CW, y0 + BW], [0, y0 + BW]];
+const M3 = BW + GAP; // Abstand der Balken bei M und W (drei Balken)
+const GLYPHS = {
+  '0': [bar(0, 0, GH, 'l', 'l'), bar(XR, 0, GH, 'r', 'r')],
+  '1': [bar(XM, 0, GH, 'l', 'l')],
+  '2': [bar(0, 0, 52, 'l', 'l'), bar(0, 85, GH, 'l', '-'), bar(XR, 0, 85, 'r', 'r'), bar(XR, 118, GH, 'r', '-')],
+  '3': [bar(0, 0, 52, 'l', 'l'), bar(0, 101, GH, 'l', 'l'), notchR(XR)],
+  '4': [bar(0, 0, 102, 'l', 'l'), bar(XR, 0, GH, 'l', 'l')],
+  '5': [bar(0, 0, 85, '-', 'l'), bar(0, 101, GH, 'l', 'l'), bar(XR, 0, 35, '-', 'r'), bar(XR, 68, GH, 'r', 'r')],
+  '6': [bar(0, 0, GH, 'l', 'l'), bar(XR, 0, 35, 'r', '-'), bar(XR, 68, GH, 'r', 'r')],
+  '7': [bar(0, 0, 35, '-', 'r'), bar(XR, 0, GH, '-', 'r')],
+  '8': [notchL(0), notchR(XR)],
+  '9': [bar(0, 0, 85, 'l', 'l'), bar(0, 118, GH, '-', 'l'), bar(XR, 0, GH, 'r', 'r')],
+  ':': [[[0, 17], [28.5, 0], [28.5, 52], [0, 35]], [[0, 118], [28.5, 101], [28.5, GH], [0, 136]]],
+  '.': [[[0, GH - 17], [16, GH - 17], [16, GH], [0, GH]]],
+  'A': [bar(0, 0, GH, 'l', '-'), bar(XR, 0, GH, 'r', '-')],
+  'D': [bar(0, 0, GH, '-', '-'), bar(XR, 0, GH, 'r', 'r')],
+  'E': [hbar(0), hbar(66), hbar(GH - BW)],
+  'F': [hbar(0), [[0, 66], [CW - BW, 66], [CW, 66 + BW], [BW, 66 + BW], [BW, GH], [0, GH]]],
+  'H': [bar(0, 0, GH, '-', '-'), bar(XR, 0, GH, '-', '-'), [[BW, 68], [XR, 85], [BW, 85]]],
+  'I': [bar(0, 0, GH, '-', '-')],
+  'M': [bar(0, 0, GH, 'l', '-'), bar(M3, 0, GH, '-', '-'), bar(2 * M3, 0, GH, 'r', '-')],
+  'N': [bar(0, 0, GH, '-', '-'), bar(XR, 0, GH, 'r', '-')],
+  'O': [bar(0, 0, GH, 'l', 'l'), bar(XR, 0, GH, 'r', 'r')],
+  'R': [bar(0, 0, GH, 'l', '-'), [[XR, 0], [CW, CH], [CW, 66], [XR + 1, 84], [CW, 84], [CW, GH], [XR, GH]]],
+  'S': [bar(0, 0, 85, 'l', 'l'), bar(0, 102, GH, 'l', 'l'), bar(XR, 0, 51, 'r', 'r'), bar(XR, 68, GH, 'r', 'r')],
+  'T': [[[0, 0], [CW, 0], [CW, BW], [XM + BW, BW], [XM + BW, GH], [XM, GH], [XM, BW], [0, BW]]],
+  'U': [[[0, 0], [BW, 0], [BW, GH - CH], [XR, GH - CH], [XR, 0], [CW, 0], [CW, GH - CH], [XR, GH], [BW, GH], [0, GH - CH]]],
+  'W': [bar(0, 0, GH, '-', 'l'), bar(M3, 0, GH, '-', '-'), bar(2 * M3, 0, GH, '-', 'r')],
+};
+// Zeichen mit Tintengrenzen (x0..x1) für die Datumszeile mit Proportionalschrift
+function glyph(ch) {
+  const S = GLYPHS[ch] || [];
+  let x0 = 0, x1 = 0;
+  if (S.length) { x0 = 1e9; x1 = -1e9; for (const p of S) for (const q of p) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); } }
+  // Breite: Ziffern immer eine volle Zelle (die 1 steht mittig darin), sonst bis zum rechten Rand der Form
+  return { S, x0, x1, w: ch >= '0' && ch <= '9' ? CW : x1 };
+}
+// Fläche: Verlaufsfarbe in der Höhe v (0 oben, 1 unten)
+function faceAt(F, v) {
+  const st = F.face;
+  if (v <= st[0][0]) return hex(st[0][1]);
+  for (let i = 1; i < st.length; i++) if (v <= st[i][0]) return mixC(hex(st[i - 1][1]), hex(st[i][1]), (v - st[i - 1][0]) / (st[i][0] - st[i - 1][0]));
+  return hex(st[st.length - 1][1]);
+}
+// Ein Teilstück mit Fasen einfärben: jedes Pixel bekommt die Farbe der nächsten Kante, wenn es näher als die Fasenbreite
+// an ihr liegt (Licht von oben: Oberkanten hell, Seiten mittel, Unterkanten dunkel), sonst die Flächenfarbe.
+function shadePoly(x, P, F, bev, top, hPx) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const q of P) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+  const bx = Math.floor(x0) - 1, by = Math.floor(y0) - 1, bw = Math.ceil(x1) - bx + 2, bh = Math.ceil(y1) - by + 2;
+  const t = mk(bw, bh), tx = t.getContext('2d');
+  tx.beginPath(); tx.moveTo(P[0][0] - bx, P[0][1] - by);
+  for (let i = 1; i < P.length; i++) tx.lineTo(P[i][0] - bx, P[i][1] - by);
+  tx.closePath(); tx.fillStyle = '#fff'; tx.fill();
+  const id = tx.getImageData(0, 0, bw, bh), d = id.data, n = P.length, E = [];
+  for (let i = 0; i < n; i++) {
+    const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+    if (L2 < 1e-6) continue;
+    const lam = dx / Math.sqrt(L2);
+    E.push([a[0], a[1], dx, dy, L2, lam > 0 ? mixC(F.mid, F.lit, lam) : mixC(F.mid, F.shade, -lam)]);
+  }
+  const rows = [];
+  for (let yy = 0; yy < bh; yy++) rows.push(faceAt(F, (by + yy + 0.5 - top) / hPx));
+  for (let yy = 0; yy < bh; yy++) for (let xx = 0; xx < bw; xx++) {
+    const o = (yy * bw + xx) * 4;
+    if (!d[o + 3]) continue;
+    const px = bx + xx + 0.5, py = by + yy + 0.5;
+    let best = 1e18, col = null;
+    for (const e of E) {
+      let k = ((px - e[0]) * e[2] + (py - e[1]) * e[3]) / e[4];
+      k = k < 0 ? 0 : k > 1 ? 1 : k;
+      const qx = e[0] + e[2] * k - px, qy = e[1] + e[3] * k - py, dd = qx * qx + qy * qy;
+      if (dd < best) { best = dd; col = e[5]; }
+    }
+    const fc = rows[yy], m = clamp((Math.sqrt(best) - bev + 0.5), 0, 1);
+    d[o] = col[0] + (fc[0] - col[0]) * m; d[o + 1] = col[1] + (fc[1] - col[1]) * m; d[o + 2] = col[2] + (fc[2] - col[2]) * m;
+  }
+  tx.putImageData(id, 0, 0);
+  x.drawImage(t, bx, by);
+}
+// Zeichen als fertiges Bild: Uhrzeit mit Fasen und Tiefe, Datum flach (wie beim Original)
+const cache = {};
+function sprite(ch, hPx, flat) {
+  const key = settings.finish + '|' + ch + '|' + hPx + '|' + (flat ? 1 : 0);
+  if (cache[key]) return cache[key];
+  const F = FIN[settings.finish] || FIN[0], gl = glyph(ch), u = hPx / GH;
+  const depth = flat ? 0 : Math.max(1, Math.round(hPx * 0.026));
+  const pad = depth + 3 + (F.neon ? Math.round(hPx * (flat ? 0.45 : 0.3)) : 0), bev = Math.max(1, hPx * 0.026);
+  const cw = Math.max(1, Math.ceil(gl.w * u + pad * 2)), chh = Math.max(1, Math.ceil(hPx + pad * 2 + depth));
+  const c = mk(cw, chh), x = c.getContext('2d');
+  const S = gl.S.map(p => p.map(q => [pad + q[0] * u, pad + q[1] * u]));
+  const path = (ox, oy) => { x.beginPath(); for (const p of S) { x.moveTo(p[0][0] + ox, p[0][1] + oy); for (let i = 1; i < p.length; i++) x.lineTo(p[i][0] + ox, p[i][1] + oy); x.closePath(); } };
+  if (S.length && F.neon) {
+    // Schein: weich und weit, dann eng und kräftig
+    for (const [b, a] of [[hPx * 0.24, 0.45], [hPx * 0.07, 0.75]]) {
+      x.save(); x.shadowColor = 'rgba(' + F.neon + ',1)'; x.shadowBlur = b; x.fillStyle = 'rgba(' + F.neon + ',' + a + ')';
+      path(0, 0); x.fill(); x.restore();
+    }
+  }
+  if (S.length && flat) { path(0, 0); x.fillStyle = rgbS(F.date); x.fill(); }
+  else if (S.length) {
+    // Tiefe: dieselbe Form mehrfach nach unten versetzt, dunkler je tiefer
+    for (let k = depth; k >= 1; k--) { path(0, k); x.fillStyle = rgbS(mixC(F.side[0], F.side[1], (k - 1) / Math.max(1, depth - 1))); x.fill(); }
+    for (const p of S) shadePoly(x, p, F, bev, pad, hPx);
+  }
+  const s = { c, pad };
+  cache[key] = s;
+  return s;
+}
+
+// ---------- Uhr-Ebene ----------
+// Abstände wie beim Original (Einheiten der Zeichenhöhe 153): Ziffernzellen 52 breit im Abstand 102, der Doppelpunkt
+// mittig in der Zelle dazwischen; Datumszeile 42 hoch, 51 unter der Uhrzeit, Proportionalschrift mit 39 Abstand,
+// 50 um den Punkt und 350 zwischen Datum und Wochentag.
+const EN = ['SUN', 'MON', 'TUE', 'WED', 'THUR', 'FRI', 'SAT'], DE = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
+const two = v => (v < 10 ? '0' : '') + v;
+let layer = null, layerC = [], tintC = null, lx = 0, ly = 0, stamp = '', layerKey = '';
+function texts() {
+  const d = new Date(), time = two(d.getHours()) + ':' + two(d.getMinutes());
+  const ds = settings.date === 0 ? d.getFullYear() + '.' + two(d.getMonth() + 1) + '.' + two(d.getDate()) + ' ' + EN[d.getDay()]
+    : settings.date === 1 ? DE[d.getDay()] + ' ' + two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.' + d.getFullYear() : '';
+  return { time, ds };
+}
+function timeLine(str, hPx) {
+  const u = hPx / GH, list = [];
+  let i = 0;
+  for (const ch of str) {
+    const g = glyph(ch), cell = i * 102;
+    list.push({ s: sprite(ch, hPx, false), x: (cell + (CW - g.w) / 2) * u });
+    i++;
+  }
+  return { list, w: Math.max(0, (i - 1) * 102 + CW) * u };
+}
+function dateLine(str, hPx) {
+  const u = hPx / GH, list = [];
+  let x = 0, prev = null;
+  for (const ch of str) {
+    if (ch === ' ') { if (prev) x += 350 - 39; prev = ' '; continue; }
+    if (prev) x += ch === '.' || prev === '.' ? 50 : 39;
+    const g = glyph(ch);
+    list.push({ s: sprite(ch, hPx, true), x: (x - g.x0) * u });
+    x += g.x1 - g.x0; prev = ch;
+  }
+  return { list, w: x * u };
+}
+function buildLayer() {
+  const T = texts(), F = FIN[settings.finish] || FIN[0];
+  const big = Math.max(12, Math.round(H * 0.0628 * (0.6 + 0.08 * settings.size))), small = Math.max(7, Math.round(big * 42 / 153));
+  const tl = timeLine(T.time, big), dl = T.ds ? dateLine(T.ds, small) : { list: [], w: 0 };
+  const gap = T.ds ? Math.round(big * 51 / 153) : 0, m = Math.round(big * (F.neon ? 0.34 : 0.12)) + 4;
+  const lw = Math.ceil(Math.max(tl.w, dl.w) + m * 2), lh = Math.ceil(big + gap + (T.ds ? small : 0) + m * 2);
+  layer = mk(lw, lh);
+  const x = layer.getContext('2d');
+  const tx = (lw - tl.w) / 2, dx0 = (lw - dl.w) / 2;
+  for (const g of tl.list) x.drawImage(g.s.c, Math.round(tx + g.x - g.s.pad), m - g.s.pad);
+  for (const g of dl.list) x.drawImage(g.s.c, Math.round(dx0 + g.x - g.s.pad), m + big + gap - g.s.pad);
+  // Kopien je Farbkanal für den Farbversatz bei Glitches, und eine Fläche zum Einfärben
+  layerC = [[255, 0, 0], [0, 255, 0], [0, 0, 255]].map(col => {
+    const c = mk(lw, lh), y = c.getContext('2d');
+    y.drawImage(layer, 0, 0); y.globalCompositeOperation = 'source-in'; y.fillStyle = 'rgb(' + col + ')'; y.fillRect(0, 0, lw, lh);
+    y.globalCompositeOperation = 'multiply'; y.drawImage(layer, 0, 0); return c;
+  });
+  tintC = mk(lw, lh);
+  // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe
+  const cy = [0.1466, 0.42, 0.66][settings.pos] * H;
+  lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
+  stamp = T.time + T.ds;
+  layerKey = [settings.size, settings.date, settings.finish, settings.pos, W, H].join('|');
+}
+
+
+// ---------- Streifen (wie die abgenommene Version, hier in CSS-Pixeln) ----------
+const PAL = [[25, 230, 25], [40, 210, 40], [200, 20, 200], [170, 0, 170], [255, 20, 20], [45, 95, 255], [20, 170, 230], [120, 40, 255], [30, 190, 120], [255, 0, 220]];
+let W = 1, H = 1, dpr = 1, Wc = 1, Hc = 1, t = 0, cx = null;
+let lines = [], burstT = 0, nextBurst = 8, burstZone = 'all', burstPow = 1, curDt = 0.016, curBursting = false, curG = 0.25;
+const P = rate => 1 - Math.exp(-rate * curDt);
+const jit = () => burstT > 0 && Math.random() < 0.3 ? rnd(0.6, 1.8) : 1;
+function makeLine(x) {
+  const col = Math.random() < 0.5 ? pick(PAL.slice(0, 4)) : pick(PAL);
+  return { x: x == null ? rnd(0, 1) : x, tilt: Math.random() < 0.3 ? rnd(-0.012, 0.012) : 0,
+    w: (q => q < 0.3 ? rnd(0.22, 0.4) : q < 0.87 ? rnd(0.5, 1.1) : rnd(1.4, 2.2))(Math.random()),
+    col, base: rnd(0.55, 1), flash: 0, flashCol: null, off: 0, frag: null, dotted: Math.random() < 0.45, zones: [] };
+}
+function newLines() {
+  lines = [];
+  const clusters = Array.from({ length: Math.round(rnd(2, 4)) }, () => ({ c: rnd(0.1, 0.95), s: rnd(0.03, 0.12) }));
+  const n0 = countFromPos(settings.countPos);
+  for (let i = 0; i < n0; i++) {
+    let x;
+    if (Math.random() < 0.65) { const cl = pick(clusters); x = cl.c + (Math.random() - 0.5) * 2 * cl.s; } else x = Math.random();
+    lines.push(makeLine(Math.min(0.995, Math.max(0.005, x))));
+  }
+  for (let i = 0; i < Math.round(n0 * 0.12); i++) { const L = pick(lines); const n = makeLine(Math.min(0.995, L.x + rnd(0.004, 0.01))); n.col = pick(PAL); lines.push(n); }
+}
+function triggerBurst(zone) {
+  burstT = Math.random() < 0.2 ? rnd(1.2, 2.4) : rnd(0.15, 1.1);
+  burstPow = rnd(0.5, 1.5);
+  const r = Math.random();
+  burstZone = zone || (r < 0.35 ? 'all' : r < 0.65 ? 'bottom' : r < 0.85 ? 'top' : 'mid');
+}
+function scheduleBurst(bur) {
+  if (Math.random() < 0.18 * bur) return rnd(0.3, 1.6);
+  const p = Math.random() < 0.3 ? rnd(25, 60) : rnd(8, 25);
+  return p * (0.5 + Math.pow(1 - bur, 2) * 4);
+}
+
+// ---------- Risse ----------
+// Alles in Breiten-Einheiten: x von 0 bis 1, y von 0 bis A (= Höhe / Breite). Gleicher Zufallswert = gleiche Risse.
+let crackSeed = (Math.random() * 2147483647) | 0, CR = null, crackLayer = null, clockZones = {};
+function rng(seed) {
+  let a = seed | 0;
+  return () => { a = a + 0x6D2B79F5 | 0; let q = Math.imul(a ^ a >>> 15, 1 | a); q = q + Math.imul(q ^ q >>> 7, 61 | q) ^ q; return ((q ^ q >>> 14) >>> 0) / 4294967296; };
+}
+const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
+// Schnitt der Strecke a→b mit c→d: Anteil entlang a→b, sonst -1
+function segHit(ax, ay, bx, by, qx, qy, ex, ey) {
+  const rX = bx - ax, rY = by - ay, sX = ex - qx, sY = ey - qy, den = rX * sY - rY * sX;
+  if (Math.abs(den) < 1e-12) return -1;
+  const u = ((qx - ax) * sY - (qy - ay) * sX) / den, v = ((qx - ax) * rY - (qy - ay) * rX) / den;
+  return u > 1e-6 && u <= 1 && v >= 0 && v <= 1 ? u : -1;
+}
+function polyLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+// Punkt in der Entfernung d entlang des Risses, mit Richtung
+function pointAtLen(pts, d) {
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (d <= l || i === pts.length - 1) { const f = l > 0 ? Math.min(1, d / l) : 0; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, Math.atan2(b[1] - a[1], b[0] - a[0])]; }
+    d -= l;
+  }
+  return [pts[0][0], pts[0][1], 0];
+}
+// Riss wachsen lassen: fast gerade, mit kleinen Knicken, bis zum Bildrand, bis maxLen oder bis zu einem anderen Riss.
+// aim: Punkt, durch den er laufen soll (Uhr).
+function grow(R, A, x, y, dir, maxLen, aim, stopAt) {
+  const pts = [[x, y]];
+  let base = dir, len = 0, aiming = !!aim, lastD = 1e9;
+  for (let guard = 0; guard < 400; guard++) {
+    // kurze, fast gerade Stücke mit kleinen Knicken; die Grundrichtung wandert langsam (leichte Krümmung)
+    const L = 0.015 + R() * 0.045;
+    base += (R() - 0.5) * 0.08;
+    dir += (R() - 0.5) * 0.34 + angDiff(base, dir) * 0.35;
+    if (aiming) {
+      const dA = Math.hypot(aim[0] - x, aim[1] - y);
+      if (dA < 0.035 || dA > lastD) { aiming = false; base = dir; }
+      else { dir += angDiff(Math.atan2(aim[1] - y, aim[0] - x), dir) * 0.75; base = dir; }
+      lastD = dA;
+    }
+    let nx = x + Math.cos(dir) * L, ny = y + Math.sin(dir) * L, end = false, k = 1, side = -1;
+    if (nx < 0) { const q = -x / (nx - x); if (q < k) { k = q; side = 0; } }
+    if (nx > 1) { const q = (1 - x) / (nx - x); if (q < k) { k = q; side = 1; } }
+    if (ny < 0) { const q = -y / (ny - y); if (q < k) { k = q; side = 2; } }
+    if (ny > A) { const q = (A - y) / (ny - y); if (q < k) { k = q; side = 3; } }
+    if (side >= 0) {
+      nx = x + (nx - x) * k; ny = y + (ny - y) * k; end = true;
+      if (side === 0) nx = 0; else if (side === 1) nx = 1; else if (side === 2) ny = 0; else ny = A;
+    }
+    if (stopAt) {
+      let best = 2;
+      for (const S of stopAt) for (let i = 1; i < S.length; i++) {
+        const u = segHit(x, y, nx, ny, S[i - 1][0], S[i - 1][1], S[i][0], S[i][1]);
+        if (u >= 0 && u < best) best = u;
+      }
+      if (best <= 1) { nx = x + (nx - x) * best; ny = y + (ny - y) * best; end = true; }
+    }
+    const sl = Math.hypot(nx - x, ny - y);
+    if (maxLen && len + sl >= maxLen) { const f = (maxLen - len) / sl; nx = x + (nx - x) * f; ny = y + (ny - y) * f; end = true; }
+    len += Math.hypot(nx - x, ny - y);
+    pts.push([nx, ny]); x = nx; y = ny;
+    if (end) break;
+  }
+  return pts;
+}
+// Feine Zacken wie bei echtem Glasbruch: jede Strecke in kurze Stücke, quer dazu ein kleiner, zusammenhängender
+// Zickzack-Versatz (Enden bleiben genau)
+function refine(R, pts, amp) {
+  const out = [pts[0]];
+  let j = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    const n = Math.max(1, Math.round(l / 0.007));
+    for (let k = 1; k < n; k++) {
+      const f = k / n;
+      j = j * 0.55 + (R() - 0.5) * 2 * amp;
+      if (R() < 0.08) j += (R() - 0.5) * 4 * amp;   // ab und zu ein kleiner Sprung
+      out.push([a[0] + dx * f - dy / l * j, a[1] + dy * f + dx / l * j]);
+    }
+    out.push(b);
+    j *= 0.3;
+  }
+  return out;
+}
+// Weich schwankender Wert 0..1 entlang des Risses (Glanz: mal fängt die Bruchkante Licht, mal nicht)
+function glint(R) {
+  const f = [8 + R() * 6, 19 + R() * 14, 43 + R() * 25], p = [R() * 6.3, R() * 6.3, R() * 6.3];
+  const peaks = [];
+  for (let k = 0, n = 1 + Math.floor(R() * 3); k < n; k++) peaks.push([R() * 1.6, 0.012 + R() * 0.03, 0.4 + R() * 0.5]);
+  return s => {
+    let v = 0.5 + 0.26 * Math.sin(s * f[0] + p[0]) + 0.15 * Math.sin(s * f[1] + p[1]) + 0.09 * Math.sin(s * f[2] + p[2]);
+    for (const q of peaks) { const d = (s - q[0]) / q[1]; v += q[2] * Math.exp(-d * d); }
+    return clamp(v, 0, 1.4);
+  };
+}
+function crosses(c, list, Px, Py) {
+  for (const S of list) for (let i = 1; i < c.length; i++) for (let j = 1; j < S.length; j++) {
+    const u = segHit(c[i - 1][0], c[i - 1][1], c[i][0], c[i][1], S[j - 1][0], S[j - 1][1], S[j][0], S[j][1]);
+    if (u >= 0) {
+      const x = c[i - 1][0] + (c[i][0] - c[i - 1][0]) * u, y = c[i - 1][1] + (c[i][1] - c[i - 1][1]) * u;
+      if (Math.hypot(x - Px, y - Py) > 0.006) return true;
+    }
+  }
+  return false;
+}
+function pointInPoly(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+  }
+  return inside;
+}
+
+function makeCracks() {
+  CR = null; crackLayer = null; clockZones = {};
+  for (const L of lines) L.zones = [];
+  const N = settings.cracks | 0;
+  if (N <= 0 || W <= 1) return;
+  const R = rng(crackSeed), r = (a, b) => a + R() * (b - a), A = H / W;
+  // Aufschlagpunkt: meist eine Ecke (unten häufiger als oben), sonst eine Kante. Px/Py knapp innerhalb des Glases,
+  // Sx/Sy: Stelle am Rand, bis zu der die Aufschlagstelle durchreißt. a0..a1: Richtungen ins Bild hinein.
+  const ins = r(0.025, 0.05);
+  let Px, Py, Sx, Sy, a0, a1;
+  if (R() < 0.6) {
+    const c = R() < 0.7 ? (R() < 0.5 ? 0 : 1) : (R() < 0.5 ? 2 : 3);   // 0 unten links, 1 unten rechts, 2 oben links, 3 oben rechts
+    const left = c === 0 || c === 2, bottom = c < 2;
+    Px = left ? ins : 1 - ins; Py = bottom ? A - ins : ins; Sx = left ? 0 : 1; Sy = bottom ? A : 0;
+    [a0, a1] = c === 0 ? [-Math.PI / 2, 0] : c === 1 ? [Math.PI, 1.5 * Math.PI] : c === 2 ? [0, Math.PI / 2] : [Math.PI / 2, Math.PI];
+  } else {
+    const e = R();
+    if (e < 0.38) { Px = ins; Py = r(0.2, 0.92) * A; Sx = 0; Sy = Py; a0 = -Math.PI / 2; a1 = Math.PI / 2; }
+    else if (e < 0.76) { Px = 1 - ins; Py = r(0.2, 0.92) * A; Sx = 1; Sy = Py; a0 = Math.PI / 2; a1 = 1.5 * Math.PI; }
+    else { Px = r(0.15, 0.85); Py = A - ins; Sx = Px; Sy = A; a0 = Math.PI; a1 = 2 * Math.PI; }
+  }
+  a0 += 0.17; a1 -= 0.17;   // kein Riss direkt an der Kante entlang
+  const dirs = [];
+  for (let i = 0; i < N; i++) dirs.push(a0 + (i + 0.5 + r(-0.32, 0.32)) * (a1 - a0) / N);
+  // Mit Uhr: ein Riss läuft durch die Ziffern (der nächstliegende wird dorthin gelenkt)
+  let aim = null, aimIdx = -1;
+  if (settings.clock === 0 && settings.crack > 0 && layer) {
+    const tx = (lx + layer.width * r(0.3, 0.7)) / W, ty = (ly + layer.height * r(0.3, 0.55)) / W;
+    const mid = (a0 + a1) / 2, d = angDiff(Math.atan2(ty - Py, tx - Px), mid);
+    if (Math.abs(d) <= (a1 - a0) / 2 + 0.17) {
+      const ta = mid + d;
+      let best = 1e9;
+      dirs.forEach((v, i) => { if (Math.abs(v - ta) < best) { best = Math.abs(v - ta); aimIdx = i; } });
+      dirs[aimIdx] = ta; aim = [tx, ty];
+    }
+  }
+  // Hauptrisse vom Aufschlag bis zum Rand (der durch die Uhr zuerst), ohne sich zu kreuzen
+  const order = dirs.map((_, i) => i);
+  if (aimIdx >= 0) { order.splice(aimIdx, 1); order.unshift(aimIdx); }
+  const spokes = [];
+  for (const i of order) {
+    let pts = null;
+    for (let tr = 0; tr < 8 && !pts; tr++) {
+      const c = grow(R, A, Px, Py, dirs[i] + (tr ? r(-0.06, 0.06) : 0), 0, i === aimIdx ? aim : null, null);
+      if (!crosses(c, spokes.map(s => s.coarse), Px, Py)) pts = c;
+    }
+    if (!pts) pts = grow(() => 0.5, A, Px, Py, dirs[i], 0, null, null);   // notfalls ganz gerade
+    spokes.push({ coarse: pts, dir: dirs[i] });
+  }
+  for (const s of spokes) s.pts = refine(R, s.coarse, 0.0019);
+  // die Aufschlagstelle reißt bis an den Rand durch
+  spokes.push({ pts: refine(R, [[Px, Py], [Sx, Sy]], 0.0012), stub: true, coarse: [[Px, Py], [Sx, Sy]] });
+
+  // Abzweige: enden am Rand, nach einer Weile oder an einem anderen Riss
+  const branches = [];
+  for (const s of spokes) {
+    if (s.stub) continue;
+    const nB = R() < 0.55 ? (R() < 0.25 ? 2 : 1) : 0;
+    const total = polyLen(s.pts);
+    for (let k = 0; k < nB; k++) {
+      const at = pointAtLen(s.pts, total * r(0.25, 0.8));
+      const bd = at[2] + (R() < 0.5 ? -1 : 1) * r(0.3, 0.65);
+      const others = spokes.filter(o => o !== s).map(o => o.pts).concat(branches);
+      branches.push(refine(R, grow(R, A, at[0], at[1], bd, r(0.12, 0.55), null, others), 0.0016));
+    }
+  }
+
+  // Splitternetz am Aufschlag: Querrisse in Bögen zwischen benachbarten Hauptrissen, kurze Sprünge, kleine Glassplitter
+  const web = [], shards = [];
+  const sp = settings.splinter;
+  if (sp > 0) {
+    const fan = spokes.filter(s => !s.stub).sort((a, b) => a.dir - b.dir);
+    const radii = sp === 1 ? [r(0.014, 0.022), r(0.032, 0.05)] : [r(0.01, 0.016), r(0.024, 0.034), r(0.042, 0.06), r(0.07, 0.1)];
+    for (const rad of radii) for (let i = 0; i + 1 < fan.length; i++) {
+      if (R() > (sp === 1 ? 0.7 : 0.88)) continue;
+      const pa = pointAtLen(fan[i].pts, rad * r(0.85, 1.15)), pb = pointAtLen(fan[i + 1].pts, rad * r(0.85, 1.15));
+      const mx = (pa[0] + pb[0]) / 2, my = (pa[1] + pb[1]) / 2, ox = mx - Px, oy = my - Py, ol = Math.hypot(ox, oy) || 1, bulge = rad * r(0.02, 0.15);
+      web.push(refine(R, [[pa[0], pa[1]], [mx + ox / ol * bulge, my + oy / ol * bulge], [pb[0], pb[1]]], 0.0009));
+    }
+    const nT = sp === 1 ? 2 + Math.floor(R() * 3) : 6 + Math.floor(R() * 5);
+    for (let k = 0; k < nT; k++) {
+      const ang = r(a0 - 0.17, a1 + 0.17), d0 = r(0.004, sp === 1 ? 0.03 : 0.05);
+      const x0 = Px + Math.cos(ang) * d0, y0 = Py + Math.sin(ang) * d0;
+      if (x0 <= 0 || x0 >= 1 || y0 <= 0 || y0 >= A) continue;
+      web.push(refine(R, grow(R, A, x0, y0, ang + r(-0.9, 0.9), r(0.006, 0.025), null, null), 0.0008));
+    }
+    // kleine Glassplitter: Dreiecke mit hellen Kanten, dicht am Aufschlag
+    const nS = sp === 1 ? 5 + Math.floor(R() * 4) : 14 + Math.floor(R() * 8);
+    for (let k = 0; k < nS; k++) {
+      const ang = r(a0 - 0.17, a1 + 0.17), d0 = r(0, sp === 1 ? 0.018 : 0.03) * (0.4 + R());
+      const cx0 = Px + Math.cos(ang) * d0, cy0 = Py + Math.sin(ang) * d0, s0 = r(0.0025, 0.007), rot = R() * 6.3;
+      const tri = [0, 1, 2].map(q => { const a = rot + q * 2.1 + r(-0.5, 0.5), rr = s0 * r(0.6, 1.2); return [cx0 + Math.cos(a) * rr, cy0 + Math.sin(a) * rr]; });
+      if (tri.every(p => p[0] > 0 && p[0] < 1 && p[1] > 0 && p[1] < A)) shards.push({ tri, a: r(0.05, 0.16), e: r(0.25, 0.6) });
+    }
+  }
+
+  // Bruchstücke: zwischen je zwei benachbarten Rissen (sortiert nach ihrem Endpunkt am Rand, im Uhrzeigersinn)
+  const T = 2 + 2 * A;
+  const per = (x, y) => y <= 1e-7 ? x : x >= 1 - 1e-7 ? 1 + y : y >= A - 1e-7 ? 1 + A + (1 - x) : 2 + A + (A - y);
+  const corners = [[1, 0, 1], [1, A, 1 + A], [0, A, 2 + A], [0, 0, 0]];
+  const ends = spokes.map(s => { const e = s.pts[s.pts.length - 1]; return { s, t: per(e[0], e[1]) }; }).sort((a, b) => a.t - b.t);
+  const regions = [];
+  for (let i = 0; i < ends.length; i++) {
+    const a = ends[i], b = ends[(i + 1) % ends.length];
+    const ta = a.t, tb = b.t > ta ? b.t : b.t + T;
+    const poly = a.s.pts.slice(), inc = [];
+    for (const c of corners) for (const off of [0, T]) { const ct = c[2] + off; if (ct > ta + 1e-9 && ct < tb - 1e-9) inc.push([ct, c[0], c[1]]); }
+    inc.sort((u, v) => u[0] - v[0]);
+    for (const c of inc) poly.push([c[1], c[2]]);
+    for (let k = b.s.pts.length - 1; k >= 1; k--) poly.push(b.s.pts[k]);
+    let area = 0, gx = 0, gy = 0, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let k = 0; k < poly.length; k++) {
+      const p = poly[k], q = poly[(k + 1) % poly.length], cr = p[0] * q[1] - q[0] * p[1];
+      area += cr; gx += (p[0] + q[0]) * cr; gy += (p[1] + q[1]) * cr;
+      x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+    }
+    const cy = Math.abs(area) > 1e-9 ? gy / (3 * area) : (y0 + y1) / 2;
+    regions.push({ poly, area: Math.abs(area / 2), x0, x1, y0, y1, zone: cy < A / 3 ? 'top' : cy > 2 * A / 3 ? 'bottom' : 'mid', s: 0 });
+  }
+  // Versatz der Stücke: abwechselnd nach links und rechts, das größte Stück bleibt, wo es ist
+  regions.forEach((g, i) => { g.s = (i % 2 ? -1 : 1) * r(0.6, 1.2); });
+  regions.reduce((m, g) => g.area > m.area ? g : m, regions[0]).s = 0;
+  for (const g of regions) {
+    g.pathC = new Path2D(); g.pathD = new Path2D();
+    g.poly.forEach((p, k) => { if (k) { g.pathC.lineTo(p[0] * Wc, p[1] * Wc); g.pathD.lineTo(p[0] * W, p[1] * W); } else { g.pathC.moveTo(p[0] * Wc, p[1] * Wc); g.pathD.moveTo(p[0] * W, p[1] * W); } });
+    g.pathC.closePath(); g.pathD.closePath();
+  }
+
+  // Zeichenliste: dunkle Bruchkante (Breite w) mit Glanz, der entlang des Risses weich stärker und schwächer wird
+  const list = [];
+  const add = (pts, w, kind, base) => {
+    const cl = [0];
+    for (let i = 1; i < pts.length; i++) cl.push(cl[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    // Seite zum Licht (oben) einmal je Riss festlegen, damit der Glanz nicht hin und her springt
+    const e = pts[pts.length - 1], dx = e[0] - pts[0][0], dy = e[1] - pts[0][1], l = Math.hypot(dx, dy) || 1;
+    let nx = -dy / l, ny = dx / l;
+    if (ny > 0 || (Math.abs(ny) < 0.25 && nx > 0)) { nx = -nx; ny = -ny; }
+    list.push({ pts, cl, w, kind, base, g: glint(R), nx, ny });
+  };
+  for (const s of spokes) add(s.pts, s.stub ? 1.2 : 1, 'spoke', r(0.5, 0.75));
+  for (const b of branches) add(b, 0.8, 'branch', r(0.4, 0.65));
+  for (const w of web) add(w, 0.65, 'web', r(0.55, 0.9));
+  CR = { P: [Px, Py], A, spokes, branches, web, shards, regions, list };
+  updateClockPieces();
+  renderCracks();
+}
+// Welche Bruchstücke liegen im Bereich der Uhr?
+function updateClockPieces() {
+  if (!CR) return;
+  for (const g of CR.regions) {
+    g.clock = false;
+    if (!layer) continue;
+    for (let yy = 0; yy <= 8 && !g.clock; yy++) for (let xx = 0; xx <= 8 && !g.clock; xx++) {
+      if (pointInPoly((lx + layer.width * xx / 8) / W, (ly + layer.height * yy / 8) / W, g.poly)) g.clock = true;
+    }
+  }
+}
+// Die Risse ändern sich nicht: einmal in eine eigene Ebene zeichnen
+function renderCracks() {
+  crackLayer = null;
+  if (!CR) return;
+  crackLayer = mk(W, H);
+  const g = crackLayer.getContext('2d');
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  const Px = CR.P[0], Py = CR.P[1];
+  // am Aufschlag ist das Glas zertrümmert und fängt mehr Licht
+  const boost = (x, y) => 1 + 1.3 * Math.exp(-Math.hypot(x - Px, y - Py) / 0.05);
+  // 1) dunkle Bruchkante: am Aufschlag breiter, zum Ende hin schmaler (in Stücken gezeichnet)
+  g.strokeStyle = '#000';
+  for (const c of CR.list) {
+    const total = c.cl[c.cl.length - 1] || 1;
+    let i0 = 0;
+    while (i0 < c.pts.length - 1) {
+      let i1 = i0 + 1;
+      while (i1 < c.pts.length - 1 && c.cl[i1] - c.cl[i0] < 0.04) i1++;
+      const f = c.kind === 'spoke' ? 1.35 - 0.6 * Math.min(1, c.cl[i0] / Math.max(0.3, total)) : 1;
+      g.lineWidth = Math.max(1, 1.25 * dpr * c.w * f);
+      g.beginPath();
+      for (let k = i0; k <= i1; k++) { const p = c.pts[k]; if (k === i0) g.moveTo(p[0] * W, p[1] * W); else g.lineTo(p[0] * W, p[1] * W); }
+      g.stroke();
+      i0 = i1;
+    }
+  }
+  // 2) Glanz: dünne helle Linie knapp neben der Kante, auf der Seite zum Licht. Die Helligkeit schwankt weich;
+  //    gleiche Helligkeit wird zu einem Linienzug zusammengefasst (sonst überlappen sich die Stücke zu Perlen).
+  const shine = (c, side, amt) => {
+    const o = dpr * (0.55 + 0.45 * c.w) * side;
+    g.lineWidth = Math.max(1, 0.55 * dpr * (0.75 + 0.35 * c.w));
+    let cur = -1, open = false;
+    for (let i = 1; i < c.pts.length; i++) {
+      const a = c.pts[i - 1], b = c.pts[i], sm = (c.cl[i - 1] + c.cl[i]) / 2;
+      const v = amt(sm) * c.base * c.g(sm) * boost((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+      const lv = Math.round(clamp(v, 0, 1) * 14);
+      if (lv !== cur) {
+        if (open) { g.stroke(); open = false; }
+        cur = lv;
+        if (lv > 0) {
+          g.strokeStyle = 'rgba(235,242,255,' + (lv / 14 * 0.7).toFixed(3) + ')';
+          g.beginPath(); g.moveTo(a[0] * W + c.nx * o, a[1] * W + c.ny * o); open = true;
+        }
+      }
+      if (open) g.lineTo(b[0] * W + c.nx * o, b[1] * W + c.ny * o);
+    }
+    if (open) g.stroke();
+  };
+  for (const c of CR.list) {
+    shine(c, 1, () => 1);
+    // breite Risse am Aufschlag: auch die andere Kante fängt etwas Licht
+    if (c.kind === 'spoke') shine(c, -1, s => 0.6 * Math.max(0, 1 - s / 0.18));
+  }
+  // 3) kleine Glassplitter am Aufschlag
+  for (const s of CR.shards) {
+    g.beginPath(); s.tri.forEach((p, i) => i ? g.lineTo(p[0] * W, p[1] * W) : g.moveTo(p[0] * W, p[1] * W)); g.closePath();
+    g.fillStyle = 'rgba(220,230,245,' + s.a.toFixed(3) + ')'; g.fill();
+    g.strokeStyle = 'rgba(240,246,255,' + s.e.toFixed(3) + ')'; g.lineWidth = Math.max(1, 0.5 * dpr); g.stroke();
+  }
+}
+
+// ---------- Streifen zeichnen: je Bruchstück ausgeschnitten und versetzt ----------
+function paintLine(L, x, y0, y1, alpha, col) {
+  const [r, g, b] = col;
+  let xa = x + L.tilt * Wc * (y0 / Hc - 0.5), xb = x + L.tilt * Wc * (y1 / Hc - 0.5);
+  if (!L.tilt) xa = xb = (Math.round(x * dpr - 0.5) + 0.5) / dpr;   // senkrechte Streifen aufs Pixelraster
+  const seg = () => { cx.beginPath(); cx.moveTo(xa, y0); cx.lineTo(xb, y1); cx.stroke(); };
+  cx.lineCap = 'butt';
+  cx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha * 0.1 + ')';
+  cx.lineWidth = Math.max(L.w * 2.5, 1.5 / dpr); cx.setLineDash([]); seg();
+  cx.strokeStyle = 'rgba(' + Math.min(255, r + 120) + ',' + Math.min(255, g + 120) + ',' + Math.min(255, b + 120) + ',' + alpha * 0.55 + ')';
+  cx.lineWidth = Math.max(1 / dpr, L.w * 0.35); seg();
+  cx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+  cx.lineWidth = Math.max(1, Math.round(L.w * dpr)) / dpr; seg();
+  if (L.dotted) {
+    cx.strokeStyle = 'rgba(' + Math.min(255, r + 80) + ',' + Math.min(255, g + 80) + ',' + Math.min(255, b + 80) + ',' + alpha * 0.35 + ')';
+    cx.lineWidth = Math.max(1 / dpr, L.w * 0.5); cx.setLineDash([1, 1.5]); seg(); cx.setLineDash([]);
+  }
+}
+const WHOLE = [{ zone: 'all', s: 0, x0: -1, x1: 2, pathC: null, whole: true }];
+function stripes(dt, calm, bursting) {
+  // 1) Zustand je Streifen
+  const vis = [];
+  const regs = CR ? CR.regions : WHOLE, multi = regs.length > 1;
+  for (const L of lines) {
+    if (L.off > 0) { L.off -= dt; if (L.off > 0) continue; }
+    else if (Math.random() < (bursting ? 0.02 : P(0.03 * curG))) { L.off = rnd(0.05, bursting ? 0.4 : 1.5); continue; }
+    if (L.flash > 0) L.flash -= dt;
+    else if (Math.random() < (bursting ? 0.25 * burstPow : P(0.12 * curG))) {
+      L.flash = rnd(0.03, 0.15); L.flashCol = Math.random() < 0.5 ? pick(PAL) : L.col;
+      L.mask = regs.map(() => Math.random() < 0.55);
+      if (!L.mask.some(Boolean)) L.mask[Math.floor(Math.random() * regs.length)] = true;
+    }
+    if (bursting && settings.mutate === 1 && Math.random() < 0.01) L.col = pick(PAL);
+    if (!(L.flT > 0)) { L.flT = rnd(0.03, 0.09); L.fl = 1 - calm * rnd(0, 0.45); } else L.flT -= dt;
+    let x = L.x * Wc;
+    if (bursting && Math.random() < 0.15) x += rnd(-3, 3);
+    // abgerissene Stücke: mit Rissen bleibt der Streifen nur in einzelnen Bruchstücken stehen (endet also genau am
+    // Riss), ohne Risse nur unten ab einer zufälligen Höhe
+    if (!L.frag && Math.random() < (bursting ? 0.02 : P(0.02 * curG))) {
+      L.frag = { y0: rnd(0.55, 0.9) * Hc, t: rnd(0.3, 3), keep: null };
+      if (multi) {
+        L.frag.keep = regs.map(g => Math.random() < (g.zone === 'bottom' ? 0.6 : 0.25));
+        if (!L.frag.keep.some(Boolean)) L.frag.keep[Math.floor(Math.random() * regs.length)] = true;
+      }
+    }
+    let spans = [[0, Hc, 1]], keep = null;
+    if (L.frag) {
+      L.frag.t -= dt;
+      if (L.frag.keep) keep = L.frag.keep;
+      else {
+        spans = [[L.frag.y0, Hc, 1]];
+        if (Math.random() < 0.2) spans.push([L.frag.y0 - rnd(10, 60), L.frag.y0 - rnd(2, 8), 0.7]);
+      }
+      if (L.frag.t <= 0) L.frag = null;
+    }
+    vis.push({ L, x, a: Math.max(0, Math.min(1, L.base * L.fl)), spans, keep });
+  }
+  // 2) je Bruchstück: ausschneiden, Streifen versetzt zeichnen
+  regs.forEach((g, ri) => {
+    if (g.pathC) { cx.save(); cx.clip(g.pathC); }
+    const dx = Math.round(g.s * settings.shear * 1.2 * dpr * jit()) / dpr;
+    const lo = g.x0 * Wc - 6, hi = g.x1 * Wc + 6;
+    for (const v of vis) {
+      const L = v.L, x = v.x + dx;
+      if (x < lo || x > hi || (v.keep && !v.keep[ri])) continue;
+      const z = L.zones[ri] || (L.zones[ri] = { flash: 0, col: null, off: 0 });
+      const sb = curBursting && multi && (burstZone === 'all' || burstZone === g.zone);
+      if (multi) {
+        if (z.off > 0) { z.off -= curDt; if (z.off > 0) continue; }
+        else if (Math.random() < (sb ? 0.035 * burstPow : P(0.05 * curG))) { z.off = rnd(0.05, sb ? 0.5 : 1.2); continue; }
+        if (z.flash > 0) z.flash -= curDt;
+        else if (Math.random() < (sb ? 0.3 * burstPow : P(0.18 * curG))) { z.flash = rnd(0.03, 0.18); z.col = Math.random() < 0.6 ? pick(PAL) : L.col; }
+      }
+      let a = v.a, c = L.col;
+      if (L.flash > 0 && (!L.mask || L.mask[ri] !== false)) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = L.flashCol || L.col; }
+      else if (multi && z.flash > 0) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = z.col; }
+      for (const s of v.spans) paintLine(L, x, s[0], s[1], Math.max(0, Math.min(1, a * s[2])), c);
+    }
+    if (g.pathC) cx.restore();
+  });
+  // während Ausbrüchen tauchen kurz neue Streifen auf
+  if (bursting && Math.random() < 0.35) {
+    const tmp = makeLine(); tmp.w = rnd(0.5, 1.2);
+    paintLine(tmp, tmp.x * Wc, Math.random() < 0.5 ? 0 : rnd(0.3, 0.8) * Hc, Hc, rnd(0.6, 1), tmp.col);
+  }
+}
+
+// ---------- Uhr in Bruchstücken (Gerätepixel) ----------
+function drawClockPiece(ctx, g, key, calm) {
+  const lw = layer.width, lh = layer.height;
+  const z = clockZones[key] || (clockZones[key] = { off: 0, flash: 0, col: null, fl: 1, flT: 0, split: 0, sx: 0, slice: 0 });
+  const sb = curBursting && (burstZone === 'all' || (g && burstZone === g.zone));
+  if (z.off > 0) { z.off -= curDt; if (z.off > 0) return; }
+  else if (Math.random() < (sb ? 0.02 * burstPow : P(0.025 * curG))) { z.off = rnd(0.04, sb ? 0.3 : 0.5); return; }
+  if (z.flash > 0) z.flash -= curDt; else if (Math.random() < (sb ? 0.18 * burstPow : P(0.08 * curG))) { z.flash = rnd(0.03, 0.15); z.col = pick(PAL); }
+  if (z.split > 0) z.split -= curDt; else if (Math.random() < (sb ? 0.12 * burstPow : P(0.04 * curG))) { z.split = rnd(0.04, 0.22); z.sx = rnd(2, 7) * dpr * (Math.random() < 0.5 ? -1 : 1); }
+  if (z.slice > 0) z.slice -= curDt; else if (sb && Math.random() < 0.05 * burstPow) z.slice = rnd(0.05, 0.2);
+  if (!(z.flT > 0)) { z.flT = rnd(0.03, 0.09); z.fl = 1 - calm * rnd(0, 0.22); } else z.flT -= curDt;
+  ctx.save();
+  if (g) ctx.clip(g.pathD);
+  // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
+  const k = g ? settings.crack : 0;
+  const X = lx + (g ? Math.round(g.s * k * 0.9 * dpr * jit()) : 0), Y = ly + (g ? Math.round(Math.abs(g.s) * k * 0.12 * dpr) : 0);
+  ctx.globalAlpha = z.fl;
+  if (z.split > 0) {
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(layerC[0], X + z.sx, Y); ctx.drawImage(layerC[1], X, Y); ctx.drawImage(layerC[2], X - z.sx, Y);
+  } else if (z.slice > 0) {
+    const n = rint(3, 6);
+    for (let s = 0; s < n; s++) {
+      const sy = Math.floor(lh * s / n), sh = Math.ceil(lh / n);
+      ctx.drawImage(layer, 0, sy, lw, sh, X + rnd(-1, 1) * 10 * dpr, Y + sy, lw, sh);
+    }
+  } else ctx.drawImage(layer, X, Y);
+  if (z.flash > 0) {
+    const tx = tintC.getContext('2d');
+    tx.globalCompositeOperation = 'copy'; tx.drawImage(layer, 0, 0);
+    tx.globalCompositeOperation = 'source-in'; tx.fillStyle = 'rgb(' + z.col + ')'; tx.fillRect(0, 0, lw, lh);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.75 * z.fl; ctx.drawImage(tintC, X, Y);
+  }
+  ctx.restore();
+}
+function drawClock(ctx, calm) {
+  if (!layer) return;
+  const pieces = CR && settings.crack > 0 ? CR.regions.filter(g => g.clock) : [];
+  if (pieces.length < 2) { drawClockPiece(ctx, null, 'ganz', calm); return; }
+  for (const g of pieces) drawClockPiece(ctx, g, CR.regions.indexOf(g), calm);
+}
+
+return {
+  maxDpr: 4,
+  settings, controls,
+  actionLabel: 'Glitch jetzt',
+  resize(w, h, d) {
+    W = w; H = h; dpr = d; Wc = W / dpr; Hc = H / dpr;
+    for (const k in cache) delete cache[k];
+    buildLayer();
+    makeCracks();
+  },
+  newPattern() { newLines(); crackSeed = (Math.random() * 2147483647) | 0; makeCracks(); },
+  action() { triggerBurst(); },
+  wake() {
+    if (settings.rndWake === 1) { newLines(); crackSeed = (Math.random() * 2147483647) | 0; makeCracks(); }
+    triggerBurst('all'); burstT = rnd(0.25, 0.6);
+  },
+  change(id) {
+    if (id === 'countPos') newLines();
+    if (id === 'burst') { nextBurst = scheduleBurst(settings.burst / 10); burstT = 0; }
+    if (id === 'finish') for (const k in cache) delete cache[k];
+    if (id === 'size' || id === 'date' || id === 'finish' || id === 'pos') buildLayer();
+    if (id === 'cracks' || id === 'splinter' || id === 'clock' || id === 'crack' || id === 'size' || id === 'date' || id === 'pos') makeCracks();
+  },
+  // zum Ausprobieren in der Entwicklung: bestimmter Zufallswert für die Risse
+  seed(v) { crackSeed = v | 0; makeCracks(); },
+  frame(ctx, dt) {
+    t += dt; cx = ctx;
+    const calm = settings.calm / 10, bur = settings.burst / 10;
+    const TX = texts();
+    if (stamp !== TX.time + TX.ds) { buildLayer(); updateClockPieces(); }
+    if (burstT > 0) {
+      burstT -= dt;
+      // nach einem Glitch-Ausbruch manchmal ein neues Streifenmuster (Risse bleiben)
+      if (burstT <= 0 && settings.mutate === 1 && Math.random() < 0.5) { newLines(); }
+    }
+    else if (bur > 0) { nextBurst -= dt; if (nextBurst <= 0) { triggerBurst(); nextBurst = scheduleBurst(bur); } }
+    curDt = dt; curBursting = burstT > 0;
+    curG = bur > 0 ? 0.02 + 0.98 * Math.pow(bur, 1.6) : 0;
+    const bursting = curBursting && burstZone === 'all';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H);
+    if (settings.clock === 0) drawClock(ctx, calm);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;
+    stripes(dt, calm, bursting);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    // Glasrisse über allem
+    if (crackLayer) ctx.drawImage(crackLayer, 0, 0);
+  },
+};
+
+})();
+
+// ---------- Rahmen: Leinwand, Einstellungen, Bedienung ----------
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const sheet = document.getElementById('sheet'), hint = document.getElementById('hint');
+const S = E.settings, KEY = 'nw-brokenscreen';
+try { const sv = JSON.parse(localStorage.getItem(KEY) || '{}'); for (const k in sv) if (k in S && typeof sv[k] === typeof S[k]) S[k] = sv[k]; } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+
+let W = 1, H = 1, dpr = 1;
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, E.maxDpr || 3);
+  const w = Math.max(1, Math.round(innerWidth * dpr)), h = Math.max(1, Math.round(innerHeight * dpr));
+  if (w === W && h === H) return;
+  W = w; H = h; cv.width = W; cv.height = H;
+  E.resize(W, H, dpr);
+}
+
+// Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
+const box = document.getElementById('controls'), ui = {};
+// Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
+const setVal = (id, v) => { S[id] = v; if (ui[id]) ui[id](v); save(); };
+for (const c of E.controls) {
+  const row = document.createElement('div'); row.className = 'row';
+  if (c.type === 'range') {
+    row.innerHTML = '<label for="' + c.id + '">' + c.label + ' <output></output></label>' +
+      '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
+    box.appendChild(row);
+    const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
+    if (c.track) { el.classList.add('track'); el.style.setProperty('--track', c.track); }
+    ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
+    ui[c.id](S[c.id]);
+    el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
+  } else if (c.type === 'choice' || c.type === 'grid') {
+    // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
+    row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';
+    box.appendChild(row);
+    const wrap = row.querySelector('.grid, .seg'), btns = [];
+    let group = null;
+    c.options.forEach((o, i) => {
+      if (o.group && o.group !== group) { const h = document.createElement('div'); h.className = 'grp'; h.textContent = o.group; wrap.appendChild(h); group = o.group; }
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
+      if (o.font) b.style.fontFamily = o.font;
+      if (o.weight) b.style.fontWeight = o.weight;
+      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); });
+      wrap.appendChild(b); btns.push(b);
+    });
+    ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
+    ui[c.id](S[c.id]);
+  } else if (c.type === 'text') {
+    row.innerHTML = '<label for="' + c.id + '">' + c.label + '</label>' +
+      '<input id="' + c.id + '" type="text" maxlength="' + (c.max || 20) + '" autocomplete="off" spellcheck="false">';
+    box.appendChild(row);
+    const el = row.querySelector('input'); el.value = S[c.id];
+    ui[c.id] = v => { el.value = v; };
+    el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
+  }
+}
+if (E.bindUI) E.bindUI({ set: setVal });
+if (E.hint) hint.textContent = E.hint;
+document.getElementById('actBtn').textContent = E.actionLabel;
+document.getElementById('newBtn').onclick = () => E.newPattern();
+document.getElementById('actBtn').onclick = () => E.action();
+document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
+// Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
+// öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
+let dragged = false, downX = 0, downY = 0, downT = 0;
+if (E.touch) {
+  cv.style.touchAction = 'none';
+  const P = (e, type) => E.touch(type, e.clientX * dpr, e.clientY * dpr, e.pointerId);
+  cv.addEventListener('pointerdown', e => { dragged = false; downX = e.clientX; downY = e.clientY; downT = performance.now(); try { cv.setPointerCapture(e.pointerId); } catch (err) {} P(e, 'down'); });
+  cv.addEventListener('pointermove', e => {
+    if (!e.buttons && e.pointerType === 'mouse') return;
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragged = true;
+    P(e, 'move');
+  });
+  const up = e => { if (performance.now() - downT > 350) dragged = true; P(e, 'up'); };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+}
+cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+setTimeout(() => hint.classList.add('gone'), 3500);
+
+// Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente
+const fsBtn = document.getElementById('fsBtn');
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let toastTimer = 0;
+function toast(msg) {
+  hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), 4000);
+}
+const fsBlocked = () => { if (!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Vorschau-Karte, dort geht es. Antippen holt die Einstellungen zurück.'); };
+fsBtn.onclick = () => {
+  sheet.hidden = true;
+  try {
+    if (isFs()) { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x) x.call(document); return; }
+    const el = document.documentElement, req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) { fsBlocked(); return; }
+    const r = req.call(el, { navigationUI: 'hide' });
+    if (r && r.then) r.then(() => setTimeout(fsBlocked, 300), fsBlocked); else setTimeout(fsBlocked, 500);
+  } catch (e) { fsBlocked(); }
+};
+const fsLabel = () => { fsBtn.textContent = isFs() ? 'Vollbild beenden' : 'Vollbild'; };
+document.addEventListener('fullscreenchange', fsLabel);
+document.addEventListener('webkitfullscreenchange', fsLabel);
+
+// Start
+addEventListener('resize', resize);
+resize();
+E.newPattern();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+  E.frame(ctx, dt);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+// So tun, als würde das Handy entsperrt: beim Öffnen und wenn die Seite wieder sichtbar wird
+setTimeout(() => E.wake(), 450);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) E.wake(); });
+window.__nw = { E, S };
+})();
+</script>

@@ -58,6 +58,7 @@ global.document = {
   addEventListener: noop, documentElement: {}, hidden: false,
 };
 global.window = { devicePixelRatio: 2.75 };
+global.Path2D = class { moveTo() {} lineTo() {} closePath() {} rect() {} arc() {} };
 global.innerWidth = 393; global.innerHeight = 873;
 global.addEventListener = noop;
 global.matchMedia = () => ({ matches: false });

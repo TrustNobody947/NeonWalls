@@ -117,5 +117,12 @@
     "sub": "Nachbau deiner alten Plasma-App: zuckende Leuchtlinien, Farben und Einstellungen wie im Original. Wischen verformt das Plasma.",
     "accent": "#5a8cff",
     "aria": "Animierter Hintergrund: leuchtende, zuckende Plasma-Linien auf Schwarz, die auf Berührung reagieren"
+  },
+  "brokenscreen": {
+    "title": "Broken Screen",
+    "name": "Broken Screen",
+    "sub": "Flackernde Farbstreifen hinter echtem Glasbruch: Das Handy ist aufgeschlagen, die Risse laufen quer übers Bild.",
+    "accent": "#19e619",
+    "aria": "Animierter Hintergrund: kaputtes Display mit flackernden Farbstreifen und Glasrissen"
   }
 }
