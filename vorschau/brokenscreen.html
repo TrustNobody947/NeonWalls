@@ -85,17 +85,24 @@ const per = (rate, dt) => 1 - Math.exp(-rate * dt);
 // ---------- Effekt ----------
 const E = (function () {
 // Broken Screen: flackernde Farbstreifen wie bei einem kaputten Display, dazu echte Glasrisse.
-// Das Handy ist an einer Ecke oder Kante aufgeschlagen (zufällig, „Neues Muster“ würfelt neu): Von dort laufen die
-// Risse sternförmig quer übers ganze Bild, manche mit Abzweig, an der Aufschlagstelle ein kleines Splitternetz.
+// Das Handy ist an einer Ecke oder Kante aufgeschlagen (zufällig, „Neues Muster“ würfelt neu) oder an einer selbst
+// angetippten Stelle (zweites Antippen: wohin der Riss laufen soll). Von dort laufen die Risse sternförmig quer übers
+// ganze Bild, manche mit Abzweig, an der Aufschlagstelle ein kleines Splitternetz. Auf Wunsch wechseln die Risse von
+// selbst (bei Glitch-Ausbrüchen oder alle paar Stunden).
 // Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
 // enden genau an der Risskante. Der Riss selbst: dunkle Bruchkante mit feinem Glanz daneben (Licht von oben).
 // Mit Uhr läuft ein Riss mitten durch die Ziffern und weiter übers ganze Bild; die Uhr zerfällt dort in Stücke.
-const settings = { cracks: 3, splinter: 1, shear: 5, calm: 4, burst: 5, countPos: 59, rndWake: 0, mutate: 0,
-  clock: 0, crack: 5, pos: 0, size: 5, date: 0, finish: 7 };
+const settings = { cracks: 3, impact: 0, splinter: 1, auto: 0, hours: 6, shear: 5, calm: 4, burst: 5, countPos: 59,
+  rndWake: 0, mutate: 0, clock: 0, crack: 5, pos: 0, size: 5, date: 0, finish: 7,
+  // selbst angetippt: Aufschlag (px, py) und Richtung (tx, ty) als Anteil von Breite und Höhe
+  px: -1, py: -1, tx: -1, ty: -1 };
 const countFromPos = v => Math.round(3 * Math.pow(50, v / 100));
 const controls = [
   { type: 'range', id: 'cracks', label: 'Anzahl Risse', min: 0, max: 6, fmt: v => v == 0 ? 'keine' : String(v) },
+  { type: 'choice', id: 'impact', label: 'Aufschlagstelle', options: ['Zufällig', 'Selbst angetippt'] },
   { type: 'choice', id: 'splinter', label: 'Splitter am Aufschlag', options: ['Aus', 'Wenig', 'Viel'] },
+  { type: 'choice', id: 'auto', label: 'Risse wechseln von selbst', options: ['Aus', 'Bei Glitches', 'Nach Stunden'] },
+  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: v => v + (v == 1 ? ' Stunde' : ' Stunden') },
   { type: 'range', id: 'shear', label: 'Versatz am Riss', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'calm', label: 'Grundflackern', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'burst', label: 'Glitch-Ausbrüche', min: 0, max: 10, fmt: lvl },
@@ -360,6 +367,8 @@ function rng(seed) {
   let a = seed | 0;
   return () => { a = a + 0x6D2B79F5 | 0; let q = Math.imul(a ^ a >>> 15, 1 | a); q = q + Math.imul(q ^ q >>> 7, 61 | q) ^ q; return ((q ^ q >>> 14) >>> 0) / 4294967296; };
 }
+// Wie stark zufällige Risse quer statt steil laufen (0 = gleich verteilt)
+const QUER = 0.55;
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 // Schnitt der Strecke a→b mit c→d: Anteil entlang a→b, sonst -1
 function segHit(ax, ay, bx, by, qx, qy, ex, ey) {
@@ -449,6 +458,20 @@ function glint(R) {
     return clamp(v, 0, 1.4);
   };
 }
+// Richtungen im Fächer a0..a1: gleichmäßig verteilt, waagerechte Richtungen etwas häufiger (k = Stärke, 0 = gleich)
+function fanDirs(R, a0, a1, N, k) {
+  const M = 240, cum = [0];
+  for (let i = 1; i <= M; i++) { const sn = Math.sin(a0 + (a1 - a0) * (i - 0.5) / M); cum.push(cum[i - 1] + 1 - k * sn * sn); }
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const u = clamp((i + 0.5 + (R() - 0.5) * 0.64) / N, 0, 1) * cum[M];
+    let j = 1;
+    while (j < M && cum[j] < u) j++;
+    const f = clamp((u - cum[j - 1]) / Math.max(1e-9, cum[j] - cum[j - 1]), 0, 1);
+    out.push(a0 + (a1 - a0) * (j - 1 + f) / M);
+  }
+  return out;
+}
 function crosses(c, list, Px, Py) {
   for (const S of list) for (let i = 1; i < c.length; i++) for (let j = 1; j < S.length; j++) {
     const u = segHit(c[i - 1][0], c[i - 1][1], c[i][0], c[i][1], S[j - 1][0], S[j - 1][1], S[j][0], S[j][1]);
@@ -474,34 +497,64 @@ function makeCracks() {
   const N = settings.cracks | 0;
   if (N <= 0 || W <= 1) return;
   const R = rng(crackSeed), r = (a, b) => a + R() * (b - a), A = H / W;
-  // Aufschlagpunkt: meist eine Ecke (unten häufiger als oben), sonst eine Kante. Px/Py knapp innerhalb des Glases,
-  // Sx/Sy: Stelle am Rand, bis zu der die Aufschlagstelle durchreißt. a0..a1: Richtungen ins Bild hinein.
+  // Px/Py: Aufschlag knapp im Glas. Sx/Sy: Stelle am Rand, bis zu der die Aufschlagstelle durchreißt (null = mitten im
+  // Glas, dann reißt es nach hinten bis zum Rand). a0..a1: Richtungen ins Bild hinein.
   const ins = r(0.025, 0.05);
-  let Px, Py, Sx, Sy, a0, a1;
-  if (R() < 0.6) {
-    const c = R() < 0.7 ? (R() < 0.5 ? 0 : 1) : (R() < 0.5 ? 2 : 3);   // 0 unten links, 1 unten rechts, 2 oben links, 3 oben rechts
-    const left = c === 0 || c === 2, bottom = c < 2;
-    Px = left ? ins : 1 - ins; Py = bottom ? A - ins : ins; Sx = left ? 0 : 1; Sy = bottom ? A : 0;
-    [a0, a1] = c === 0 ? [-Math.PI / 2, 0] : c === 1 ? [Math.PI, 1.5 * Math.PI] : c === 2 ? [0, Math.PI / 2] : [Math.PI / 2, Math.PI];
+  let Px, Py, Sx = null, Sy = null, a0, a1, dirs, md = 0, back = false, aim = null, aimIdx = -1;
+  const manual = settings.impact === 1 && settings.px >= 0 && settings.tx >= 0;
+  if (manual) {
+    // selbst angetippt: Aufschlag und Richtung vom Nutzer, der genaue Verlauf bleibt dem Zufall überlassen
+    Px = clamp(settings.px, 0.012, 0.988); Py = clamp(settings.py, 0.006, 0.994) * A;
+    const Tx = settings.tx, Ty = settings.ty * A, far = Math.hypot(Tx - Px, Ty - Py) > 0.03;
+    md = far ? Math.atan2(Ty - Py, Tx - Px) : R() * 2 * Math.PI;
+    const ed = [[Px, 0], [1 - Px, 1], [Py, 2], [A - Py, 3]].sort((u, v) => u[0] - v[0])[0];
+    if (ed[0] < 0.07) {
+      const e = ed[1];
+      if (e === 0) { Sx = 0; Sy = Py; a0 = -Math.PI / 2; a1 = Math.PI / 2; }
+      else if (e === 1) { Sx = 1; Sy = Py; a0 = Math.PI / 2; a1 = 1.5 * Math.PI; }
+      else if (e === 2) { Sx = Px; Sy = 0; a0 = 0; a1 = Math.PI; }
+      else { Sx = Px; Sy = A; a0 = Math.PI; a1 = 2 * Math.PI; }
+      a0 += 0.17; a1 -= 0.17;
+    } else { a0 = md - Math.PI; a1 = md + Math.PI; back = true; }
+    const mid = (a0 + a1) / 2;
+    md = mid + angDiff(md, mid);
+    // Fächer um die angetippte Richtung: je mehr Risse, desto breiter
+    const spread = Math.min(a1 - a0, 0.45 + 0.4 * N) * (back ? 0.85 : 1);
+    const c0 = spread >= a1 - a0 - 1e-6 ? mid : clamp(md, a0 + spread / 2, a1 - spread / 2);
+    dirs = fanDirs(R, c0 - spread / 2, c0 + spread / 2, N, 0);
+    // der Riss, der der angetippten Richtung am nächsten ist, läuft genau dorthin
+    aimIdx = 0;
+    dirs.forEach((v, i) => { if (Math.abs(v - md) < Math.abs(dirs[aimIdx] - md)) aimIdx = i; });
+    dirs[aimIdx] = clamp(md, a0, a1);
+    if (far) aim = [Tx, Ty]; else aimIdx = -1;
   } else {
-    const e = R();
-    if (e < 0.38) { Px = ins; Py = r(0.2, 0.92) * A; Sx = 0; Sy = Py; a0 = -Math.PI / 2; a1 = Math.PI / 2; }
-    else if (e < 0.76) { Px = 1 - ins; Py = r(0.2, 0.92) * A; Sx = 1; Sy = Py; a0 = Math.PI / 2; a1 = 1.5 * Math.PI; }
-    else { Px = r(0.15, 0.85); Py = A - ins; Sx = Px; Sy = A; a0 = Math.PI; a1 = 2 * Math.PI; }
-  }
-  a0 += 0.17; a1 -= 0.17;   // kein Riss direkt an der Kante entlang
-  const dirs = [];
-  for (let i = 0; i < N; i++) dirs.push(a0 + (i + 0.5 + r(-0.32, 0.32)) * (a1 - a0) / N);
-  // Mit Uhr: ein Riss läuft durch die Ziffern (der nächstliegende wird dorthin gelenkt)
-  let aim = null, aimIdx = -1;
-  if (settings.clock === 0 && settings.crack > 0 && layer) {
-    const tx = (lx + layer.width * r(0.3, 0.7)) / W, ty = (ly + layer.height * r(0.3, 0.55)) / W;
-    const mid = (a0 + a1) / 2, d = angDiff(Math.atan2(ty - Py, tx - Px), mid);
-    if (Math.abs(d) <= (a1 - a0) / 2 + 0.17) {
-      const ta = mid + d;
-      let best = 1e9;
-      dirs.forEach((v, i) => { if (Math.abs(v - ta) < best) { best = Math.abs(v - ta); aimIdx = i; } });
-      dirs[aimIdx] = ta; aim = [tx, ty];
+    // zufällig: halb so oft an einer Ecke (unten etwas häufiger als oben) wie an einer Kante (meist links oder rechts,
+    // seltener unten oder oben). Die Risse laufen etwas häufiger quer als steil.
+    if (R() < 0.5) {
+      const c = R() < 0.6 ? (R() < 0.5 ? 0 : 1) : (R() < 0.5 ? 2 : 3);   // 0 unten links, 1 unten rechts, 2 oben links, 3 oben rechts
+      const left = c === 0 || c === 2, bottom = c < 2;
+      Px = left ? ins : 1 - ins; Py = bottom ? A - ins : ins; Sx = left ? 0 : 1; Sy = bottom ? A : 0;
+      [a0, a1] = c === 0 ? [-Math.PI / 2, 0] : c === 1 ? [Math.PI, 1.5 * Math.PI] : c === 2 ? [0, Math.PI / 2] : [Math.PI / 2, Math.PI];
+    } else {
+      const e = R();
+      if (e < 0.38) { Px = ins; Py = r(0.12, 0.9) * A; Sx = 0; Sy = Py; a0 = -Math.PI / 2; a1 = Math.PI / 2; }
+      else if (e < 0.76) { Px = 1 - ins; Py = r(0.12, 0.9) * A; Sx = 1; Sy = Py; a0 = Math.PI / 2; a1 = 1.5 * Math.PI; }
+      else if (e < 0.9) { Px = r(0.15, 0.85); Py = A - ins; Sx = Px; Sy = A; a0 = Math.PI; a1 = 2 * Math.PI; }
+      else { Px = r(0.15, 0.85); Py = ins; Sx = Px; Sy = 0; a0 = 0; a1 = Math.PI; }
+    }
+    a0 += 0.17; a1 -= 0.17;   // kein Riss direkt an der Kante entlang
+    dirs = fanDirs(R, a0, a1, N, QUER);
+    md = (a0 + a1) / 2;
+    // Mit Uhr: ein Riss läuft durch die Ziffern (der nächstliegende wird dorthin gelenkt)
+    if (settings.clock === 0 && settings.crack > 0 && layer) {
+      const tx = (lx + layer.width * r(0.3, 0.7)) / W, ty = (ly + layer.height * r(0.3, 0.55)) / W;
+      const d = angDiff(Math.atan2(ty - Py, tx - Px), md);
+      if (Math.abs(d) <= (a1 - a0) / 2 + 0.17) {
+        const ta = md + d;
+        let best = 1e9;
+        dirs.forEach((v, i) => { if (Math.abs(v - ta) < best) { best = Math.abs(v - ta); aimIdx = i; } });
+        dirs[aimIdx] = ta; aim = [tx, ty];
+      }
     }
   }
   // Hauptrisse vom Aufschlag bis zum Rand (der durch die Uhr zuerst), ohne sich zu kreuzen
@@ -518,8 +571,20 @@ function makeCracks() {
     spokes.push({ coarse: pts, dir: dirs[i] });
   }
   for (const s of spokes) s.pts = refine(R, s.coarse, 0.0019);
-  // die Aufschlagstelle reißt bis an den Rand durch
-  spokes.push({ pts: refine(R, [[Px, Py], [Sx, Sy]], 0.0012), stub: true, coarse: [[Px, Py], [Sx, Sy]] });
+  if (Sx !== null) {
+    // die Aufschlagstelle reißt bis an den Rand durch
+    spokes.push({ pts: refine(R, [[Px, Py], [Sx, Sy]], 0.0012), stub: true, coarse: [[Px, Py], [Sx, Sy]], dir: Math.atan2(Sy - Py, Sx - Px) });
+  } else if (back) {
+    // Aufschlag mitten im Glas: nach hinten reißt es ebenfalls bis zum Rand
+    const bd = md + Math.PI + r(-0.35, 0.35);
+    let pts = null;
+    for (let tr = 0; tr < 8 && !pts; tr++) {
+      const c = grow(R, A, Px, Py, bd + (tr ? r(-0.25, 0.25) : 0), 0, null, null);
+      if (!crosses(c, spokes.map(o => o.coarse), Px, Py)) pts = c;
+    }
+    if (!pts) pts = grow(() => 0.5, A, Px, Py, bd, 0, null, null);
+    spokes.push({ coarse: pts, pts: refine(R, pts, 0.0019), dir: bd });
+  }
 
   // Abzweige: enden am Rand, nach einer Weile oder an einem anderen Riss
   const branches = [];
@@ -539,10 +604,10 @@ function makeCracks() {
   const web = [], shards = [];
   const sp = settings.splinter;
   if (sp > 0) {
-    const fan = spokes.filter(s => !s.stub).sort((a, b) => a.dir - b.dir);
+    const fan = spokes.filter(s => !s.stub).sort((a, b) => angDiff(a.dir, md) - angDiff(b.dir, md));
     const radii = sp === 1 ? [r(0.014, 0.022), r(0.032, 0.05)] : [r(0.01, 0.016), r(0.024, 0.034), r(0.042, 0.06), r(0.07, 0.1)];
     for (const rad of radii) for (let i = 0; i + 1 < fan.length; i++) {
-      if (R() > (sp === 1 ? 0.7 : 0.88)) continue;
+      if (R() > (sp === 1 ? 0.7 : 0.88) || Math.abs(angDiff(fan[i + 1].dir, fan[i].dir)) > 1.6) continue;
       const pa = pointAtLen(fan[i].pts, rad * r(0.85, 1.15)), pb = pointAtLen(fan[i + 1].pts, rad * r(0.85, 1.15));
       const mx = (pa[0] + pb[0]) / 2, my = (pa[1] + pb[1]) / 2, ox = mx - Px, oy = my - Py, ol = Math.hypot(ox, oy) || 1, bulge = rad * r(0.02, 0.15);
       web.push(refine(R, [[pa[0], pa[1]], [mx + ox / ol * bulge, my + oy / ol * bulge], [pb[0], pb[1]]], 0.0009));
@@ -705,7 +770,10 @@ function paintLine(L, x, y0, y1, alpha, col) {
   }
 }
 const WHOLE = [{ zone: 'all', s: 0, x0: -1, x1: 2, pathC: null, whole: true }];
-function stripes(dt, calm, bursting) {
+// Was in diesem Bild gezeichnet wird: je Bruchstück eine Liste {L, x, a, c, spans, fl}. fl: Streifen glitcht gerade
+// (Farbe, Breite und Verschiebung des Glitches, damit die Uhr an genau dieser Stelle mitglitcht).
+let drawList = [];
+function stripeStates(dt, calm, bursting) {
   // 1) Zustand je Streifen
   const vis = [];
   const regs = CR ? CR.regions : WHOLE, multi = regs.length > 1;
@@ -715,6 +783,7 @@ function stripes(dt, calm, bursting) {
     if (L.flash > 0) L.flash -= dt;
     else if (Math.random() < (bursting ? 0.25 * burstPow : P(0.12 * curG))) {
       L.flash = rnd(0.03, 0.15); L.flashCol = Math.random() < 0.5 ? pick(PAL) : L.col;
+      L.bw = rnd(4, 16); L.bdx = (Math.random() < 0.5 ? -1 : 1) * rnd(1.5, 5);
       L.mask = regs.map(() => Math.random() < 0.55);
       if (!L.mask.some(Boolean)) L.mask[Math.floor(Math.random() * regs.length)] = true;
     }
@@ -743,27 +812,42 @@ function stripes(dt, calm, bursting) {
     }
     vis.push({ L, x, a: Math.max(0, Math.min(1, L.base * L.fl)), spans, keep });
   }
-  // 2) je Bruchstück: ausschneiden, Streifen versetzt zeichnen
-  regs.forEach((g, ri) => {
-    if (g.pathC) { cx.save(); cx.clip(g.pathC); }
+  // 2) je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke
+  drawList = regs.map((g, ri) => {
+    const out = [];
     const dx = Math.round(g.s * settings.shear * 1.2 * dpr * jit()) / dpr;
     const lo = g.x0 * Wc - 6, hi = g.x1 * Wc + 6;
+    const sb = curBursting && multi && (burstZone === 'all' || burstZone === g.zone);
     for (const v of vis) {
       const L = v.L, x = v.x + dx;
       if (x < lo || x > hi || (v.keep && !v.keep[ri])) continue;
       const z = L.zones[ri] || (L.zones[ri] = { flash: 0, col: null, off: 0 });
-      const sb = curBursting && multi && (burstZone === 'all' || burstZone === g.zone);
       if (multi) {
+        // zwischen den Rissen fällt ein Streifen ab und zu für eine Weile aus
         if (z.off > 0) { z.off -= curDt; if (z.off > 0) continue; }
-        else if (Math.random() < (sb ? 0.035 * burstPow : P(0.05 * curG))) { z.off = rnd(0.05, sb ? 0.5 : 1.2); continue; }
+        else if (Math.random() < (sb ? 0.035 * burstPow : P(0.05 * curG))) { z.off = rnd(0.15, sb ? 0.8 : 2.2); continue; }
         if (z.flash > 0) z.flash -= curDt;
-        else if (Math.random() < (sb ? 0.3 * burstPow : P(0.18 * curG))) { z.flash = rnd(0.03, 0.18); z.col = Math.random() < 0.6 ? pick(PAL) : L.col; }
+        else if (Math.random() < (sb ? 0.3 * burstPow : P(0.18 * curG))) {
+          z.flash = rnd(0.03, 0.18); z.col = Math.random() < 0.6 ? pick(PAL) : L.col;
+          z.bw = rnd(4, 16); z.bdx = (Math.random() < 0.5 ? -1 : 1) * rnd(1.5, 5);
+        }
       }
-      let a = v.a, c = L.col;
-      if (L.flash > 0 && (!L.mask || L.mask[ri] !== false)) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = L.flashCol || L.col; }
-      else if (multi && z.flash > 0) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = z.col; }
-      for (const s of v.spans) paintLine(L, x, s[0], s[1], Math.max(0, Math.min(1, a * s[2])), c);
+      let a = v.a, c = L.col, fl = null;
+      if (L.flash > 0 && (!L.mask || L.mask[ri] !== false)) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = L.flashCol || L.col; fl = { col: c, w: L.bw, dx: L.bdx }; }
+      else if (multi && z.flash > 0) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = z.col; fl = { col: c, w: z.bw, dx: z.bdx }; }
+      out.push({ L, x, a, c, spans: v.spans, fl });
     }
+    return out;
+  });
+}
+// je Bruchstück ausschneiden und die Streifen zeichnen
+function drawStripes(bursting) {
+  const regs = CR ? CR.regions : WHOLE;
+  regs.forEach((g, ri) => {
+    const list = drawList[ri];
+    if (!list || !list.length) return;
+    if (g.pathC) { cx.save(); cx.clip(g.pathC); }
+    for (const d of list) for (const sp of d.spans) paintLine(d.L, d.x, sp[0], sp[1], Math.max(0, Math.min(1, d.a * sp[2])), d.c);
     if (g.pathC) cx.restore();
   });
   // während Ausbrüchen tauchen kurz neue Streifen auf
@@ -774,14 +858,35 @@ function stripes(dt, calm, bursting) {
 }
 
 // ---------- Uhr in Bruchstücken (Gerätepixel) ----------
-function drawClockPiece(ctx, g, key, calm) {
+// Die Uhr glitcht nur dort, wo gerade auch die Streifen glitchen: bei einem Ausbruch in ihrem Bereich als Ganzes
+// (Farbkanäle, verrutschte Zeilen, Farbblitz, kurzer Ausfall), sonst nur in einem schmalen Band um jeden Streifen, der
+// gerade aufblitzt – dort verrutscht sie ein Stück zur Seite und nimmt seine Farbe an.
+const tintCache = new Map();
+let tintFor = null;
+function tinted(col) {
+  if (tintFor !== layer) { tintCache.clear(); tintFor = layer; }
+  const key = col.join(',');
+  let c = tintCache.get(key);
+  if (!c) {
+    c = mk(layer.width, layer.height);
+    const x = c.getContext('2d');
+    x.drawImage(layer, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = 'rgb(' + key + ')'; x.fillRect(0, 0, c.width, c.height);
+    tintCache.set(key, c);
+  }
+  return c;
+}
+function clockZone() {
+  const c = (ly + layer.height / 2) / H;
+  return c < 1 / 3 ? 'top' : c > 2 / 3 ? 'bottom' : 'mid';
+}
+function drawClockPiece(ctx, g, key, calm, bands) {
   const lw = layer.width, lh = layer.height;
   const z = clockZones[key] || (clockZones[key] = { off: 0, flash: 0, col: null, fl: 1, flT: 0, split: 0, sx: 0, slice: 0 });
-  const sb = curBursting && (burstZone === 'all' || (g && burstZone === g.zone));
+  const sb = curBursting && (burstZone === 'all' || burstZone === (g ? g.zone : clockZone()));
   if (z.off > 0) { z.off -= curDt; if (z.off > 0) return; }
-  else if (Math.random() < (sb ? 0.02 * burstPow : P(0.025 * curG))) { z.off = rnd(0.04, sb ? 0.3 : 0.5); return; }
-  if (z.flash > 0) z.flash -= curDt; else if (Math.random() < (sb ? 0.18 * burstPow : P(0.08 * curG))) { z.flash = rnd(0.03, 0.15); z.col = pick(PAL); }
-  if (z.split > 0) z.split -= curDt; else if (Math.random() < (sb ? 0.12 * burstPow : P(0.04 * curG))) { z.split = rnd(0.04, 0.22); z.sx = rnd(2, 7) * dpr * (Math.random() < 0.5 ? -1 : 1); }
+  else if (sb && Math.random() < 0.02 * burstPow) { z.off = rnd(0.04, 0.3); return; }
+  if (z.flash > 0) z.flash -= curDt; else if (sb && Math.random() < 0.18 * burstPow) { z.flash = rnd(0.03, 0.15); z.col = pick(PAL); }
+  if (z.split > 0) z.split -= curDt; else if (sb && Math.random() < 0.12 * burstPow) { z.split = rnd(0.04, 0.22); z.sx = rnd(2, 7) * dpr * (Math.random() < 0.5 ? -1 : 1); }
   if (z.slice > 0) z.slice -= curDt; else if (sb && Math.random() < 0.05 * burstPow) z.slice = rnd(0.05, 0.2);
   if (!(z.flT > 0)) { z.flT = rnd(0.03, 0.09); z.fl = 1 - calm * rnd(0, 0.22); } else z.flT -= curDt;
   ctx.save();
@@ -801,34 +906,81 @@ function drawClockPiece(ctx, g, key, calm) {
     }
   } else ctx.drawImage(layer, X, Y);
   if (z.flash > 0) {
-    const tx = tintC.getContext('2d');
-    tx.globalCompositeOperation = 'copy'; tx.drawImage(layer, 0, 0);
-    tx.globalCompositeOperation = 'source-in'; tx.fillStyle = 'rgb(' + z.col + ')'; tx.fillRect(0, 0, lw, lh);
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.75 * z.fl; ctx.drawImage(tintC, X, Y);
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.75 * z.fl; ctx.drawImage(tinted(z.col), X, Y);
+  }
+  // einzelne Streifen glitchen: in ihrem Band verrutscht die Uhr und nimmt ihre Farbe an
+  let nb = 0;
+  for (const b of bands) {
+    const bx = b.x * dpr, bw = Math.max(2, b.w * dpr);
+    if (bx + bw / 2 < X || bx - bw / 2 > X + lw || ++nb > 10) continue;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(bx - bw / 2, Y - 2, bw, lh + 4); ctx.clip();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    ctx.fillStyle = '#000'; ctx.fillRect(bx - bw / 2, Y, bw, lh);
+    ctx.globalAlpha = z.fl; ctx.drawImage(layer, X + b.dx * dpr, Y);
+    ctx.globalAlpha = 0.55 * z.fl; ctx.drawImage(tinted(b.col), X + b.dx * dpr, Y);
+    ctx.restore();
   }
   ctx.restore();
+}
+// glitchende Streifen eines Bruchstücks (ri) bzw. aller Stücke im Bereich der Uhr (ri = -1)
+function glitchBands(ri) {
+  const out = [];
+  const regs = CR ? CR.regions : WHOLE;
+  regs.forEach((g, i) => {
+    if (ri >= 0 ? i !== ri : (CR && !g.clock)) return;
+    for (const d of drawList[i] || []) if (d.fl) out.push({ x: d.x, w: d.fl.w, dx: d.fl.dx, col: d.fl.col });
+  });
+  return out;
 }
 function drawClock(ctx, calm) {
   if (!layer) return;
   const pieces = CR && settings.crack > 0 ? CR.regions.filter(g => g.clock) : [];
-  if (pieces.length < 2) { drawClockPiece(ctx, null, 'ganz', calm); return; }
-  for (const g of pieces) drawClockPiece(ctx, g, CR.regions.indexOf(g), calm);
+  if (pieces.length < 2) { drawClockPiece(ctx, null, 'ganz', calm, glitchBands(-1)); return; }
+  for (const g of pieces) { const i = CR.regions.indexOf(g); drawClockPiece(ctx, g, i, calm, glitchBands(i)); }
+}
+
+// ---------- Aufschlag antippen, Risse von selbst wechseln ----------
+let api = null, tapStep = 0, tapP = null, autoT = 0;
+function newCracks() { crackSeed = (Math.random() * 2147483647) | 0; makeCracks(); autoT = 0; }
+function startTap() {
+  tapStep = 1; tapP = null;
+  if (api) { api.hideSheet(); api.toast('Tippe auf die Stelle, an der das Handy aufgeschlagen ist.', 60000); }
 }
 
 return {
   maxDpr: 4,
   settings, controls,
   actionLabel: 'Glitch jetzt',
+  buttons: [{ label: 'Aufschlag antippen', run: startTap }],
+  bindUI(a) { api = a; },
+  // Antippen im Auswahlmodus: erst die Aufschlagstelle, dann die Richtung des Risses
+  tap(x, y) {
+    if (!tapStep) return false;
+    const fx = clamp(x / W, 0, 1), fy = clamp(y / H, 0, 1);
+    if (tapStep === 1) {
+      tapP = [fx, fy]; tapStep = 2;
+      if (api) api.toast('Und jetzt dorthin tippen, wohin der Riss laufen soll.', 60000);
+      return true;
+    }
+    tapStep = 0;
+    if (api) { api.set('px', tapP[0]); api.set('py', tapP[1]); api.set('tx', fx); api.set('ty', fy); api.set('impact', 1); }
+    else { settings.px = tapP[0]; settings.py = tapP[1]; settings.tx = fx; settings.ty = fy; settings.impact = 1; }
+    tapP = null;
+    newCracks();
+    if (api) api.toast('Fertig! „Neues Muster“ zeigt einen anderen Verlauf, unter „Aufschlagstelle“ geht es zurück auf Zufall.', 5000);
+    return true;
+  },
   resize(w, h, d) {
     W = w; H = h; dpr = d; Wc = W / dpr; Hc = H / dpr;
     for (const k in cache) delete cache[k];
     buildLayer();
     makeCracks();
   },
-  newPattern() { newLines(); crackSeed = (Math.random() * 2147483647) | 0; makeCracks(); },
-  action() { triggerBurst(); },
+  newPattern() { newLines(); newCracks(); },
+  action() { triggerBurst(); if (settings.auto === 1 && burstZone === 'all') newCracks(); },
   wake() {
-    if (settings.rndWake === 1) { newLines(); crackSeed = (Math.random() * 2147483647) | 0; makeCracks(); }
+    if (settings.rndWake === 1) { newLines(); newCracks(); }
     triggerBurst('all'); burstT = rnd(0.25, 0.6);
   },
   change(id) {
@@ -837,9 +989,15 @@ return {
     if (id === 'finish') for (const k in cache) delete cache[k];
     if (id === 'size' || id === 'date' || id === 'finish' || id === 'pos') buildLayer();
     if (id === 'cracks' || id === 'splinter' || id === 'clock' || id === 'crack' || id === 'size' || id === 'date' || id === 'pos') makeCracks();
+    // „Selbst angetippt“ ohne angetippte Stelle: gleich antippen lassen
+    if (id === 'impact') { if (settings.impact === 1 && !(settings.px >= 0 && settings.tx >= 0)) startTap(); else { tapStep = 0; newCracks(); } }
+    if (id === 'auto' || id === 'hours') autoT = 0;
   },
   // zum Ausprobieren in der Entwicklung: bestimmter Zufallswert für die Risse
   seed(v) { crackSeed = v | 0; makeCracks(); },
+  info() { return CR; },
+  // Entwicklung: alle Streifen kurz aufblitzen lassen
+  flashAll(n) { lines.slice(0, n || lines.length).forEach(L => { L.flash = 0.2; L.flashCol = pick(PAL); L.bw = 10; L.bdx = 4; L.mask = null; }); },
   frame(ctx, dt) {
     t += dt; cx = ctx;
     const calm = settings.calm / 10, bur = settings.burst / 10;
@@ -850,7 +1008,16 @@ return {
       // nach einem Glitch-Ausbruch manchmal ein neues Streifenmuster (Risse bleiben)
       if (burstT <= 0 && settings.mutate === 1 && Math.random() < 0.5) { newLines(); }
     }
-    else if (bur > 0) { nextBurst -= dt; if (nextBurst <= 0) { triggerBurst(); nextBurst = scheduleBurst(bur); } }
+    else if (bur > 0) {
+      nextBurst -= dt;
+      if (nextBurst <= 0) {
+        triggerBurst(); nextBurst = scheduleBurst(bur);
+        // Risse wechseln mit großen Glitch-Ausbrüchen
+        if (settings.auto === 1 && burstZone === 'all') newCracks();
+      }
+    }
+    // Risse wechseln nach Stunden
+    if (settings.auto === 2) { autoT += dt; if (autoT >= settings.hours * 3600) newCracks(); }
     curDt = dt; curBursting = burstT > 0;
     curG = bur > 0 ? 0.02 + 0.98 * Math.pow(bur, 1.6) : 0;
     const bursting = curBursting && burstZone === 'all';
@@ -858,14 +1025,22 @@ return {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H);
+    stripeStates(dt, calm, bursting);
     if (settings.clock === 0) drawClock(ctx, calm);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;
-    stripes(dt, calm, bursting);
+    drawStripes(bursting);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     // Glasrisse über allem
     if (crackLayer) ctx.drawImage(crackLayer, 0, 0);
+    // beim Antippen: Markierung der gewählten Aufschlagstelle, bis die Richtung angetippt ist
+    if (tapStep === 2 && tapP) {
+      const mx = tapP[0] * W, my = tapP[1] * H;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5 * dpr;
+      ctx.beginPath(); ctx.arc(mx, my, 10 * dpr, 0, 2 * Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(mx, my, 2 * dpr, 0, 2 * Math.PI); ctx.fillStyle = '#fff'; ctx.fill();
+    }
   },
 };
 
@@ -927,7 +1102,17 @@ for (const c of E.controls) {
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
-if (E.bindUI) E.bindUI({ set: setVal });
+// Schnittstelle für Effekte: Werte setzen, kurze Hinweise zeigen, Einstellungen ausblenden
+if (E.bindUI) E.bindUI({ set: setVal, toast: (m, ms) => toast(m, ms), hideSheet: () => { sheet.hidden = true; } });
+// zusätzliche Knöpfe des Effekts (z. B. „Aufschlag antippen“)
+if (E.buttons) {
+  const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
+  for (const b of E.buttons) {
+    const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
+    el.addEventListener('click', () => b.run());
+    row.insertBefore(el, fs);
+  }
+}
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
@@ -949,16 +1134,21 @@ if (E.touch) {
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
-cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+cv.addEventListener('click', e => {
+  if (dragged) { dragged = false; return; }
+  // Effekte können ein Antippen für sich nutzen (z. B. Aufschlagstelle wählen)
+  if (E.tap && E.tap(e.clientX * dpr, e.clientY * dpr)) return;
+  sheet.hidden = !sheet.hidden; hint.classList.add('gone');
+});
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente
 const fsBtn = document.getElementById('fsBtn');
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 let toastTimer = 0;
-function toast(msg) {
+function toast(msg, ms) {
   hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), 4000);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), ms || 4000);
 }
 const fsBlocked = () => { if (!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Vorschau-Karte, dort geht es. Antippen holt die Einstellungen zurück.'); };
 fsBtn.onclick = () => {

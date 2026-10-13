@@ -46,7 +46,7 @@ function el(id) {
       hidden: true, value: '0', textContent: '', className: '', style: { setProperty: noop },
       classList: { add: noop, remove: noop, toggle: noop },
       listeners: {}, addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); },
-      appendChild: noop, querySelector() { return el('q' + Math.random()); }, querySelectorAll: () => [],
+      appendChild: noop, insertBefore: noop, querySelector() { return el('q' + Math.random()); }, querySelectorAll: () => [],
       set innerHTML(v) {}, get innerHTML() { return ''; },
     };
     elements[id] = e;
@@ -55,6 +55,7 @@ function el(id) {
 }
 global.document = {
   getElementById: el, createElement: t => t === 'canvas' ? makeCanvas() : el('x' + Math.random()),
+  querySelector: () => el('q' + Math.random()),
   addEventListener: noop, documentElement: {}, hidden: false,
 };
 global.window = { devicePixelRatio: 2.75 };
@@ -93,6 +94,9 @@ console.log('Grundlauf     ', r.avg.toFixed(2), 'ms im Schnitt, schlimmster Fram
 E.action(); run(120);
 E.wake(); run(120);
 E.newPattern(); run(60);
+// zusätzliche Knöpfe und Antippen (z. B. Aufschlagstelle wählen)
+if (E.buttons) for (const b of E.buttons) { b.run(); run(5); }
+if (E.tap) { E.tap(300, 900); run(10); E.tap(800, 300); run(30); E.tap(5, 5); run(5); }
 if (E.touch) { E.touch('down', 300, 900, 1); run(20); for (let i = 0; i < 30; i++) { E.touch('move', 300 + i * 10, 900 - i * 15, 1); run(2); } E.touch('up', 600, 450, 1); run(60); }
 for (const c of E.controls) {
   const vals = c.type === 'range' ? [c.min, c.max, Math.round((c.min + c.max) / 2)]

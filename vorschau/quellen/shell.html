@@ -143,7 +143,17 @@ for (const c of E.controls) {
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
-if (E.bindUI) E.bindUI({ set: setVal });
+// Schnittstelle für Effekte: Werte setzen, kurze Hinweise zeigen, Einstellungen ausblenden
+if (E.bindUI) E.bindUI({ set: setVal, toast: (m, ms) => toast(m, ms), hideSheet: () => { sheet.hidden = true; } });
+// zusätzliche Knöpfe des Effekts (z. B. „Aufschlag antippen“)
+if (E.buttons) {
+  const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
+  for (const b of E.buttons) {
+    const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
+    el.addEventListener('click', () => b.run());
+    row.insertBefore(el, fs);
+  }
+}
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
@@ -165,16 +175,21 @@ if (E.touch) {
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
-cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+cv.addEventListener('click', e => {
+  if (dragged) { dragged = false; return; }
+  // Effekte können ein Antippen für sich nutzen (z. B. Aufschlagstelle wählen)
+  if (E.tap && E.tap(e.clientX * dpr, e.clientY * dpr)) return;
+  sheet.hidden = !sheet.hidden; hint.classList.add('gone');
+});
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente
 const fsBtn = document.getElementById('fsBtn');
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 let toastTimer = 0;
-function toast(msg) {
+function toast(msg, ms) {
   hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), 4000);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), ms || 4000);
 }
 const fsBlocked = () => { if (!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Vorschau-Karte, dort geht es. Antippen holt die Einstellungen zurück.'); };
 fsBtn.onclick = () => {
