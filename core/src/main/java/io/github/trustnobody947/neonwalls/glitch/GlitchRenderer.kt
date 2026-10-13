@@ -64,6 +64,7 @@ class GlitchRenderer(private val density: Float) {
     // Bruchstücke in Pixeln (ohne Risse: ein Stück = ganzer Bildschirm)
     private var nR = 1
     private var regPath: Array<Path?> = arrayOf(null)
+    private var regPoly: Array<FloatArray?> = arrayOf(null)   // Umriss x0, y0, x1, y1, … (für die Schnittkanten der Streifen)
     private var regX0 = floatArrayOf(-1e6f)
     private var regX1 = floatArrayOf(1e6f)
     private var regY0 = floatArrayOf(0f)
@@ -112,6 +113,10 @@ class GlitchRenderer(private val density: Float) {
         var flCol = 0
         var flW = 0f
         var flDx = 0f
+        // Abschnitte des Streifens innerhalb des Bruchstücks (y von, y bis, …), gilt für die Lage ivX
+        var iv = FloatArray(4)
+        var ivN = 0
+        var ivX = Float.NaN
     }
 
     class Line(val x: Float, val tilt: Float, val w: Float, var col: Int, val base: Float, val dotted: Boolean) {
@@ -223,6 +228,7 @@ class GlitchRenderer(private val density: Float) {
         if (set == null) {
             nR = 1
             regPath = arrayOf(null)
+            regPoly = arrayOf(null)
             regX0 = floatArrayOf(-1e6f); regX1 = floatArrayOf(1e6f)
             regY0 = floatArrayOf(0f); regY1 = floatArrayOf(1e6f)
             regS = floatArrayOf(0f); regZone = intArrayOf(ZONE_ALL)
@@ -241,6 +247,10 @@ class GlitchRenderer(private val density: Float) {
                     }
                     close()
                 }
+            }
+            regPoly = Array<FloatArray?>(nR) { i ->
+                val poly = rs[i].poly
+                FloatArray(poly.size) { k -> (poly[k] * w).toFloat() }
             }
             regX0 = FloatArray(nR) { (rs[it].x0 * w).toFloat() }
             regX1 = FloatArray(nR) { (rs[it].x1 * w).toFloat() }
@@ -563,25 +573,63 @@ class GlitchRenderer(private val density: Float) {
         }
     }
 
-    /** Je Bruchstück ausschneiden und die Streifen zeichnen. */
+    private var cross = FloatArray(16)
+
+    /**
+     * Wo liegt der Streifen (an der Stelle x, leicht schräg wie in [drawSeg]) innerhalb des Bruchstücks?
+     * Schnittpunkte mit dem Umriss ausrechnen statt in jedem Bild auszuschneiden – sieht gleich aus, kostet aber fast nichts.
+     */
+    private fun stripeIntervals(z: Zone, l: Line, poly: FloatArray) {
+        z.ivX = z.x
+        val k = l.tilt * w / h
+        val x0 = z.x - 0.5f * l.tilt * w   // Streifen: x(y) = x0 + k·y
+        val m = poly.size / 2
+        if (m < 3) { z.ivN = 0; return }
+        var n = 0
+        var py = poly[2 * m - 1]
+        var pf = poly[2 * m - 2] - (x0 + k * py)
+        for (i in 0 until m) {
+            val qy = poly[2 * i + 1]
+            val qf = poly[2 * i] - (x0 + k * qy)
+            if ((pf >= 0f) != (qf >= 0f)) {
+                if (n == cross.size) cross = cross.copyOf(n * 2)
+                cross[n++] = py + (qy - py) * (pf / (pf - qf))
+            }
+            py = qy
+            pf = qf
+        }
+        // sortieren (wenige Werte)
+        for (i in 1 until n) {
+            val v = cross[i]
+            var j = i - 1
+            while (j >= 0 && cross[j] > v) { cross[j + 1] = cross[j]; j-- }
+            cross[j + 1] = v
+        }
+        n = n and 1.inv()
+        if (z.iv.size < n) z.iv = FloatArray(n)
+        System.arraycopy(cross, 0, z.iv, 0, n)
+        z.ivN = n
+    }
+
+    /** Streifen zeichnen: in jedem Bruchstück nur bis genau an den Riss. */
     private fun drawStripes(c: Canvas, bursting: Boolean) {
         for (ri in 0 until nR) {
-            var any = false
-            for (l in lines) if (l.zones[ri].drawn) { any = true; break }
-            if (!any) continue
-            val path = regPath[ri]
-            if (path != null) { c.save(); c.clipPath(path) }
-            val y0 = max(0f, regY0[ri] - 2f)
-            val y1 = min(h, regY1[ri] + 2f)
+            val poly = regPoly[ri]
             for (l in lines) {
                 val z = l.zones[ri]
                 if (!z.drawn) continue
-                if (l.fragOn && l.keep == null) {
+                if (poly != null) {
+                    if (z.ivX != z.x) stripeIntervals(z, l, poly)
+                    var k = 0
+                    while (k + 1 < z.ivN) {
+                        drawSeg(c, l, z.x, z.iv[k], z.iv[k + 1], z.a, z.c)
+                        k += 2
+                    }
+                } else if (l.fragOn && l.keep == null) {
                     drawSeg(c, l, z.x, l.fragY, h, z.a, z.c)
                     if (chance(0.2f)) drawSeg(c, l, z.x, l.fragY - r(10f, 60f) * density, l.fragY - r(2f, 8f) * density, z.a * 0.7f, z.c)
-                } else drawSeg(c, l, z.x, y0, y1, z.a, z.c)
+                } else drawSeg(c, l, z.x, 0f, h, z.a, z.c)
             }
-            if (path != null) c.restore()
         }
         // während Ausbrüchen tauchen kurz neue Streifen auf
         if (bursting && chance(0.35f)) {
@@ -622,6 +670,50 @@ class GlitchRenderer(private val density: Float) {
         return if (c < 1f / 3f) ZONE_TOP else if (c > 2f / 3f) ZONE_BOTTOM else ZONE_MID
     }
 
+    // Fertig ausgeschnittene Stücke der Uhr (versetzt wie im Bild), neu nur wenn sich Uhr, Risse oder Versatz ändern.
+    // So muss nicht in jedem Bild entlang der Risse ausgeschnitten werden.
+    private var pieceBmp: Array<Bitmap?> = arrayOf()
+    private var pieceX = FloatArray(0)
+    private var pieceY = FloatArray(0)
+    private var pieceLayer: Bitmap? = null
+    private var pieceSet: CrackSet? = null
+    private var pieceK = -1
+
+    private fun cutClockPieces(ck: ClockFace, layer: Bitmap) {
+        if (layer === pieceLayer && cs === pieceSet && clockCrack == pieceK && pieceBmp.size == nR) return
+        for (b in pieceBmp) b?.recycle()
+        pieceLayer = layer
+        pieceSet = cs
+        pieceK = clockCrack
+        pieceBmp = arrayOfNulls(nR)
+        pieceX = FloatArray(nR)
+        pieceY = FloatArray(nR)
+        val k = clockCrack
+        for (i in 0 until nR) {
+            if (!regClock[i]) continue
+            val path = regPath[i] ?: continue
+            val lx = ck.x + round(regS[i] * k * 0.9f * density)
+            val ly = ck.y + round(abs(regS[i]) * k * 0.12f * density)
+            val bx0 = floor(max(regX0[i], lx)).toInt()
+            val by0 = floor(max(regY0[i], ly)).toInt()
+            val bx1 = kotlin.math.ceil(min(regX1[i], lx + layer.width)).toInt()
+            val by1 = kotlin.math.ceil(min(regY1[i], ly + layer.height)).toInt()
+            if (bx1 - bx0 < 1 || by1 - by0 < 1) continue
+            try {
+                val b = Bitmap.createBitmap(bx1 - bx0, by1 - by0, Bitmap.Config.ARGB_8888)
+                val pc = Canvas(b)
+                pc.translate(-bx0.toFloat(), -by0.toFloat())
+                pc.clipPath(path)
+                pc.drawBitmap(layer, lx, ly, null)
+                pieceBmp[i] = b
+                pieceX[i] = bx0.toFloat()
+                pieceY[i] = by0.toFloat()
+            } catch (e: Throwable) {
+                // zu wenig Speicher: dieses Stück wird wie bisher beim Zeichnen ausgeschnitten
+            }
+        }
+    }
+
     private fun drawClock(c: Canvas) {
         val ck = clock ?: return
         val layer = ck.layer ?: return
@@ -629,7 +721,10 @@ class GlitchRenderer(private val density: Float) {
         var pieces = 0
         if (cs != null && clockCrack > 0) for (i in 0 until nR) if (regClock[i]) pieces++
         if (pieces < 2) drawClockPiece(c, ck, layer, -1)
-        else for (i in 0 until nR) if (regClock[i]) drawClockPiece(c, ck, layer, i)
+        else {
+            cutClockPieces(ck, layer)
+            for (i in 0 until nR) if (regClock[i]) drawClockPiece(c, ck, layer, i)
+        }
     }
 
     /** Ein Stück der Uhr (ri = −1: die ganze Uhr). */
@@ -655,14 +750,21 @@ class GlitchRenderer(private val density: Float) {
         else if (sb && chance(0.05f * burstPow)) z.slice = r(0.05f, 0.2f)
         if (z.flT <= 0f) { z.flT = r(0.03f, 0.09f); z.fl = 1f - calmF * r(0f, 0.22f) } else z.flT -= dt
 
-        c.save()
-        if (ri >= 0) regPath[ri]?.let { c.clipPath(it) }
         // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
         val k = if (ri >= 0) clockCrack else 0
-        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * 0.9f * density * jit()) else 0f)
+        val jx = if (ri >= 0) jit() else 1f
+        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * 0.9f * density * jx) else 0f)
         val y = ck.y + (if (ri >= 0) round(abs(regS[ri]) * k * 0.12f * density) else 0f)
         val a = (z.fl * clockAlpha * 255f).toInt().coerceIn(0, 255)
-        if (z.split > 0f) {
+        // ruhiges Bild: das fertig ausgeschnittene Stück; nur bei Effekten wird beim Zeichnen ausgeschnitten
+        val piece = if (ri >= 0 && jx == 1f && z.split <= 0f && z.slice <= 0f) pieceBmp.getOrNull(ri) else null
+        val clipped = ri >= 0 && piece == null
+        c.save()
+        if (clipped) regPath[ri]?.let { c.clipPath(it) }
+        if (piece != null) {
+            clockPaint.alpha = a
+            c.drawBitmap(piece, pieceX[ri], pieceY[ri], clockPaint)
+        } else if (z.split > 0f) {
             // Farbkanäle auseinander
             chPaint[0].alpha = a; c.drawBitmap(layer, x + z.sx, y, chPaint[0])
             chPaint[1].alpha = a; c.drawBitmap(layer, x, y, chPaint[1])
@@ -686,7 +788,8 @@ class GlitchRenderer(private val density: Float) {
         if (z.flash > 0f) {
             tintPaint.colorFilter = tint(z.col)
             tintPaint.alpha = (0.75f * a).toInt()
-            c.drawBitmap(layer, x, y, tintPaint)
+            if (piece != null) c.drawBitmap(piece, pieceX[ri], pieceY[ri], tintPaint)
+            else c.drawBitmap(layer, x, y, tintPaint)
         }
         // einzelne Streifen glitchen gerade: in ihrem Band verrutscht die Uhr und nimmt ihre Farbe an
         var nb = 0
@@ -700,6 +803,8 @@ class GlitchRenderer(private val density: Float) {
                 if (++nb > 10) break
                 c.save()
                 c.clipRect(zz.x - half, y - 2f, zz.x + half, y + lh + 2f)
+                // nur der schmale Streifen wird am Riss ausgeschnitten (billig)
+                if (ri >= 0 && !clipped) regPath[ri]?.let { c.clipPath(it) }
                 c.drawRect(zz.x - half, y, zz.x + half, y + lh, blackPaint)
                 clockPaint.alpha = a
                 c.drawBitmap(layer, x + zz.flDx, y, clockPaint)
