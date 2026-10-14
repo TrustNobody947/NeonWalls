@@ -5,27 +5,40 @@
 // selbst (bei Glitch-Ausbrüchen oder alle paar Stunden).
 // Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
 // enden genau an der Risskante. Der Riss selbst: dunkle Bruchkante mit feinem Glanz daneben (Licht von oben).
+// Auf Wunsch werden die Streifen mit der Zeit (1–24 Stunden) oder mit sinkendem Akku mehr; ist die Zeit um, gibt es
+// einen großen Glitch und es geht von vorn los. Unter dem Finger flackern die Streifen, dazu kurze Druckstreifen.
+// Die Uhr ist aus Metall in 3D: Beim Neigen schwebt sie leicht über den Streifen und die Spiegelung wandert.
 // Mit Uhr läuft ein Riss mitten durch die Ziffern und weiter übers ganze Bild; die Uhr zerfällt dort in Stücke.
 const settings = { cracks: 3, impact: 0, splinter: 1, auto: 0, hours: 6, shear: 5, calm: 4, burst: 5, countPos: 59,
-  rndWake: 0, mutate: 0, clock: 0, crack: 5, pos: 0, size: 5, date: 0, finish: 7,
+  countMax: 85, growTime: 0, growHours: 6, growBatt: 0, battTest: 0, touchFx: 1,
+  rndWake: 0, mutate: 0, clock: 0, d3: 5, cy: 15, crack: 5, size: 5, date: 0, finish: 7,
   // selbst angetippt: Aufschlag (px, py) und Richtung (tx, ty) als Anteil von Breite und Höhe
   px: -1, py: -1, tx: -1, ty: -1 };
 const countFromPos = v => Math.round(3 * Math.pow(50, v / 100));
+const hoursFmt = v => v + (v == 1 ? ' Stunde' : ' Stunden');
 const controls = [
   { type: 'range', id: 'cracks', label: 'Anzahl Risse', min: 0, max: 6, fmt: v => v == 0 ? 'keine' : String(v) },
   { type: 'choice', id: 'impact', label: 'Aufschlagstelle', options: ['Zufällig', 'Selbst angetippt'] },
   { type: 'choice', id: 'splinter', label: 'Splitter am Aufschlag', options: ['Aus', 'Wenig', 'Viel'] },
   { type: 'choice', id: 'auto', label: 'Risse wechseln von selbst', options: ['Aus', 'Bei Glitches', 'Nach Stunden'] },
-  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: v => v + (v == 1 ? ' Stunde' : ' Stunden') },
+  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: hoursFmt },
   { type: 'range', id: 'shear', label: 'Versatz am Riss', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'calm', label: 'Grundflackern', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'burst', label: 'Glitch-Ausbrüche', min: 0, max: 10, fmt: lvl },
-  { type: 'range', id: 'countPos', label: 'Anzahl Streifen', min: 0, max: 100, fmt: countFromPos },
+  { type: 'range', id: 'countPos', label: 'Anzahl Streifen (von)', min: 0, max: 100, fmt: countFromPos },
+  { type: 'range', id: 'countMax', label: 'Anzahl Streifen bis', min: 0, max: 100, fmt: countFromPos },
+  { type: 'choice', id: 'growTime', label: 'Mehr Streifen mit der Zeit', options: ['Aus', 'An'] },
+  { type: 'range', id: 'growHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt },
+  { type: 'choice', id: 'growBatt', label: 'Mehr Streifen bei sinkendem Akku', options: ['Aus', 'An'] },
+  { type: 'range', id: 'battTest', label: 'Akku zum Ausprobieren (nur Vorschau)', min: 0, max: 100, fmt: v => v == 0 ? 'echter Akku' : v + ' %' },
+  { type: 'info', id: 'growInfo', text: growInfo },
+  { type: 'choice', id: 'touchFx', label: 'Glitch unter dem Finger', options: ['Aus', 'An'] },
   { type: 'choice', id: 'rndWake', label: 'Neues Muster bei jedem Einschalten', options: ['Aus', 'An'] },
   { type: 'choice', id: 'mutate', label: 'Glitches verändern das Muster', options: ['Aus', 'An'] },
   { type: 'choice', id: 'clock', label: 'Uhr', options: ['An', 'Aus'] },
+  { type: 'range', id: 'd3', label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl },
+  { type: 'range', id: 'cy', label: 'Höhe der Uhr (15 = wie Original)', min: 0, max: 100, fmt: v => v + ' %' },
   { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl },
-  { type: 'choice', id: 'pos', label: 'Position der Uhr', options: ['Oben', 'Mitte', 'Unten'] },
   { type: 'range', id: 'size', label: 'Größe der Uhr (5 = wie Original)', min: 1, max: 10, fmt: v => String(v) },
   { type: 'choice', id: 'date', label: 'Datum', options: ['Wie Original', 'Deutsch', 'Aus'] },
   { type: 'grid', id: 'finish', label: 'Oberfläche der Uhr', options: [
@@ -34,30 +47,91 @@ const controls = [
     { label: 'Neon leuchtend', group: 'Leuchtend' }, { label: 'Weiß', group: 'Wie Original' }] },
 ];
 //#include uhrface.js
+//#include metall.js
 
 // ---------- Streifen (wie die abgenommene Version, hier in CSS-Pixeln) ----------
 const PAL = [[25, 230, 25], [40, 210, 40], [200, 20, 200], [170, 0, 170], [255, 20, 20], [45, 95, 255], [20, 170, 230], [120, 40, 255], [30, 190, 120], [255, 0, 220]];
-let W = 1, H = 1, dpr = 1, Wc = 1, Hc = 1, t = 0, cx = null;
+let W = 1, H = 1, dpr = 1, Wc = 1, Hc = 1, t = 0, cx = null, frameNo = 0;
 let lines = [], burstT = 0, nextBurst = 8, burstZone = 'all', burstPow = 1, curDt = 0.016, curBursting = false, curG = 0.25;
 const P = rate => 1 - Math.exp(-rate * curDt);
 const jit = () => burstT > 0 && Math.random() < 0.3 ? rnd(0.6, 1.8) : 1;
-function makeLine(x) {
-  const col = Math.random() < 0.5 ? pick(PAL.slice(0, 4)) : pick(PAL);
-  return { x: x == null ? rnd(0, 1) : x, tilt: Math.random() < 0.3 ? rnd(-0.012, 0.012) : 0,
-    w: (q => q < 0.3 ? rnd(0.22, 0.4) : q < 0.87 ? rnd(0.5, 1.1) : rnd(1.4, 2.2))(Math.random()),
-    col, base: rnd(0.55, 1), flash: 0, flashCol: null, off: 0, frag: null, dotted: Math.random() < 0.45, zones: [] };
+// Ein Streifen aus einer Zufallsquelle R (gleiche Quelle = gleiche Streifen)
+function makeLineR(R, x) {
+  const pk = a => a[Math.floor(R() * a.length)];
+  const col = R() < 0.5 ? pk(PAL.slice(0, 4)) : pk(PAL);
+  const tilt = R() < 0.3 ? -0.012 + R() * 0.024 : 0;
+  const q = R(), w = q < 0.3 ? 0.22 + R() * 0.18 : q < 0.87 ? 0.5 + R() * 0.6 : 1.4 + R() * 0.8;
+  return { x, tilt, w, col, base: 0.55 + R() * 0.45, flash: 0, flashCol: null, off: 0, frag: null, dotted: R() < 0.45, zones: [], born: -1 };
 }
-function newLines() {
-  lines = [];
-  const clusters = Array.from({ length: Math.round(rnd(2, 4)) }, () => ({ c: rnd(0.1, 0.95), s: rnd(0.03, 0.12) }));
-  const n0 = countFromPos(settings.countPos);
-  for (let i = 0; i < n0; i++) {
-    let x;
-    if (Math.random() < 0.65) { const cl = pick(clusters); x = cl.c + (Math.random() - 0.5) * 2 * cl.s; } else x = Math.random();
-    lines.push(makeLine(Math.min(0.995, Math.max(0.005, x))));
+function makeLine(x) { return makeLineR(Math.random, x == null ? Math.random() : x); }
+
+// Vorrat an Streifen in fester Reihenfolge: Sichtbar sind immer die ersten n. Kommen Streifen dazu, bleiben die
+// vorhandenen, wie sie sind (das Display geht weiter kaputt, statt ein neues Muster zu zeigen).
+let stripeSeed = (Math.random() * 2147483647) | 0, pool = [], baseN = 0;
+const POOL = Math.round(countFromPos(100) * 1.12) + 4;
+function buildPool() {
+  const R = rng(stripeSeed), pk = a => a[Math.floor(R() * a.length)];
+  const clusters = Array.from({ length: 2 + Math.floor(R() * 3) }, () => ({ c: 0.1 + R() * 0.85, s: 0.03 + R() * 0.09 }));
+  pool = [];
+  for (let i = 0; i < POOL; i++) {
+    let L;
+    if (i >= 3 && R() < 0.107) {
+      // Doppellinie dicht neben einem schon vorhandenen Streifen
+      const P0 = pool[Math.floor(R() * i)];
+      L = makeLineR(R, Math.min(0.995, P0.x + 0.004 + R() * 0.006)); L.col = pk(PAL);
+    } else {
+      let x;
+      if (R() < 0.65) { const cl = pk(clusters); x = cl.c + (R() - 0.5) * 2 * cl.s; } else x = R();
+      L = makeLineR(R, clamp(x, 0.005, 0.995));
+    }
+    pool.push(L);
   }
-  for (let i = 0; i < Math.round(n0 * 0.12); i++) { const L = pick(lines); const n = makeLine(Math.min(0.995, L.x + rnd(0.004, 0.01))); n.col = pick(PAL); lines.push(n); }
+  lines = [];
 }
+
+// ---------- Mehr Streifen mit der Zeit / mit sinkendem Akku ----------
+let growT = 0, timeScale = 1, pendingRestart = false, battReal = null;
+try {
+  if (typeof navigator !== 'undefined' && navigator.getBattery) navigator.getBattery().then(b => {
+    const u = () => { battReal = b.level; }; u(); b.addEventListener('levelchange', u);
+  }).catch(() => {});
+} catch (e) {}
+const battLevel = () => settings.battTest > 0 ? settings.battTest / 100 : battReal == null ? 1 : battReal;
+const growOn = () => settings.growTime === 1 || settings.growBatt === 1;
+function growFrac() {
+  let f = 0;
+  if (settings.growTime === 1) f = Math.max(f, clamp(growT / (settings.growHours * 3600), 0, 1));
+  // voller Akku = „von“, kurz vor leer (5 %) = „bis“
+  if (settings.growBatt === 1) f = Math.max(f, clamp((1 - battLevel()) / 0.95, 0, 1));
+  return f;
+}
+// Sichtbare Streifen an die gewünschte Zahl anpassen; neue blitzen beim Erscheinen kurz auf
+function applyCount(birth) {
+  const a = countFromPos(settings.countPos), b = countFromPos(settings.countMax);
+  baseN = growOn() ? Math.round(a + (b - a) * growFrac()) : a;
+  const total = Math.min(pool.length, Math.max(1, Math.round(baseN * 1.12)));
+  if (total > lines.length) {
+    for (let i = lines.length; i < total; i++) {
+      const L = pool[i];
+      L.zones = []; L.off = 0; L.frag = null; L.flash = 0; L.born = birth ? t : -1;
+      lines.push(L);
+    }
+  } else if (total < lines.length) lines.length = total;
+}
+function fmtDur(s) {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = Math.floor(s % 60);
+  return h ? h + ' Std. ' + m + ' Min.' : m ? m + ' Min. ' + sec + ' s' : sec + ' s';
+}
+function growInfo() {
+  if (!growOn()) return '';
+  let s = 'Jetzt ' + baseN + ' Streifen';
+  if (settings.growTime === 1) s += ' · Neustart in ' + fmtDur(Math.max(0, settings.growHours * 3600 - growT));
+  if (settings.growBatt === 1) s += ' · Akku ' + Math.round(battLevel() * 100) + ' %';
+  if (timeScale > 1) s += ' · Zeitraffer';
+  return s;
+}
+function newStripes() { stripeSeed = (Math.random() * 2147483647) | 0; buildPool(); applyCount(false); }
+
 function triggerBurst(zone) {
   burstT = Math.random() < 0.2 ? rnd(1.2, 2.4) : rnd(0.15, 1.1);
   burstPow = rnd(0.5, 1.5);
@@ -461,6 +535,35 @@ function renderCracks() {
   }
 }
 
+// ---------- Finger auf dem Glas ----------
+// Unter dem Finger flackern und glitchen die Streifen (nur im Bruchstück, auf dem der Finger liegt), dazu tauchen
+// kurz Druckstreifen auf wie bei einem echten kaputten Display. Mehrere Finger gehen auch.
+const touches = new Map();
+let presses = [], pressLines = [];
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) * 1.15;
+function regionAt(xc, yc) {
+  if (!CR) return 0;
+  const X = xc / Wc, Y = yc / Wc;
+  for (let i = 0; i < CR.regions.length; i++) if (pointInPoly(X, Y, CR.regions[i].poly)) return i;
+  return -1;
+}
+function updatePresses(dt) {
+  presses = [];
+  if (settings.touchFx !== 1) { touches.clear(); pressLines = []; return; }
+  for (const [id, p] of touches) {
+    const age = p.up >= 0 ? t - p.up : 0;
+    if (age > 0.3) { touches.delete(id); continue; }
+    const xc = p.x / dpr, yc = p.y / dpr, pr = { x: xc, y: yc, ri: regionAt(xc, yc), k: 1 - age / 0.3 };
+    presses.push(pr);
+    if (p.up < 0 && Math.random() < P(14) && pressLines.length < 24) {
+      const L = makeLine(clamp((xc + gauss() * 9) / Wc, 0.002, 0.998));
+      L.w = rnd(0.4, 1.3);
+      pressLines.push({ L, ri: pr.ri, t: rnd(0.08, 0.45), col: Math.random() < 0.5 ? pick(PAL) : L.col });
+    }
+  }
+  pressLines = pressLines.filter(q => (q.t -= dt) > 0);
+}
+
 // ---------- Streifen zeichnen: je Bruchstück ausgeschnitten und versetzt ----------
 function paintLine(L, x, y0, y1, alpha, col) {
   const [r, g, b] = col;
@@ -520,7 +623,9 @@ function stripeStates(dt, calm, bursting) {
       }
       if (L.frag.t <= 0) L.frag = null;
     }
-    vis.push({ L, x, a: Math.max(0, Math.min(1, L.base * L.fl)), spans, keep });
+    // gerade erst aufgetaucht: kurz hell aufblitzen
+    const born = L.born >= 0 && t - L.born < 0.45;
+    vis.push({ L, x, a: Math.max(0, Math.min(1, L.base * L.fl)), spans, keep, born });
   }
   // 2) je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke
   drawList = regs.map((g, ri) => {
@@ -529,7 +634,8 @@ function stripeStates(dt, calm, bursting) {
     const lo = g.x0 * Wc - 6, hi = g.x1 * Wc + 6;
     const sb = curBursting && multi && (burstZone === 'all' || burstZone === g.zone);
     for (const v of vis) {
-      const L = v.L, x = v.x + dx;
+      const L = v.L;
+      let x = v.x + dx;
       if (x < lo || x > hi || (v.keep && !v.keep[ri])) continue;
       const z = L.zones[ri] || (L.zones[ri] = { flash: 0, col: null, off: 0 });
       if (multi) {
@@ -545,6 +651,16 @@ function stripeStates(dt, calm, bursting) {
       let a = v.a, c = L.col, fl = null;
       if (L.flash > 0 && (!L.mask || L.mask[ri] !== false)) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = L.flashCol || L.col; fl = { col: c, w: L.bw, dx: L.bdx }; }
       else if (multi && z.flash > 0) { a = Math.random() < 0.5 ? rnd(1, 1.6) : rnd(0.05, 0.3); c = z.col; fl = { col: c, w: z.bw, dx: z.bdx }; }
+      if (v.born) { a = Math.random() < 0.6 ? rnd(1, 1.6) : rnd(0.1, 0.4); if (Math.random() < 0.3) c = pick(PAL); }
+      // Finger auf diesem Bruchstück, genau über dem Streifen
+      for (const pr of presses) {
+        if ((pr.ri !== ri && CR) || Math.abs(x - pr.x) > 16 + L.w * 4) continue;
+        a = Math.random() < 0.5 ? rnd(0.9, 1.6) : rnd(0.05, 0.5);
+        if (Math.random() < 0.4) c = pick(PAL);
+        x += rnd(-1.5, 1.5) * pr.k;
+        fl = { col: c, w: rnd(4, 14), dx: rnd(-4, 4) };
+        break;
+      }
       out.push({ L, x, a, c, spans: v.spans, fl });
     }
     return out;
@@ -555,9 +671,11 @@ function drawStripes(bursting) {
   const regs = CR ? CR.regions : WHOLE;
   regs.forEach((g, ri) => {
     const list = drawList[ri];
-    if (!list || !list.length) return;
+    const pl = pressLines.filter(q => q.ri === ri || !CR);
+    if ((!list || !list.length) && !pl.length) return;
     if (g.pathC) { cx.save(); cx.clip(g.pathC); }
-    for (const d of list) for (const sp of d.spans) paintLine(d.L, d.x, sp[0], sp[1], Math.max(0, Math.min(1, d.a * sp[2])), d.c);
+    if (list) for (const d of list) for (const sp of d.spans) paintLine(d.L, d.x, sp[0], sp[1], Math.max(0, Math.min(1, d.a * sp[2])), d.c);
+    for (const q of pl) paintLine(q.L, q.L.x * Wc, 0, Hc, rnd(0.3, 1), Math.random() < 0.2 ? pick(PAL) : q.col);
     if (g.pathC) cx.restore();
   });
   // während Ausbrüchen tauchen kurz neue Streifen auf
@@ -567,30 +685,134 @@ function drawStripes(bursting) {
   }
 }
 
+// ---------- Metall-Uhr in 3D: Normalenkarte, Schatten, Neigung ----------
+let m3dOK = false, bigPx = 0, shadowCv = null, glowCv = null;
+// wird von buildLayer (uhrface.js) aufgerufen, sobald sich die Uhr ändert (jede Minute, Einstellungen, Größe)
+function onLayerBuilt(L) {
+  bigPx = L.big; m3dOK = false; shadowCv = null; glowCv = null;
+  if (!m3dInit()) return;
+  const lw = L.lw, lh = L.lh;
+  const A = new Uint8ClampedArray(lw * lh * 4), B = new Uint8ClampedArray(lw * lh * 4);
+  const put = (nm, ox, oy) => {
+    for (let y = 0; y < nm.h; y++) {
+      const Y = oy + y;
+      if (Y < 0 || Y >= lh) continue;
+      for (let x = 0; x < nm.w; x++) {
+        const X = ox + x;
+        if (X < 0 || X >= lw) continue;
+        const s = (y * nm.w + x) * 4, d = (Y * lw + X) * 4;
+        if (nm.data[s + 3] > A[d + 3]) { A[d] = nm.data[s]; A[d + 1] = nm.data[s + 1]; A[d + 2] = nm.data[s + 2]; A[d + 3] = nm.data[s + 3]; }
+      }
+    }
+  };
+  for (const g of L.tl.list) { const nm = glyphNM(g.ch, L.big, false); put(nm, Math.round(L.tx + g.x) - nm.pad, L.m - nm.pad); }
+  for (const g of L.dl.list) { const nm = glyphNM(g.ch, L.small, true); put(nm, Math.round(L.dx0 + g.x) - nm.pad, L.m + L.big + L.gap - nm.pad); }
+  // je Zeile: Höhe 0..1 innerhalb der Uhrzeit bzw. des Datums (dort läuft der Horizont durch) und ob es das Datum ist;
+  // dazu, ob eine Ziffer in Reichweite der Seitenwände liegt (sonst rechnet der Shader dort nichts)
+  const pad = Math.ceil(L.big * 0.07 + 12 * dpr * 0.6 + 4);
+  const out = new Uint8Array(lw * lh);
+  for (let i = 0; i < lw * lh; i++) out[i] = A[i * 4 + 3] > 0 ? 0 : 1;
+  const near = edt2(out, lw, lh);
+  const dTop = L.m + L.big + L.gap;
+  for (let y = 0; y < lh; y++) {
+    const isD = !!L.ds && y >= dTop - 3;
+    const v = isD ? (y + 0.5 - dTop) / L.small : (y + 0.5 - L.m) / L.big;
+    const vb = clamp(v, 0, 1) * 255, db = isD ? 255 : 0;
+    for (let x = 0; x < lw; x++) { const i = y * lw + x, d = i * 4; B[d] = vb; B[d + 1] = db; B[d + 2] = near[i] <= pad + 2 ? 255 : 0; B[d + 3] = 255; }
+  }
+  m3dOK = m3dSetLayer(A, B, lw, lh, pad);
+  if (!m3dOK) return;
+  // Schatten auf dem Display unter der schwebenden Uhr, beim Neon der Schein: weichgezeichnete Form
+  const mask = mk(lw, lh), mx = mask.getContext('2d');
+  if (!mx || !mx.createImageData) return;
+  const id = mx.createImageData(lw, lh);
+  for (let i = 0; i < lw * lh; i++) id.data[i * 4 + 3] = A[i * 4 + 3];
+  mx.putImageData(id, 0, 0);
+  const soft = (r, col) => {
+    const sp = Math.ceil(r * 2.5), c = mk(lw + 2 * sp, lh + 2 * sp), x = c.getContext('2d');
+    x.filter = 'blur(' + r.toFixed(1) + 'px)'; x.drawImage(mask, sp, sp); x.filter = 'none';
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+    return { c, sp };
+  };
+  shadowCv = soft(Math.max(2, L.big * 0.05), '#000');
+  const F = FIN[settings.finish] || FIN[0];
+  if (F.neon) glowCv = soft(Math.max(3, L.big * 0.1), 'rgb(' + F.neon + ')');
+}
+// Neigung: vom Neigungssensor (relativ zur Haltung, die sich langsam nachführt) oder ohne Sensor sanft von selbst
+let tilt = [0, 0], sens = null, rest = null, sensorAt = -1e9, tiltHintDone = false;
+if (typeof addEventListener === 'function') addEventListener('deviceorientation', e => {
+  if (e.beta == null || e.gamma == null) return;
+  sens = [e.gamma, e.beta]; sensorAt = t;
+  if (!rest) rest = sens.slice();
+});
+function updateTilt(dt) {
+  let tx, ty;
+  if (sens && t - sensorAt < 1.5) {
+    const k = 1 - Math.exp(-dt / 4);
+    rest[0] += (sens[0] - rest[0]) * k; rest[1] += (sens[1] - rest[1]) * k;
+    tx = clamp((sens[0] - rest[0]) / 22, -1, 1); ty = clamp((rest[1] - sens[1]) / 22, -1, 1);
+  } else { tx = 0.75 * Math.sin(t * 0.7); ty = 0.5 * Math.sin(t * 0.5 + 1); }
+  const s = 1 - Math.exp(-dt * 9);
+  tilt[0] += (tx - tilt[0]) * s; tilt[1] += (ty - tilt[1]) * s;
+}
+// Aktuelles Bild der Uhr (CL) und seine Lage (CLX, CLY) in Gerätepixeln
+let CL = null, CLX = 0, CLY = 0;
+function prepClock(dt) {
+  CL = null;
+  if (!layer) return;
+  updateTilt(dt);
+  const k3 = settings.d3 / 10, T = [tilt[0] * k3, tilt[1] * k3], amp = 12 * dpr;
+  // die Oberseite schwebt: sie verschiebt sich gegen die Blickrichtung, die Seitenwände zeigen sich auf der anderen Seite
+  const ox = -amp * T[0], oy = -amp * T[1];
+  const ix = Math.floor(ox), iy = Math.floor(oy);
+  if (m3dOK) {
+    const depth = Math.max(1, bigPx * (0.026 + 0.04 * k3));
+    M3D.sub = [ox - ix, oy - iy];
+    CL = m3dRender(settings.finish, T, [amp * T[0] * 0.55, depth + amp * T[1] * 0.55], 0.3, FIN[settings.finish] || FIN[0]);
+    CLX = lx - M3D.pad + ix; CLY = ly - M3D.pad + iy;
+  } else { CL = layer; CLX = lx + Math.round(ox); CLY = ly + Math.round(oy); }
+}
+
 // ---------- Uhr in Bruchstücken (Gerätepixel) ----------
 // Die Uhr glitcht nur dort, wo gerade auch die Streifen glitchen: bei einem Ausbruch in ihrem Bereich als Ganzes
 // (Farbkanäle, verrutschte Zeilen, Farbblitz, kurzer Ausfall), sonst nur in einem schmalen Band um jeden Streifen, der
 // gerade aufblitzt – dort verrutscht sie ein Stück zur Seite und nimmt seine Farbe an.
 const tintCache = new Map();
-let tintFor = null;
+let tintSrc = null, tintFrame = -1, chanC = null, chanFrame = -1;
 function tinted(col) {
-  if (tintFor !== layer) { tintCache.clear(); tintFor = layer; }
+  if (tintSrc !== CL || (CL !== layer && tintFrame !== frameNo)) { tintCache.clear(); tintSrc = CL; tintFrame = frameNo; }
   const key = col.join(',');
   let c = tintCache.get(key);
   if (!c) {
-    c = mk(layer.width, layer.height);
+    c = mk(CL.width, CL.height);
     const x = c.getContext('2d');
-    x.drawImage(layer, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = 'rgb(' + key + ')'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(CL, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = 'rgb(' + key + ')'; x.fillRect(0, 0, c.width, c.height);
     tintCache.set(key, c);
   }
   return c;
+}
+// Farbkanäle einzeln (für den Farbversatz bei Glitches)
+function chan(i) {
+  if (CL === layer && layerC.length) return layerC[i];
+  if (chanFrame !== frameNo || !chanC || chanC[0].width !== CL.width || chanC[0].height !== CL.height) {
+    chanFrame = frameNo;
+    chanC = [[255, 0, 0], [0, 255, 0], [0, 0, 255]].map((col, k) => {
+      const c = chanC && chanC[k].width === CL.width && chanC[k].height === CL.height ? chanC[k] : mk(CL.width, CL.height), y = c.getContext('2d');
+      y.globalCompositeOperation = 'copy'; y.drawImage(CL, 0, 0);
+      y.globalCompositeOperation = 'source-in'; y.fillStyle = 'rgb(' + col + ')'; y.fillRect(0, 0, c.width, c.height);
+      y.globalCompositeOperation = 'multiply'; y.drawImage(CL, 0, 0);
+      y.globalCompositeOperation = 'source-over';
+      return c;
+    });
+  }
+  return chanC[i];
 }
 function clockZone() {
   const c = (ly + layer.height / 2) / H;
   return c < 1 / 3 ? 'top' : c > 2 / 3 ? 'bottom' : 'mid';
 }
 function drawClockPiece(ctx, g, key, calm, bands) {
-  const lw = layer.width, lh = layer.height;
+  const lw = CL.width, lh = CL.height;
   const z = clockZones[key] || (clockZones[key] = { off: 0, flash: 0, col: null, fl: 1, flT: 0, split: 0, sx: 0, slice: 0 });
   const sb = curBursting && (burstZone === 'all' || burstZone === (g ? g.zone : clockZone()));
   if (z.off > 0) { z.off -= curDt; if (z.off > 0) return; }
@@ -603,32 +825,44 @@ function drawClockPiece(ctx, g, key, calm, bands) {
   if (g) ctx.clip(g.pathD);
   // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
   const k = g ? settings.crack : 0;
-  const X = lx + (g ? Math.round(g.s * k * 0.9 * dpr * jit()) : 0), Y = ly + (g ? Math.round(Math.abs(g.s) * k * 0.12 * dpr) : 0);
+  const X = CLX + (g ? Math.round(g.s * k * 0.9 * dpr * jit()) : 0), Y = CLY + (g ? Math.round(Math.abs(g.s) * k * 0.12 * dpr) : 0);
+  // Bänder glitchender Streifen über der Uhr: dort wird die Uhr gleich verrutscht gezeichnet, also hier aussparen
+  const bs = [];
+  for (const b of bands) {
+    const bx = b.x * dpr, bw = Math.max(2, b.w * dpr);
+    if (bx + bw / 2 < X || bx - bw / 2 > X + lw || bs.length >= 10) continue;
+    bs.push({ x0: bx - bw / 2, x1: bx + bw / 2, b });
+  }
+  if (bs.length) {
+    // Außenrechteck im Uhrzeigersinn, Bänder gegen den Uhrzeigersinn: Löcher auch bei Überlappung
+    const p = new Path2D();
+    p.rect(X - 8, Y - 8, lw + 16, lh + 16);
+    for (const q of bs) { p.moveTo(q.x0, Y - 2); p.lineTo(q.x0, Y + lh + 2); p.lineTo(q.x1, Y + lh + 2); p.lineTo(q.x1, Y - 2); p.closePath(); }
+    ctx.save(); ctx.clip(p);
+  }
   ctx.globalAlpha = z.fl;
   if (z.split > 0) {
     ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(layerC[0], X + z.sx, Y); ctx.drawImage(layerC[1], X, Y); ctx.drawImage(layerC[2], X - z.sx, Y);
+    ctx.drawImage(chan(0), X + z.sx, Y); ctx.drawImage(chan(1), X, Y); ctx.drawImage(chan(2), X - z.sx, Y);
   } else if (z.slice > 0) {
     const n = rint(3, 6);
     for (let s = 0; s < n; s++) {
       const sy = Math.floor(lh * s / n), sh = Math.ceil(lh / n);
-      ctx.drawImage(layer, 0, sy, lw, sh, X + rnd(-1, 1) * 10 * dpr, Y + sy, lw, sh);
+      ctx.drawImage(CL, 0, sy, lw, sh, X + rnd(-1, 1) * 10 * dpr, Y + sy, lw, sh);
     }
-  } else ctx.drawImage(layer, X, Y);
+  } else ctx.drawImage(CL, X, Y);
   if (z.flash > 0) {
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.75 * z.fl; ctx.drawImage(tinted(z.col), X, Y);
   }
+  ctx.globalCompositeOperation = 'source-over';
+  if (bs.length) ctx.restore();
   // einzelne Streifen glitchen: in ihrem Band verrutscht die Uhr und nimmt ihre Farbe an
-  let nb = 0;
-  for (const b of bands) {
-    const bx = b.x * dpr, bw = Math.max(2, b.w * dpr);
-    if (bx + bw / 2 < X || bx - bw / 2 > X + lw || ++nb > 10) continue;
+  for (const q of bs) {
     ctx.save();
-    ctx.beginPath(); ctx.rect(bx - bw / 2, Y - 2, bw, lh + 4); ctx.clip();
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    ctx.fillStyle = '#000'; ctx.fillRect(bx - bw / 2, Y, bw, lh);
-    ctx.globalAlpha = z.fl; ctx.drawImage(layer, X + b.dx * dpr, Y);
-    ctx.globalAlpha = 0.55 * z.fl; ctx.drawImage(tinted(b.col), X + b.dx * dpr, Y);
+    ctx.beginPath(); ctx.rect(q.x0, Y - 2, q.x1 - q.x0, lh + 4); ctx.clip();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = z.fl; ctx.drawImage(CL, X + q.b.dx * dpr, Y);
+    ctx.globalAlpha = 0.55 * z.fl; ctx.drawImage(tinted(q.b.col), X + q.b.dx * dpr, Y);
     ctx.restore();
   }
   ctx.restore();
@@ -644,7 +878,15 @@ function glitchBands(ri) {
   return out;
 }
 function drawClock(ctx, calm) {
-  if (!layer) return;
+  if (!CL) return;
+  // Schatten liegt fest auf dem Display (die Uhr schwebt darüber), beim Neon der Schein
+  ctx.globalCompositeOperation = 'source-over';
+  if (shadowCv && CL !== layer) { ctx.globalAlpha = 0.55; ctx.drawImage(shadowCv.c, lx - shadowCv.sp, ly - shadowCv.sp + Math.round(bigPx * 0.04)); }
+  if (glowCv && CL !== layer) {
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.8;
+    ctx.drawImage(glowCv.c, CLX + M3D.pad - glowCv.sp, CLY + M3D.pad - glowCv.sp);
+  }
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   const pieces = CR && settings.crack > 0 ? CR.regions.filter(g => g.clock) : [];
   if (pieces.length < 2) { drawClockPiece(ctx, null, 'ganz', calm, glitchBands(-1)); return; }
   for (const g of pieces) { const i = CR.regions.indexOf(g); drawClockPiece(ctx, g, i, calm, glitchBands(i)); }
@@ -657,12 +899,16 @@ function startTap() {
   tapStep = 1; tapP = null;
   if (api) { api.hideSheet(); api.toast('Tippe auf die Stelle, an der das Handy aufgeschlagen ist.', 60000); }
 }
+function toggleFast() {
+  timeScale = timeScale > 1 ? 1 : 1200;
+  if (api) api.toast(timeScale > 1 ? 'Zeitraffer an: 1 Stunde vergeht in 3 Sekunden (für „Mehr Streifen mit der Zeit“ und „Risse wechseln nach Stunden“).' : 'Zeitraffer aus.', 5000);
+}
 
 return {
   maxDpr: 4,
   settings, controls,
   actionLabel: 'Glitch jetzt',
-  buttons: [{ label: 'Aufschlag antippen', run: startTap }],
+  buttons: [{ label: 'Aufschlag antippen', run: startTap }, { label: 'Zeitraffer', run: toggleFast }],
   bindUI(a) { api = a; },
   // Antippen im Auswahlmodus: erst die Aufschlagstelle, dann die Richtung des Risses
   tap(x, y) {
@@ -681,42 +927,57 @@ return {
     if (api) api.toast('Fertig! „Neues Muster“ zeigt einen anderen Verlauf, unter „Aufschlagstelle“ geht es zurück auf Zufall.', 5000);
     return true;
   },
+  // Finger auf dem Glas (Gerätepixel)
+  touch(type, x, y, id) {
+    if (type === 'up') { const p = touches.get(id); if (p) p.up = t; return; }
+    const p = touches.get(id);
+    if (p && p.up < 0) { p.x = x; p.y = y; } else touches.set(id, { x, y, up: -1 });
+  },
   resize(w, h, d) {
     W = w; H = h; dpr = d; Wc = W / dpr; Hc = H / dpr;
     for (const k in cache) delete cache[k];
+    for (const k in nmCache) delete nmCache[k];
     buildLayer();
     makeCracks();
   },
-  newPattern() { newLines(); newCracks(); },
+  newPattern() { newStripes(); growT = 0; pendingRestart = false; newCracks(); },
   action() { triggerBurst(); if (settings.auto === 1 && burstZone === 'all') newCracks(); },
   wake() {
-    if (settings.rndWake === 1) { newLines(); newCracks(); }
+    if (settings.rndWake === 1) { newStripes(); newCracks(); }
     triggerBurst('all'); burstT = rnd(0.25, 0.6);
   },
   change(id) {
-    if (id === 'countPos') newLines();
+    if (id === 'countPos' || id === 'countMax' || id === 'growBatt' || id === 'battTest' || id === 'growHours') applyCount(true);
+    if (id === 'growTime') { growT = 0; pendingRestart = false; applyCount(true); }
     if (id === 'burst') { nextBurst = scheduleBurst(settings.burst / 10); burstT = 0; }
     if (id === 'finish') for (const k in cache) delete cache[k];
-    if (id === 'size' || id === 'date' || id === 'finish' || id === 'pos') buildLayer();
-    if (id === 'cracks' || id === 'splinter' || id === 'clock' || id === 'crack' || id === 'size' || id === 'date' || id === 'pos') makeCracks();
+    if (id === 'size' || id === 'date' || id === 'finish' || id === 'cy') buildLayer();
+    if (id === 'cy') updateClockPieces();
+    if (id === 'cracks' || id === 'splinter' || id === 'clock' || id === 'crack' || id === 'size' || id === 'date') makeCracks();
     // „Selbst angetippt“ ohne angetippte Stelle: gleich antippen lassen
     if (id === 'impact') { if (settings.impact === 1 && !(settings.px >= 0 && settings.tx >= 0)) startTap(); else { tapStep = 0; newCracks(); } }
     if (id === 'auto' || id === 'hours') autoT = 0;
   },
+  // Regler losgelassen: Höhe der Uhr fertig verschoben, jetzt erst den Riss neu durch die Uhr legen
+  release(id) { if (id === 'cy') makeCracks(); },
   // zum Ausprobieren in der Entwicklung: bestimmter Zufallswert für die Risse
   seed(v) { crackSeed = v | 0; makeCracks(); },
   info() { return CR; },
+  dbg() { return { presses: presses.length, pressLines: pressLines.length, lines: lines.length, m3d: m3dOK }; },
+  // Entwicklung: feste Neigung (null = wieder Sensor/automatisch), Zeit vorspulen
+  setTilt(x, y) { if (x == null) { sens = null; sensorAt = -1e9; } else { sens = [x * 22, -y * 22]; rest = [0, 0]; sensorAt = t + 1e9; tilt = [x, y]; } },
+  skip(sec) { growT += sec; autoT += sec; },
   // Entwicklung: alle Streifen kurz aufblitzen lassen
   flashAll(n) { lines.slice(0, n || lines.length).forEach(L => { L.flash = 0.2; L.flashCol = pick(PAL); L.bw = 10; L.bdx = 4; L.mask = null; }); },
   frame(ctx, dt) {
-    t += dt; cx = ctx;
+    t += dt; cx = ctx; frameNo++;
     const calm = settings.calm / 10, bur = settings.burst / 10;
     const TX = texts();
     if (stamp !== TX.time + TX.ds) { buildLayer(); updateClockPieces(); }
     if (burstT > 0) {
       burstT -= dt;
       // nach einem Glitch-Ausbruch manchmal ein neues Streifenmuster (Risse bleiben)
-      if (burstT <= 0 && settings.mutate === 1 && Math.random() < 0.5) { newLines(); }
+      if (burstT <= 0 && settings.mutate === 1 && Math.random() < 0.5 && !pendingRestart) newStripes();
     }
     else if (bur > 0) {
       nextBurst -= dt;
@@ -727,22 +988,34 @@ return {
       }
     }
     // Risse wechseln nach Stunden
-    if (settings.auto === 2) { autoT += dt; if (autoT >= settings.hours * 3600) newCracks(); }
+    if (settings.auto === 2) { autoT += dt * timeScale; if (autoT >= settings.hours * 3600) newCracks(); }
+    // Mehr Streifen mit der Zeit: am Ende großer Glitch, danach geht es mit wenigen Streifen von vorn los
+    if (settings.growTime === 1 && !pendingRestart) {
+      growT += dt * timeScale;
+      if (growT >= settings.growHours * 3600) {
+        pendingRestart = true; triggerBurst('all'); burstT = rnd(1.4, 2.2); burstPow = 1.5;
+        if (settings.auto === 1) newCracks();
+      }
+    }
+    if (pendingRestart && burstT <= 0) { pendingRestart = false; growT = 0; newStripes(); }
+    applyCount(true);
     curDt = dt; curBursting = burstT > 0;
     curG = bur > 0 ? 0.02 + 0.98 * Math.pow(bur, 1.6) : 0;
     const bursting = curBursting && burstZone === 'all';
+    updatePresses(dt);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H);
     stripeStates(dt, calm, bursting);
-    if (settings.clock === 0) drawClock(ctx, calm);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;
     drawStripes(bursting);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    // Glasrisse über allem
+    // die Uhr liegt über den Streifen (sie schwebt), die Glasrisse über allem
+    if (settings.clock === 0) { prepClock(dt); drawClock(ctx, calm); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     if (crackLayer) ctx.drawImage(crackLayer, 0, 0);
     // beim Antippen: Markierung der gewählten Aufschlagstelle, bis die Richtung angetippt ist
     if (tapStep === 2 && tapP) {
@@ -750,6 +1023,11 @@ return {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5 * dpr;
       ctx.beginPath(); ctx.arc(mx, my, 10 * dpr, 0, 2 * Math.PI); ctx.stroke();
       ctx.beginPath(); ctx.arc(mx, my, 2 * dpr, 0, 2 * Math.PI); ctx.fillStyle = '#fff'; ctx.fill();
+    }
+    // einmal sagen, ob der Neigungssensor in der Vorschau ankommt
+    if (!tiltHintDone && t > 2.5 && settings.clock === 0 && settings.d3 > 0 && api) {
+      tiltHintDone = true;
+      api.toast(t - sensorAt < 1.5 ? 'Neige das Handy: Die Uhr bewegt sich in 3D.' : 'In dieser Vorschau kommt der Neigungssensor nicht an. Die Uhr schwenkt deshalb von selbst hin und her, in der App folgt sie dem Handy.', 6000);
     }
   },
 };

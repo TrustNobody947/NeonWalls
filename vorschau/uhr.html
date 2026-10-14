@@ -275,7 +275,7 @@ function timeLine(str, hPx) {
   let i = 0;
   for (const ch of str) {
     const g = glyph(ch), cell = i * 102;
-    list.push({ s: sprite(ch, hPx, false), x: (cell + (CW - g.w) / 2) * u });
+    list.push({ ch, s: sprite(ch, hPx, false), x: (cell + (CW - g.w) / 2) * u });
     i++;
   }
   return { list, w: Math.max(0, (i - 1) * 102 + CW) * u };
@@ -287,7 +287,7 @@ function dateLine(str, hPx) {
     if (ch === ' ') { if (prev) x += 350 - 39; prev = ' '; continue; }
     if (prev) x += ch === '.' || prev === '.' ? 50 : 39;
     const g = glyph(ch);
-    list.push({ s: sprite(ch, hPx, true), x: (x - g.x0) * u });
+    list.push({ ch, s: sprite(ch, hPx, true), x: (x - g.x0) * u });
     x += g.x1 - g.x0; prev = ch;
   }
   return { list, w: x * u };
@@ -310,11 +310,14 @@ function buildLayer() {
     y.globalCompositeOperation = 'multiply'; y.drawImage(layer, 0, 0); return c;
   });
   tintC = mk(lw, lh);
-  // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe
-  const cy = [0.1466, 0.42, 0.66][settings.pos] * H;
+  // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe.
+  // Mit Höhenregler (settings.cy, Prozent der Bildschirmhöhe) frei wählbar.
+  const cy = (settings.cy != null ? settings.cy / 100 : [0.1466, 0.42, 0.66][settings.pos]) * H;
   lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
   stamp = T.time + T.ds;
-  layerKey = [settings.size, settings.date, settings.finish, settings.pos, W, H].join('|');
+  layerKey = [settings.size, settings.date, settings.finish, settings.pos, settings.cy, W, H].join('|');
+  // Effekte können zusätzlich etwas aus dem Aufbau rechnen (z. B. die Metall-Uhr in 3D)
+  if (typeof onLayerBuilt === 'function') onLayerBuilt({ big, small, gap, m, lw, lh, tx, dx0, tl, dl, ds: T.ds });
 }
 
 
@@ -623,6 +626,16 @@ for (const c of E.controls) {
     ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
     ui[c.id](S[c.id]);
     el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
+    // Regler losgelassen (z. B. erst dann die Risse neu ausrichten)
+    if (E.release) el.addEventListener('change', () => E.release(c.id));
+  } else if (c.type === 'info') {
+    // Statuszeile des Effekts, wird laufend aufgefrischt, solange die Einstellungen offen sind
+    row.innerHTML = '<span class="lbl"></span>';
+    box.appendChild(row);
+    const sp = row.querySelector('.lbl');
+    const upd = () => { const t = c.text(); sp.textContent = t; row.hidden = !t; };
+    upd();
+    if (typeof setInterval === 'function') setInterval(() => { if (!sheet.hidden) upd(); }, 500);
   } else if (c.type === 'choice' || c.type === 'grid') {
     // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
     row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';
@@ -648,7 +661,17 @@ for (const c of E.controls) {
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
-if (E.bindUI) E.bindUI({ set: setVal });
+// Schnittstelle für Effekte: Werte setzen, kurze Hinweise zeigen, Einstellungen ausblenden
+if (E.bindUI) E.bindUI({ set: setVal, toast: (m, ms) => toast(m, ms), hideSheet: () => { sheet.hidden = true; } });
+// zusätzliche Knöpfe des Effekts (z. B. „Aufschlag antippen“)
+if (E.buttons) {
+  const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
+  for (const b of E.buttons) {
+    const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
+    el.addEventListener('click', () => b.run());
+    row.insertBefore(el, fs);
+  }
+}
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
 document.getElementById('newBtn').onclick = () => E.newPattern();
@@ -670,16 +693,21 @@ if (E.touch) {
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
-cv.addEventListener('click', () => { if (dragged) { dragged = false; return; } sheet.hidden = !sheet.hidden; hint.classList.add('gone'); });
+cv.addEventListener('click', e => {
+  if (dragged) { dragged = false; return; }
+  // Effekte können ein Antippen für sich nutzen (z. B. Aufschlagstelle wählen)
+  if (E.tap && E.tap(e.clientX * dpr, e.clientY * dpr)) return;
+  sheet.hidden = !sheet.hidden; hint.classList.add('gone');
+});
 setTimeout(() => hint.classList.add('gone'), 3500);
 
 // Vollbild: immer echtes Vollbild versuchen; wenn die Ansicht es sperrt, bleibt die Leinwand ohne Bedienelemente
 const fsBtn = document.getElementById('fsBtn');
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 let toastTimer = 0;
-function toast(msg) {
+function toast(msg, ms) {
   hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), 4000);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), ms || 4000);
 }
 const fsBlocked = () => { if (!isFs()) toast('In dieser Ansicht ist Vollbild gesperrt. Öffne die Vorschau-Karte, dort geht es. Antippen holt die Einstellungen zurück.'); };
 fsBtn.onclick = () => {

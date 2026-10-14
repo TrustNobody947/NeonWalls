@@ -71,6 +71,7 @@ global.requestAnimationFrame = f => { rafCb = f; };
 const timers = [];
 global.setTimeout = (f, ms) => { timers.push([now + (ms || 0), f]); return timers.length; };
 global.clearTimeout = noop;
+global.setInterval = noop;
 
 eval(code);
 const { E, S } = window.__nw;
@@ -99,9 +100,10 @@ if (E.buttons) for (const b of E.buttons) { b.run(); run(5); }
 if (E.tap) { E.tap(300, 900); run(10); E.tap(800, 300); run(30); E.tap(5, 5); run(5); }
 if (E.touch) { E.touch('down', 300, 900, 1); run(20); for (let i = 0; i < 30; i++) { E.touch('move', 300 + i * 10, 900 - i * 15, 1); run(2); } E.touch('up', 600, 450, 1); run(60); }
 for (const c of E.controls) {
+  if (c.type === 'info') { const t = c.text(); if (typeof t !== 'string') throw new Error('Statuszeile ohne Text: ' + c.id); continue; }
   const vals = c.type === 'range' ? [c.min, c.max, Math.round((c.min + c.max) / 2)]
     : c.type === 'text' ? ['', 'NEON WALLS', 'ÄÖÜ ß 123', '   ', 'X'.repeat(c.max || 20), '✠𝕿𝖗𝖚𝖘𝖙𝕹𝖔𝖇𝖔𝖉𝖞✠', '𝒦𝒶𝒾 🔥👍🏽', 'Kai'] : c.options.map((_, i) => i);
-  for (const v of vals) { S[c.id] = v; if (E.change) E.change(c.id); run(40); E.action(); run(30); }
+  for (const v of vals) { S[c.id] = v; if (E.change) E.change(c.id); if (E.release) E.release(c.id); run(40); E.action(); run(30); }
 }
 r = run(300);
 console.log('Nach Reglern  ', r.avg.toFixed(2), 'ms im Schnitt, schlimmster Frame', r.worst.toFixed(1), 'ms');

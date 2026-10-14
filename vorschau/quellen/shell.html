@@ -118,6 +118,16 @@ for (const c of E.controls) {
     ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
     ui[c.id](S[c.id]);
     el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
+    // Regler losgelassen (z. B. erst dann die Risse neu ausrichten)
+    if (E.release) el.addEventListener('change', () => E.release(c.id));
+  } else if (c.type === 'info') {
+    // Statuszeile des Effekts, wird laufend aufgefrischt, solange die Einstellungen offen sind
+    row.innerHTML = '<span class="lbl"></span>';
+    box.appendChild(row);
+    const sp = row.querySelector('.lbl');
+    const upd = () => { const t = c.text(); sp.textContent = t; row.hidden = !t; };
+    upd();
+    if (typeof setInterval === 'function') setInterval(() => { if (!sheet.hidden) upd(); }, 500);
   } else if (c.type === 'choice' || c.type === 'grid') {
     // 'grid': viele Möglichkeiten in zwei Spalten, mit Zwischenüberschriften und eigener Schrift je Knopf
     row.innerHTML = '<span class="lbl">' + c.label + '</span><div class="' + (c.type === 'grid' ? 'grid' : 'seg') + '"></div>';

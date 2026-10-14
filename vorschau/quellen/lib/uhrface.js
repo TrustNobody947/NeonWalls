@@ -161,7 +161,7 @@ function timeLine(str, hPx) {
   let i = 0;
   for (const ch of str) {
     const g = glyph(ch), cell = i * 102;
-    list.push({ s: sprite(ch, hPx, false), x: (cell + (CW - g.w) / 2) * u });
+    list.push({ ch, s: sprite(ch, hPx, false), x: (cell + (CW - g.w) / 2) * u });
     i++;
   }
   return { list, w: Math.max(0, (i - 1) * 102 + CW) * u };
@@ -173,7 +173,7 @@ function dateLine(str, hPx) {
     if (ch === ' ') { if (prev) x += 350 - 39; prev = ' '; continue; }
     if (prev) x += ch === '.' || prev === '.' ? 50 : 39;
     const g = glyph(ch);
-    list.push({ s: sprite(ch, hPx, true), x: (x - g.x0) * u });
+    list.push({ ch, s: sprite(ch, hPx, true), x: (x - g.x0) * u });
     x += g.x1 - g.x0; prev = ch;
   }
   return { list, w: x * u };
@@ -196,9 +196,12 @@ function buildLayer() {
     y.globalCompositeOperation = 'multiply'; y.drawImage(layer, 0, 0); return c;
   });
   tintC = mk(lw, lh);
-  // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe
-  const cy = [0.1466, 0.42, 0.66][settings.pos] * H;
+  // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe.
+  // Mit Höhenregler (settings.cy, Prozent der Bildschirmhöhe) frei wählbar.
+  const cy = (settings.cy != null ? settings.cy / 100 : [0.1466, 0.42, 0.66][settings.pos]) * H;
   lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
   stamp = T.time + T.ds;
-  layerKey = [settings.size, settings.date, settings.finish, settings.pos, W, H].join('|');
+  layerKey = [settings.size, settings.date, settings.finish, settings.pos, settings.cy, W, H].join('|');
+  // Effekte können zusätzlich etwas aus dem Aufbau rechnen (z. B. die Metall-Uhr in 3D)
+  if (typeof onLayerBuilt === 'function') onLayerBuilt({ big, small, gap, m, lw, lh, tx, dx0, tl, dl, ds: T.ds });
 }
