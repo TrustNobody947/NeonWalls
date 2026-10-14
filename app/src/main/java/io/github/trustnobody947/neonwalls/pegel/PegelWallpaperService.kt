@@ -30,7 +30,7 @@ class PegelWallpaperService : WallpaperService() {
         private var useHw = true
         private val empty = FloatArray(0)
         private val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager?
-        private var where = 0
+        private var mode = ClockPrefs.MODE_OFF
         private var lastLockCheck = 0L
 
         /** Uhr nur auf dem Start- oder nur auf dem Sperrbildschirm: am Sperrbildschirm erkennen, wo wir gerade sind. */
@@ -40,14 +40,15 @@ class PegelWallpaperService : WallpaperService() {
             } catch (e: Exception) {
                 false
             }
-            renderer.clockShown = isPreview || ClockPrefs.shown(where, locked)
+            // In der Vorschau der Hintergrund-Auswahl ist die Uhr zu sehen, wenn sie irgendwo erscheinen soll
+            renderer.clockShown = if (isPreview) mode != ClockPrefs.MODE_OFF else ClockPrefs.shown(mode, locked)
         }
 
         override fun onCreate(surfaceHolder: SurfaceHolder) {
             super.onCreate(surfaceHolder)
             PegelPrefs.applyTo(this@PegelWallpaperService, renderer)
             source = PegelPrefs.source(this@PegelWallpaperService)
-            where = ClockPrefs.where(this@PegelWallpaperService)
+            mode = ClockPrefs.mode(clockPrefs, ClockPrefs.ON_PEGEL)
             updateClockShown()
             prefs.registerOnSharedPreferenceChangeListener(this)
             clockPrefs.registerOnSharedPreferenceChangeListener(this)
@@ -63,7 +64,7 @@ class PegelWallpaperService : WallpaperService() {
 
         override fun onSharedPreferenceChanged(p: SharedPreferences?, key: String?) {
             PegelPrefs.applyTo(this@PegelWallpaperService, renderer)
-            where = ClockPrefs.where(this@PegelWallpaperService)
+            mode = ClockPrefs.mode(clockPrefs, ClockPrefs.ON_PEGEL)
             updateClockShown()
             val s = PegelPrefs.source(this@PegelWallpaperService)
             if (s != source) {
@@ -112,7 +113,7 @@ class PegelWallpaperService : WallpaperService() {
             val dt = if (last == 0L) 0.016f else (frameTimeNanos - last) / 1_000_000_000f
             last = frameTimeNanos
             // zweimal pro Sekunde nachsehen, ob der Sperrbildschirm zu sehen ist
-            if (where != 0 && frameTimeNanos - lastLockCheck > 500_000_000L) {
+            if (ClockPrefs.needsLockCheck(mode) && frameTimeNanos - lastLockCheck > 500_000_000L) {
                 lastLockCheck = frameTimeNanos
                 updateClockShown()
             }

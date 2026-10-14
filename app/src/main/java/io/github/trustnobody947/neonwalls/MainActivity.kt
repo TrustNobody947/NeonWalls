@@ -225,7 +225,7 @@ class MainActivity : Activity() {
         ui.addChoice(getString(R.string.p_peaks), p, PegelPrefs.PEAKS, 0, listOf(getString(CoreR.string.on), getString(CoreR.string.off))) { reapply() }
         ui.addChoice(getString(R.string.p_reflect), p, PegelPrefs.MIRROR, 0, listOf(getString(CoreR.string.on), getString(CoreR.string.off))) { reapply() }
         ui.addChoice(getString(R.string.p_pos), p, PegelPrefs.POS, 1, listOf(getString(R.string.p_mid), getString(R.string.p_bottom))) { reapply() }
-        GlitchSettings.addClockSection(this, ui, ClockPrefs.ON_PEGEL, false, reapply)
+        GlitchSettings.addClockSection(this, ui, ClockPrefs.ON_PEGEL, false, false, reapply)
         ui.addButtonRow(
             getString(R.string.b_test) to { pegelView?.renderer?.wake(); Unit },
             getString(R.string.b_drop) to { pegelView?.renderer?.bassDrop(); Unit },

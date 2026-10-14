@@ -25,7 +25,7 @@ import kotlin.math.sqrt
  */
 class ClockFace {
 
-    var pos = 0       // 0 = oben, 1 = Mitte, 2 = unten
+    var cy = 15       // Höhe in Prozent der Bildschirmhöhe (Mitte von Uhr und Datum), 15 = wie beim Original
         private set
     var size = 5      // 1..10, 5 = so groß wie beim Original
         private set
@@ -40,6 +40,9 @@ class ClockFace {
         private set
     var y = 0f
         private set
+    /** Höhe der Ziffern in Pixeln (für Tiefe und Rand der 3D-Uhr). */
+    var bigPx = 0
+        private set
 
     private var key = ""
     private var cacheKey = ""
@@ -47,10 +50,20 @@ class ClockFace {
 
     private class Sprite(val bmp: Bitmap?, val pad: Int)
     private class Glyph(val polys: List<Array<FloatArray>>, val x0: Float, val x1: Float, val w: Float)
-    private class Placed(val s: Sprite, val x: Float)
+    private class Placed(val ch: Char, val s: Sprite, val x: Float)
 
-    fun configure(pos: Int, size: Int, date: Int, finish: Int) {
-        this.pos = pos.coerceIn(0, 2)
+    /** Aufbau der zuletzt gebauten Uhr (für die Metall-Uhr in 3D). */
+    private class Layout(
+        val big: Int, val small: Int, val gap: Int, val m: Int, val lw: Int, val lh: Int,
+        val tx: Float, val dx0: Float, val time: List<Placed>, val date: List<Placed>
+    )
+    private var lay: Layout? = null
+    /** Zählt jedes neu gebaute Bild (Minute, Einstellungen, Größe). */
+    var version = 0
+        private set
+
+    fun configure(cy: Int, size: Int, date: Int, finish: Int) {
+        this.cy = cy.coerceIn(0, 100)
         this.size = size.coerceIn(1, 10)
         this.date = date.coerceIn(0, 2)
         this.finish = finish.coerceIn(0, FIN.size - 1)
@@ -61,11 +74,13 @@ class ClockFace {
         val cal = Calendar.getInstance()
         val h = cal.get(Calendar.HOUR_OF_DAY)
         val m = cal.get(Calendar.MINUTE)
-        val k = "$h|$m|${cal.get(Calendar.DAY_OF_YEAR)}|$pos|$size|$date|$finish|$sw|$sh"
+        val k = "$h|$m|${cal.get(Calendar.DAY_OF_YEAR)}|$cy|$size|$date|$finish|$sw|$sh"
         if (k == key && layer != null) return
         key = k
         val ck = "$size|$finish|$sh"
         if (ck != cacheKey) { sprites.clear(); cacheKey = ck }
+        val nk = "$size|$sh"
+        if (nk != nmKey) { nmCache.clear(); nmKey = nk }
         val time = two(h) + ":" + two(m)
         val dow = cal.get(Calendar.DAY_OF_WEEK) - 1
         val ds = when (date) {
@@ -100,10 +115,14 @@ class ClockFace {
         val dx0 = (lw - dl.second) / 2f
         for (g in dl.first) g.s.bmp?.let { c.drawBitmap(it, (dx0 + g.x - g.s.pad).roundToInt().toFloat(), (m + big + gap - g.s.pad).toFloat(), p) }
         layer = bmp
-        // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe
-        val cy = floatArrayOf(0.1466f, 0.42f, 0.66f)[pos] * sh
+        lay = Layout(big, small, gap, m, lw, lh, tx, dx0, tl.first, dl.first)
+        bigPx = big
+        nm = null
+        version++
+        // Wie beim Original (15 %): Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe, sonst frei gewählt
+        val cyPx = (if (cy == 15) 0.1466f else cy / 100f) * sh
         x = (sw / 2f - lw / 2f).roundToInt().toFloat()
-        y = (cy - lh / 2f).coerceIn(sh * 0.03f, max(sh * 0.03f, sh * 0.97f - lh)).roundToInt().toFloat()
+        y = (cyPx - lh / 2f).coerceIn(sh * 0.03f, max(sh * 0.03f, sh * 0.97f - lh)).roundToInt().toFloat()
     }
 
     /** Uhrzeit: feste Zellen, die 1 steht mittig in ihrer Zelle. */
@@ -112,7 +131,7 @@ class ClockFace {
         val list = ArrayList<Placed>()
         for ((i, ch) in str.withIndex()) {
             val g = glyph(ch)
-            list.add(Placed(sprite(ch, hPx, false), (i * 102f + (CW - g.w) / 2f) * u))
+            list.add(Placed(ch, sprite(ch, hPx, false), (i * 102f + (CW - g.w) / 2f) * u))
         }
         return Pair(list, max(0f, (str.length - 1) * 102f + CW) * u)
     }
@@ -127,7 +146,7 @@ class ClockFace {
             if (ch == ' ') { if (prev != null) x += 350f - 39f; prev = ' '; continue }
             if (prev != null) x += if (ch == '.' || prev == '.') 50f else 39f
             val g = glyph(ch)
-            list.add(Placed(sprite(ch, hPx, true), (x - g.x0) * u))
+            list.add(Placed(ch, sprite(ch, hPx, true), (x - g.x0) * u))
             x += g.x1 - g.x0
             prev = ch
         }
@@ -334,6 +353,132 @@ class ClockFace {
         return Sprite(bmp, pad).also { sprites[k] = it }
     }
 
+    // ---------- Normalenkarte für die Metall-Uhr in 3D (gleiche Rechnung wie die Vorschau metall.js) ----------
+
+    /**
+     * Normalenkarte der aktuellen Uhr (je deckend): a = Normale x, y und Abstand zur nächsten Ziffer in Pixeln (bis 255,
+     * damit der Shader fern der Ziffern gleich aufhören kann); b = Deckung, Höhe in der Zeile, Datum.
+     */
+    class NormalMap(val w: Int, val h: Int, val a: IntArray, val b: IntArray)
+
+    private class GlyphNM(val w: Int, val h: Int, val pad: Int, val nx: ByteArray, val ny: ByteArray, val ht: ByteArray, val cov: ByteArray)
+
+    private var nm: NormalMap? = null
+    private var nmKey = ""
+    private val nmCache = HashMap<String, GlyphNM>()
+
+    /** Seitenwände der Oberfläche (nah, fern) und Farbe des Neon-Scheins. */
+    val side0: Int get() = FIN[finish].side0
+    val side1: Int get() = FIN[finish].side1
+    val neon: Int get() = FIN[finish].neon
+
+    fun normalMap(): NormalMap? {
+        nm?.let { return it }
+        val L = lay ?: return null
+        val lw = L.lw
+        val lh = L.lh
+        val a = IntArray(lw * lh) { 0xFF808000.toInt() }
+        val b = IntArray(lw * lh)
+        val dTop = L.m + L.big + L.gap
+        val hasDate = L.date.isNotEmpty()
+        for (y in 0 until lh) {
+            val isD = hasDate && y >= dTop - 3
+            val v = if (isD) (y + 0.5f - dTop) / L.small else (y + 0.5f - L.m) / L.big
+            val vb = (v.coerceIn(0f, 1f) * 255f).roundToInt()
+            val row = (0xFF shl 24) or (vb shl 8) or (if (isD) 255 else 0)
+            for (x in 0 until lw) b[y * lw + x] = row
+        }
+        fun put(g: GlyphNM, ox: Int, oy: Int) {
+            for (y in 0 until g.h) {
+                val yy = oy + y
+                if (yy < 0 || yy >= lh) continue
+                for (x in 0 until g.w) {
+                    val xx = ox + x
+                    if (xx < 0 || xx >= lw) continue
+                    val s = y * g.w + x
+                    val cv = g.cov[s].toInt() and 0xff
+                    if (cv == 0) continue
+                    val d = yy * lw + xx
+                    if (cv <= (b[d] ushr 16 and 0xff)) continue
+                    a[d] = (0xFF shl 24) or ((g.nx[s].toInt() and 0xff) shl 16) or ((g.ny[s].toInt() and 0xff) shl 8) or (g.ht[s].toInt() and 0xff)
+                    b[d] = (b[d] and 0xFF00FFFF.toInt()) or (cv shl 16)
+                }
+            }
+        }
+        for (p in L.time) { val g = glyphNM(p.ch, L.big, false); put(g, (L.tx + p.x).roundToInt() - g.pad, L.m - g.pad) }
+        for (p in L.date) { val g = glyphNM(p.ch, L.small, true); put(g, (L.dx0 + p.x).roundToInt() - g.pad, dTop - g.pad) }
+        // Abstand jedes freien Pixels zur nächsten Ziffer (statt der Fasenhöhe, die der Shader nicht braucht)
+        val free = BooleanArray(lw * lh) { (b[it] ushr 16 and 0xff) == 0 }
+        val dist = edt(free, lw, lh)
+        for (i in 0 until lw * lh) {
+            val d = if (dist[i] >= 255f) 255 else ceil(dist[i]).toInt()
+            a[i] = (a[i] and 0xFFFFFF00.toInt()) or d
+        }
+        return NormalMap(lw, lh, a, b).also { nm = it }
+    }
+
+    /** Fase eines Zeichens: exakter Abstand zum Rand (Felzenszwalb), Normale aus dem Gefälle, 3- bzw. 4-fach abgetastet. */
+    private fun glyphNM(ch: Char, hPx: Int, flat: Boolean): GlyphNM {
+        val key = "$ch|$hPx|$flat"
+        nmCache[key]?.let { return it }
+        val g = glyph(ch)
+        val u = hPx / GH
+        val ss = if (hPx > 60) 3 else 4
+        val pad = 2
+        val w = max(1, ceil(g.w * u + pad * 2).toInt())
+        val h = max(1, ceil(hPx + pad * 2f).toInt())
+        val nx = ByteArray(w * h); val ny = ByteArray(w * h); val ht = ByteArray(w * h); val cov = ByteArray(w * h)
+        val res = GlyphNM(w, h, pad, nx, ny, ht, cov)
+        nmCache[key] = res
+        if (g.polys.isEmpty()) return res
+        val w2 = w * ss
+        val h2 = h * ss
+        val bmp = Bitmap.createBitmap(w2, h2, Bitmap.Config.ARGB_8888)
+        val path = Path()
+        for (poly in g.polys) {
+            path.moveTo((pad + poly[0][0] * u) * ss, (pad + poly[0][1] * u) * ss)
+            for (i in 1 until poly.size) path.lineTo((pad + poly[i][0] * u) * ss, (pad + poly[i][1] * u) * ss)
+            path.close()
+        }
+        Canvas(bmp).drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        val px = IntArray(w2 * h2)
+        bmp.getPixels(px, 0, w2, 0, 0, w2, h2)
+        bmp.recycle()
+        val ins = BooleanArray(w2 * h2) { (px[it] ushr 24) > 127 }
+        val dist = edt(ins, w2, h2)
+        val bev = (if (flat) max(1f, hPx * 0.06f) else max(1.4f, hPx * 0.042f)) * ss
+        val k = (BEVEL_SLOPE / sqrt(1 + BEVEL_SLOPE * BEVEL_SLOPE)).toFloat()
+        for (yy in 0 until h) for (xx in 0 until w) {
+            var sx0 = 0f; var sy0 = 0f; var hs = 0f; var c = 0
+            for (sy in 0 until ss) for (sx in 0 until ss) {
+                val X = xx * ss + sx
+                val Y = yy * ss + sy
+                val i = Y * w2 + X
+                if (!ins[i]) continue
+                c++
+                val dd = dist[i] - 0.5f
+                if (dd < bev) {
+                    val dl = if (X > 0) dist[i - 1] else 0f
+                    val dr = if (X < w2 - 1) dist[i + 1] else 0f
+                    val du = if (Y > 0) dist[i - w2] else 0f
+                    val dn = if (Y < h2 - 1) dist[i + w2] else 0f
+                    val gx = (dr - dl) / 2f
+                    val gy = (dn - du) / 2f
+                    val gl = sqrt(gx * gx + gy * gy).let { if (it > 0f) it else 1f }
+                    sx0 -= gx / gl * k; sy0 -= gy / gl * k
+                    hs += max(0f, dd) / bev
+                } else hs += 1f
+            }
+            if (c == 0) continue
+            val o = yy * w + xx
+            nx[o] = (128 + sx0 / c * 127).roundToInt().coerceIn(0, 255).toByte()
+            ny[o] = (128 + sy0 / c * 127).roundToInt().coerceIn(0, 255).toByte()
+            ht[o] = (hs / c * 255).roundToInt().coerceIn(0, 255).toByte()
+            cov[o] = (c * 255f / (ss * ss)).roundToInt().coerceIn(0, 255).toByte()
+        }
+        return res
+    }
+
     private class Finish(
         val face: IntArray, val facePos: FloatArray, val lit: Int, val mid: Int, val shade: Int,
         val side0: Int, val side1: Int, val date: Int, val neon: Int = 0
@@ -342,6 +487,47 @@ class ClockFace {
     companion object {
         /** Index der Oberfläche „Weiß wie das Original“ (Voreinstellung). */
         const val WHITE = 7
+        /** Steilheit der Fase (1 = 45°). */
+        private const val BEVEL_SLOPE = 1.25
+
+        /** Abstand jedes Innenpixels zum nächsten Außenpixel in Pixeln (exakt, Felzenszwalb & Huttenlocher). */
+        fun edt(inside: BooleanArray, w: Int, h: Int): FloatArray {
+            val n = max(w, h)
+            val f = DoubleArray(n); val d = DoubleArray(n); val v = IntArray(n); val z = DoubleArray(n + 1)
+            val g = DoubleArray(w * h)
+            val out = FloatArray(w * h)
+            for (x in 0 until w) {
+                for (y in 0 until h) f[y] = if (inside[y * w + x]) 1e20 else 0.0
+                edt1(f, h, d, v, z)
+                for (y in 0 until h) g[y * w + x] = d[y]
+            }
+            for (y in 0 until h) {
+                for (x in 0 until w) f[x] = g[y * w + x]
+                edt1(f, w, d, v, z)
+                for (x in 0 until w) out[y * w + x] = sqrt(d[x]).toFloat()
+            }
+            return out
+        }
+
+        private fun edt1(f: DoubleArray, n: Int, d: DoubleArray, v: IntArray, z: DoubleArray) {
+            var k = 0
+            v[0] = 0; z[0] = -1e20; z[1] = 1e20
+            for (q in 1 until n) {
+                var s = ((f[q] + q.toDouble() * q) - (f[v[k]] + v[k].toDouble() * v[k])) / (2.0 * q - 2.0 * v[k])
+                while (s <= z[k]) {
+                    k--
+                    s = ((f[q] + q.toDouble() * q) - (f[v[k]] + v[k].toDouble() * v[k])) / (2.0 * q - 2.0 * v[k])
+                }
+                k++
+                v[k] = q; z[k] = s; z[k + 1] = 1e20
+            }
+            k = 0
+            for (q in 0 until n) {
+                while (z[k + 1] < q) k++
+                val dq = (q - v[k]).toDouble()
+                d[q] = dq * dq + f[v[k]]
+            }
+        }
 
         // Raster der Schrift: Zeichenhöhe GH, Balkenbreite BW, Lücke GAP, Zellenbreite CW, Fase CH
         private const val GH = 153f

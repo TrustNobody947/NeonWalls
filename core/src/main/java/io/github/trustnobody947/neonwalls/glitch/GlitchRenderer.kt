@@ -10,9 +10,11 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import io.github.trustnobody947.neonwalls.uhr.Clock3D
 import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import java.util.Random
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.max
@@ -25,8 +27,11 @@ import kotlin.math.round
  * Die Risse ([Cracks]) laufen von einer Aufschlagstelle quer übers Bild und teilen das Display in Bruchstücke:
  * Die Streifen werden genau entlang der Risse ausgeschnitten, jedes Stück ist etwas versetzt und flackert für sich.
  * Die Risse selbst: dunkle Bruchkante mit weich schwankendem Glanz, am Aufschlag Splitter.
- * Optional liegt die Schablonen-Uhr im Bild: Ein Riss läuft durch die Ziffern, die Uhr zerfällt dort in versetzte
- * Stücke und glitcht nur dort, wo gerade auch die Streifen glitchen.
+ * Die Streifen stehen in fester Reihenfolge und können mit der Zeit oder mit sinkendem Akku mehr werden; unter dem
+ * Finger flackern sie, dazu kurze Druckstreifen.
+ * Optional liegt die Schablonen-Uhr im Bild – auf neueren Handys aus Metall in 3D ([Clock3D]): Beim Neigen wandert
+ * sie etwas mit und die Spiegelung wandert. Ein Riss läuft durch die Ziffern, die Uhr zerfällt dort in versetzte
+ * Stücke und glitcht nur dort, wo gerade auch die Streifen glitchen. Die kaputten Streifen laufen über die Uhr.
  * Gleiche Logik wie die Vorschau vorschau/quellen/effects/brokenscreen.js.
  */
 class GlitchRenderer(private val density: Float) {
@@ -45,7 +50,39 @@ class GlitchRenderer(private val density: Float) {
     /** Wird bei jedem großen Glitch-Ausbruch über das ganze Bild aufgerufen (für „Risse wechseln bei Glitches“). */
     var onBigBurst: (() -> Unit)? = null
 
-    private var count = 30
+    // Anzahl Streifen: von – bis; mehr mit der Zeit (Durchgang ab growStart, Uhrzeit in ms) oder mit sinkendem Akku
+    var countFrom = 30
+    var countTo = 30
+    var growTime = false
+    var growHours = 6
+    var growStart = 0L
+    var growBatt = false
+    /** Akkustand 0..1. */
+    var battery = 1f
+    /** Ende des Durchgangs nach dem großen Glitch: neues Muster und neue Startzeit festhalten (sonst nur hier). */
+    var onGrowRestart: (() -> Unit)? = null
+    /** Glitch unter dem Finger. */
+    var touchFx = true
+
+    /** Metall-Uhr in 3D (null = Gerät kann es nicht, dann die bisherige Uhr). */
+    var metal: Clock3D? = null
+    /** Stärke des 3D-Effekts 0..10. */
+    var d3 = 5
+    private var tiltTX = 0f
+    private var tiltTY = 0f
+    private var tiltX = 0f
+    private var tiltY = 0f
+
+    /** Neigung vom Sensor (−1..1), wird weich nachgezogen. */
+    fun setTilt(x: Float, y: Float) {
+        tiltTX = x
+        tiltTY = y
+    }
+
+    /** Aktuell sichtbare Anzahl Streifen (für die Anzeige in den Einstellungen). */
+    var shownCount = 0
+        private set
+
     private var seed = 0L
 
     // Risse
@@ -91,12 +128,15 @@ class GlitchRenderer(private val density: Float) {
     private fun p(rate: Float) = 1f - exp(-rate * dt)
 
     private val lines = ArrayList<Line>()
+    private val pool = ArrayList<Line>()
+    private var poolFresh = true
 
     // Glitch-Ausbrüche
     private var burstT = 0f
     private var nextBurst = 6f
     private var burstZone = ZONE_ALL
     private var burstPow = 1f
+    private var pendingRestart = false
 
     /** Zustand eines Streifens in einem Bruchstück; drawn/a/c/x/fl* gelten für das aktuelle Bild. */
     class Zone {
@@ -136,23 +176,24 @@ class GlitchRenderer(private val density: Float) {
         var vis = false
         var a = 0f
         var cx = 0f
+        /** Zeitpunkt des Erscheinens (für das kurze Aufblitzen), −1 = schon immer da. */
+        var born = -1f
     }
 
     // ---------- Einstellungen / Muster ----------
 
-    fun configure(calm: Int, burst: Int, count: Int, shear: Int, seed: Long) {
+    fun configure(calm: Int, burst: Int, shear: Int, seed: Long) {
         this.calm = calm
-        if (burst != this.burst || lines.isEmpty()) {
+        if (burst != this.burst || pool.isEmpty()) {
             // Regler geändert: nächsten Ausbruch neu planen, damit "seltener" sofort wirkt
             this.burst = burst
             burstT = 0f
             nextBurst = scheduleBurst(burst / 10f)
         }
         this.shearAmt = shear
-        if (count != this.count || seed != this.seed || lines.isEmpty()) {
-            this.count = count
+        if (seed != this.seed || pool.isEmpty()) {
             this.seed = seed
-            buildLines(Random(seed))
+            buildPool(seed)
         }
     }
 
@@ -186,29 +227,69 @@ class GlitchRenderer(private val density: Float) {
         )
     }
 
-    /** Nur die Streifen neu (Risse bleiben). */
-    private fun buildLines(pr: Random) {
+    /**
+     * Vorrat an Streifen in fester Reihenfolge (gleicher Zufallswert = gleiche Streifen). Sichtbar sind immer die
+     * ersten n: Kommen Streifen dazu, bleiben die vorhandenen, wie sie sind (das Display geht weiter kaputt).
+     */
+    private fun buildPool(seed: Long) {
+        val pr = Random(seed)
         fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
+        pool.clear()
         lines.clear()
         // Cluster wie bei echtem Displayschaden
         val nCl = 2 + pr.nextInt(3)
         val cc = FloatArray(nCl) { p(0.1f, 0.95f) }
-        val cs = FloatArray(nCl) { p(0.03f, 0.12f) }
-        repeat(count) {
-            val x = if (pr.nextFloat() < 0.65f) {
-                val k = pr.nextInt(nCl)
-                cc[k] + (pr.nextFloat() - 0.5f) * 2f * cs[k]
-            } else pr.nextFloat()
-            lines.add(makeLine(pr, x.coerceIn(0.005f, 0.995f)))
+        val csp = FloatArray(nCl) { p(0.03f, 0.12f) }
+        for (i in 0 until POOL) {
+            val l: Line
+            if (i >= 3 && pr.nextFloat() < 0.107f) {
+                // Doppellinie dicht neben einem schon vorhandenen Streifen
+                val p0 = pool[pr.nextInt(i)]
+                l = makeLine(pr, (p0.x + p(0.004f, 0.01f)).coerceAtMost(0.995f))
+                l.col = PAL[pr.nextInt(PAL.size)]
+            } else {
+                val x = if (pr.nextFloat() < 0.65f) {
+                    val k = pr.nextInt(nCl)
+                    cc[k] + (pr.nextFloat() - 0.5f) * 2f * csp[k]
+                } else pr.nextFloat()
+                l = makeLine(pr, x.coerceIn(0.005f, 0.995f))
+            }
+            pool.add(l)
         }
-        // Doppellinien, Anzahl wächst mit
-        repeat(Math.round(count * 0.12f)) {
-            val l = lines[pr.nextInt(lines.size)]
-            val n = makeLine(pr, (l.x + p(0.004f, 0.01f)).coerceAtMost(0.995f))
-            n.col = PAL[pr.nextInt(PAL.size)]
-            lines.add(n)
-        }
+        poolFresh = true
     }
+
+    /** Sichtbare Streifen an die gewünschte Zahl anpassen; neue blitzen beim Erscheinen kurz auf. */
+    private fun setVisible(n: Int) {
+        shownCount = n
+        val birth = !poolFresh
+        poolFresh = false
+        val total = min(pool.size, max(1, Math.round(n * 1.12f)))
+        while (lines.size < total) {
+            val l = pool[lines.size]
+            l.off = 0f; l.flash = 0f; l.fragOn = false; l.keep = null
+            l.zones = Array(nR) { Zone() }
+            l.mask = BooleanArray(nR) { true }
+            l.born = if (birth) t else -1f
+            lines.add(l)
+        }
+        while (lines.size > total) lines.removeAt(lines.size - 1)
+    }
+
+    private fun growFrac(now: Long): Float {
+        var f = 0f
+        if (growTime && growStart > 0L) f = max(f, ((now - growStart) / (growHours * 3_600_000f)).coerceIn(0f, 1f))
+        // voller Akku = „von“, kurz vor leer (5 %) = „bis“
+        if (growBatt) f = max(f, ((1f - battery) / 0.95f).coerceIn(0f, 1f))
+        return f
+    }
+
+    fun targetCount(now: Long): Int =
+        if (growTime || growBatt) Math.round(countFrom + (countTo - countFrom) * growFrac(now)) else countFrom
+
+    /** Restzeit bis zum Neustart in ms (−1 = ohne Zeit). */
+    fun growRemainingMs(now: Long): Long =
+        if (growTime && growStart > 0L) max(0L, growHours * 3_600_000L - (now - growStart)) else -1L
 
     // ---------- Risse bauen und einmal in ein Bild zeichnen ----------
 
@@ -269,7 +350,9 @@ class GlitchRenderer(private val density: Float) {
             l.keep = null
             l.fragOn = false
         }
+        for (q in pressLines) q.zone.ivX = Float.NaN
         clockLayerSeen = null
+        regMapKey = ""
     }
 
     /** Welche Bruchstücke liegen im Bereich der Uhr? (neu, wenn sich das Bild der Uhr ändert) */
@@ -277,6 +360,7 @@ class GlitchRenderer(private val density: Float) {
         val ck = clock
         val layer = ck?.layer
         clockLayerSeen = layer
+        regMapKey = ""
         val set = cs ?: return
         for (i in 0 until nR) {
             regClock[i] = false
@@ -410,6 +494,87 @@ class GlitchRenderer(private val density: Float) {
 
     private fun jit() = if (burstT > 0f && chance(0.3f)) r(0.6f, 1.8f) else 1f
 
+    // ---------- Finger auf dem Glas ----------
+
+    private class Touch(var x: Float, var y: Float, var up: Float)
+    private class Press(val x: Float, val ri: Int, val k: Float)
+    private class PressLine(val line: Line, val ri: Int, var life: Float, val col: Int) {
+        val zone = Zone()
+    }
+
+    private val touches = HashMap<Int, Touch>()
+    private val presses = ArrayList<Press>()
+    private val pressLines = ArrayList<PressLine>()
+
+    /** Finger auf dem Glas (Bildschirmpixel). up = false: liegt oder bewegt sich, true: losgelassen. */
+    fun touch(id: Int, x: Float, y: Float, up: Boolean) {
+        val p = touches[id]
+        if (up) {
+            if (p != null && p.up < 0f) p.up = t
+            return
+        }
+        if (p != null && p.up < 0f) {
+            p.x = x
+            p.y = y
+        } else touches[id] = Touch(x, y, -1f)
+    }
+
+    /** Alle Finger weg (z. B. Berührung abgebrochen). */
+    fun touchEnd() {
+        for (p in touches.values) if (p.up < 0f) p.up = t
+    }
+
+    private fun gauss() = (rnd.nextFloat() + rnd.nextFloat() + rnd.nextFloat() - 1.5f) * 1.15f
+
+    private fun inPoly(poly: FloatArray, x: Float, y: Float): Boolean {
+        var inside = false
+        val n = poly.size / 2
+        var j = n - 1
+        for (i in 0 until n) {
+            val ax = poly[2 * i]; val ay = poly[2 * i + 1]; val bx = poly[2 * j]; val by = poly[2 * j + 1]
+            if ((ay > y) != (by > y) && x < (bx - ax) * (y - ay) / (by - ay) + ax) inside = !inside
+            j = i
+        }
+        return inside
+    }
+
+    private fun regionAt(x: Float, y: Float): Int {
+        if (cs == null) return 0
+        for (i in 0 until nR) {
+            val poly = regPoly[i] ?: continue
+            if (inPoly(poly, x, y)) return i
+        }
+        return -1
+    }
+
+    private fun updatePresses() {
+        presses.clear()
+        if (!touchFx) {
+            touches.clear()
+            pressLines.clear()
+            return
+        }
+        val it = touches.values.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
+            val age = if (p.up >= 0f) t - p.up else 0f
+            if (age > 0.3f) { it.remove(); continue }
+            val ri = regionAt(p.x, p.y)
+            presses.add(Press(p.x, ri, 1f - age / 0.3f))
+            // Druckstreifen: unter dem Finger tauchen kurz neue Linien auf
+            if (p.up < 0f && chance(p(14f)) && pressLines.size < 24) {
+                val l = makeLine(rnd, ((p.x + gauss() * 9f * density) / w).coerceIn(0.002f, 0.998f))
+                pressLines.add(PressLine(l, ri, r(0.08f, 0.45f), if (chance(0.5f)) pickCol() else l.col))
+            }
+        }
+        val pit = pressLines.iterator()
+        while (pit.hasNext()) {
+            val q = pit.next()
+            q.life -= dt
+            if (q.life <= 0f) pit.remove()
+        }
+    }
+
     // ---------- Streifen ----------
 
     private val add = PorterDuffXfermode(PorterDuff.Mode.ADD)
@@ -462,7 +627,7 @@ class GlitchRenderer(private val density: Float) {
         }
     }
 
-    /** Zustand aller Streifen für dieses Bild: Ausfälle, Farbblitze, Versatz je Bruchstück. */
+    /** Zustand aller Streifen für dieses Bild: Ausfälle, Farbblitze, Versatz je Bruchstück, Finger. */
     private fun stripeStates(bursting: Boolean) {
         val multi = nR > 1
         for (l in lines) {
@@ -533,7 +698,7 @@ class GlitchRenderer(private val density: Float) {
                 z.drawn = false
                 z.fl = false
                 if (!l.vis) continue
-                val x = l.cx + dx
+                var x = l.cx + dx
                 if (x < lo || x > hi) continue
                 val keep = l.keep
                 if (l.fragOn && keep != null && !keep[ri]) continue
@@ -564,6 +729,20 @@ class GlitchRenderer(private val density: Float) {
                     a = if (chance(0.5f)) r(1f, 1.6f) else r(0.05f, 0.3f)
                     cc = z.col
                     z.fl = true; z.flCol = cc; z.flW = z.bw; z.flDx = z.bdx
+                }
+                // gerade erst aufgetaucht: kurz hell aufblitzen
+                if (l.born >= 0f && t - l.born < 0.45f) {
+                    a = if (chance(0.6f)) r(1f, 1.6f) else r(0.1f, 0.4f)
+                    if (chance(0.3f)) cc = pickCol()
+                }
+                // Finger auf diesem Bruchstück, genau über dem Streifen
+                for (pr in presses) {
+                    if ((multi && pr.ri != ri) || abs(x - pr.x) > (16f + l.w * 4f) * density) continue
+                    a = if (chance(0.5f)) r(0.9f, 1.6f) else r(0.05f, 0.5f)
+                    if (chance(0.4f)) cc = pickCol()
+                    x += r(-1.5f, 1.5f) * density * pr.k
+                    z.fl = true; z.flCol = cc; z.flW = r(4f, 14f) * density; z.flDx = r(-4f, 4f) * density
+                    break
                 }
                 z.drawn = true
                 z.a = a.coerceIn(0f, 1f)
@@ -630,6 +809,22 @@ class GlitchRenderer(private val density: Float) {
                     if (chance(0.2f)) drawSeg(c, l, z.x, l.fragY - r(10f, 60f) * density, l.fragY - r(2f, 8f) * density, z.a * 0.7f, z.c)
                 } else drawSeg(c, l, z.x, 0f, h, z.a, z.c)
             }
+            // Druckstreifen unter dem Finger, nur in diesem Bruchstück
+            for (q in pressLines) {
+                if (cs != null && q.ri != ri) continue
+                val col = if (chance(0.2f)) pickCol() else q.col
+                val x = q.line.x * w
+                if (poly != null) {
+                    val z = q.zone
+                    z.x = x
+                    if (z.ivX != x) stripeIntervals(z, q.line, poly)
+                    var k = 0
+                    while (k + 1 < z.ivN) {
+                        drawSeg(c, q.line, x, z.iv[k], z.iv[k + 1], r(0.3f, 1f), col)
+                        k += 2
+                    }
+                } else drawSeg(c, q.line, x, 0f, h, r(0.3f, 1f), col)
+            }
         }
         // während Ausbrüchen tauchen kurz neue Streifen auf
         if (bursting && chance(0.35f)) {
@@ -670,8 +865,29 @@ class GlitchRenderer(private val density: Float) {
         return if (c < 1f / 3f) ZONE_TOP else if (c > 2f / 3f) ZONE_BOTTOM else ZONE_MID
     }
 
+    /** Glitch-Zustand eines Uhr-Stücks fortschreiben. false = Stück ist gerade aus. */
+    private fun stepClockZone(z: ClockZone, zone: Int): Boolean {
+        // Die Uhr glitcht als Ganzes nur bei einem Ausbruch in ihrem Bereich
+        val sb = burstT > 0f && (burstZone == ZONE_ALL || burstZone == zone)
+        if (z.off > 0f) {
+            z.off -= dt
+            if (z.off > 0f) return false
+        } else if (sb && chance(0.02f * burstPow)) {
+            z.off = r(0.04f, 0.3f)
+            return false
+        }
+        if (z.flash > 0f) z.flash -= dt
+        else if (sb && chance(0.18f * burstPow)) { z.flash = r(0.03f, 0.15f); z.col = pickCol() }
+        if (z.split > 0f) z.split -= dt
+        else if (sb && chance(0.12f * burstPow)) { z.split = r(0.04f, 0.22f); z.sx = r(2f, 7f) * density * (if (chance(0.5f)) -1f else 1f) }
+        if (z.slice > 0f) z.slice -= dt
+        else if (sb && chance(0.05f * burstPow)) z.slice = r(0.05f, 0.2f)
+        if (z.flT <= 0f) { z.flT = r(0.03f, 0.09f); z.fl = 1f - calmF * r(0f, 0.22f) } else z.flT -= dt
+        return true
+    }
+
     // Fertig ausgeschnittene Stücke der Uhr (versetzt wie im Bild), neu nur wenn sich Uhr, Risse oder Versatz ändern.
-    // So muss nicht in jedem Bild entlang der Risse ausgeschnitten werden.
+    // So muss nicht in jedem Bild entlang der Risse ausgeschnitten werden (Uhr ohne 3D).
     private var pieceBmp: Array<Bitmap?> = arrayOf()
     private var pieceX = FloatArray(0)
     private var pieceY = FloatArray(0)
@@ -696,8 +912,8 @@ class GlitchRenderer(private val density: Float) {
             val ly = ck.y + round(abs(regS[i]) * k * 0.12f * density)
             val bx0 = floor(max(regX0[i], lx)).toInt()
             val by0 = floor(max(regY0[i], ly)).toInt()
-            val bx1 = kotlin.math.ceil(min(regX1[i], lx + layer.width)).toInt()
-            val by1 = kotlin.math.ceil(min(regY1[i], ly + layer.height)).toInt()
+            val bx1 = ceil(min(regX1[i], lx + layer.width)).toInt()
+            val by1 = ceil(min(regY1[i], ly + layer.height)).toInt()
             if (bx1 - bx0 < 1 || by1 - by0 < 1) continue
             try {
                 val b = Bitmap.createBitmap(bx1 - bx0, by1 - by0, Bitmap.Config.ARGB_8888)
@@ -718,6 +934,9 @@ class GlitchRenderer(private val density: Float) {
         val ck = clock ?: return
         val layer = ck.layer ?: return
         if (clockAlpha <= 0.01f) return
+        val m = metal
+        // Shader nur auf der Grafikkarte (ohne sie die Uhr wie bisher)
+        if (m != null && c.isHardwareAccelerated && draw3D(c, ck, layer, m)) return
         var pieces = 0
         if (cs != null && clockCrack > 0) for (i in 0 until nR) if (regClock[i]) pieces++
         if (pieces < 2) drawClockPiece(c, ck, layer, -1)
@@ -727,28 +946,13 @@ class GlitchRenderer(private val density: Float) {
         }
     }
 
-    /** Ein Stück der Uhr (ri = −1: die ganze Uhr). */
+    /** Ein Stück der Uhr ohne 3D (ri = −1: die ganze Uhr). */
     private fun drawClockPiece(c: Canvas, ck: ClockFace, layer: Bitmap, ri: Int) {
         val lw = layer.width
         val lh = layer.height
         val z = czones[if (ri < 0) nR else ri]
         val zone = if (ri < 0) clockZoneOf(ck, lh) else regZone[ri]
-        // Die Uhr glitcht als Ganzes nur bei einem Ausbruch in ihrem Bereich
-        val sb = burstT > 0f && (burstZone == ZONE_ALL || burstZone == zone)
-        if (z.off > 0f) {
-            z.off -= dt
-            if (z.off > 0f) return
-        } else if (sb && chance(0.02f * burstPow)) {
-            z.off = r(0.04f, 0.3f)
-            return
-        }
-        if (z.flash > 0f) z.flash -= dt
-        else if (sb && chance(0.18f * burstPow)) { z.flash = r(0.03f, 0.15f); z.col = pickCol() }
-        if (z.split > 0f) z.split -= dt
-        else if (sb && chance(0.12f * burstPow)) { z.split = r(0.04f, 0.22f); z.sx = r(2f, 7f) * density * (if (chance(0.5f)) -1f else 1f) }
-        if (z.slice > 0f) z.slice -= dt
-        else if (sb && chance(0.05f * burstPow)) z.slice = r(0.05f, 0.2f)
-        if (z.flT <= 0f) { z.flT = r(0.03f, 0.09f); z.fl = 1f - calmF * r(0f, 0.22f) } else z.flT -= dt
+        if (!stepClockZone(z, zone)) return
 
         // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
         val k = if (ri >= 0) clockCrack else 0
@@ -764,27 +968,7 @@ class GlitchRenderer(private val density: Float) {
         if (piece != null) {
             clockPaint.alpha = a
             c.drawBitmap(piece, pieceX[ri], pieceY[ri], clockPaint)
-        } else if (z.split > 0f) {
-            // Farbkanäle auseinander
-            chPaint[0].alpha = a; c.drawBitmap(layer, x + z.sx, y, chPaint[0])
-            chPaint[1].alpha = a; c.drawBitmap(layer, x, y, chPaint[1])
-            chPaint[2].alpha = a; c.drawBitmap(layer, x - z.sx, y, chPaint[2])
-        } else if (z.slice > 0f) {
-            // waagerechte Streifen verrutschen
-            val n = 3 + rnd.nextInt(4)
-            clockPaint.alpha = a
-            for (sI in 0 until n) {
-                val sy = (lh * sI / n)
-                val sh = kotlin.math.ceil(lh / n.toFloat()).toInt()
-                val dx = r(-1f, 1f) * 10f * density
-                srcR.set(0, sy, lw, min(lh, sy + sh))
-                dstR.set((x + dx).toInt(), (y + sy).toInt(), (x + dx + lw).toInt(), (y + sy + sh).toInt())
-                c.drawBitmap(layer, srcR, dstR, clockPaint)
-            }
-        } else {
-            clockPaint.alpha = a
-            c.drawBitmap(layer, x, y, clockPaint)
-        }
+        } else drawStaticEffects(c, layer, z, x, y, a)
         if (z.flash > 0f) {
             tintPaint.colorFilter = tint(z.col)
             tintPaint.alpha = (0.75f * a).toInt()
@@ -806,15 +990,227 @@ class GlitchRenderer(private val density: Float) {
                 // nur der schmale Streifen wird am Riss ausgeschnitten (billig)
                 if (ri >= 0 && !clipped) regPath[ri]?.let { c.clipPath(it) }
                 c.drawRect(zz.x - half, y, zz.x + half, y + lh, blackPaint)
-                clockPaint.alpha = a
-                c.drawBitmap(layer, x + zz.flDx, y, clockPaint)
-                bandPaint.colorFilter = tint(zz.flCol)
-                bandPaint.alpha = (0.55f * a).toInt()
-                c.drawBitmap(layer, x + zz.flDx, y, bandPaint)
+                drawBand(c, layer, x + zz.flDx, y, a, zz.flCol)
                 c.restore()
             }
         }
         c.restore()
+    }
+
+    /** Uhr als Bild: Farbkanäle auseinander, verrutschte Zeilen oder ruhig. */
+    private fun drawStaticEffects(c: Canvas, layer: Bitmap, z: ClockZone, x: Float, y: Float, a: Int) {
+        val lw = layer.width
+        val lh = layer.height
+        if (z.split > 0f) {
+            chPaint[0].alpha = a; c.drawBitmap(layer, x + z.sx, y, chPaint[0])
+            chPaint[1].alpha = a; c.drawBitmap(layer, x, y, chPaint[1])
+            chPaint[2].alpha = a; c.drawBitmap(layer, x - z.sx, y, chPaint[2])
+        } else if (z.slice > 0f) {
+            val n = 3 + rnd.nextInt(4)
+            clockPaint.alpha = a
+            for (sI in 0 until n) {
+                val sy = (lh * sI / n)
+                val sh = ceil(lh / n.toFloat()).toInt()
+                val dx = r(-1f, 1f) * 10f * density
+                srcR.set(0, sy, lw, min(lh, sy + sh))
+                dstR.set((x + dx).toInt(), (y + sy).toInt(), (x + dx + lw).toInt(), (y + sy + sh).toInt())
+                c.drawBitmap(layer, srcR, dstR, clockPaint)
+            }
+        } else {
+            clockPaint.alpha = a
+            c.drawBitmap(layer, x, y, clockPaint)
+        }
+    }
+
+    /** In einem Band (Ausschnitt schon gesetzt): Uhr verrutscht und in der Farbe des glitchenden Streifens. */
+    private fun drawBand(c: Canvas, layer: Bitmap, x: Float, y: Float, a: Int, col: Int) {
+        clockPaint.alpha = a
+        c.drawBitmap(layer, x, y, clockPaint)
+        bandPaint.colorFilter = tint(col)
+        bandPaint.alpha = (0.55f * a).toInt()
+        c.drawBitmap(layer, x, y, bandPaint)
+    }
+
+    // ---------- Uhr in 3D (Metall, Neigung) ----------
+
+    private var regMap: Bitmap? = null
+    private var regMapKey = ""
+    private var regMapX = 0f
+    private var regMapY = 0f
+    private var nPieces = 0
+    private val pieceRegion = IntArray(Clock3D.MAX_PIECES)
+    private val pOff = FloatArray(Clock3D.MAX_PIECES * 2)
+    private val pAlpha = FloatArray(Clock3D.MAX_PIECES)
+    private val pTint = FloatArray(Clock3D.MAX_PIECES * 4)
+    private val pBand = FloatArray(Clock3D.MAX_BANDS * 4)
+    private val pDx = FloatArray(Clock3D.MAX_PIECES)
+    private val pDy = FloatArray(Clock3D.MAX_PIECES)
+    private val pTransient = BooleanArray(Clock3D.MAX_PIECES)
+    private val pVisible = BooleanArray(Clock3D.MAX_PIECES)
+    // Bänder glitchender Streifen über der Uhr: Stück, x0, x1, Verschiebung, Farbe
+    private var nBands = 0
+    private val bPiece = IntArray(Clock3D.MAX_BANDS)
+    private val bX0 = FloatArray(Clock3D.MAX_BANDS)
+    private val bX1 = FloatArray(Clock3D.MAX_BANDS)
+    private val bDx = FloatArray(Clock3D.MAX_BANDS)
+    private val bCol = IntArray(Clock3D.MAX_BANDS)
+
+    /** Karte der Bruchstücke rund um die Uhr (fest auf dem Bildschirm, die Uhr wandert darunter). */
+    private fun updateRegionMap(ck: ClockFace, layer: Bitmap, m: Clock3D, margin: Int) {
+        val key = "${System.identityHashCode(cs)}|${ck.x}|${ck.y}|${layer.width}|${layer.height}|$clockCrack|$margin|$nR"
+        if (key == regMapKey && regMap != null) return
+        regMapKey = key
+        nPieces = 0
+        if (cs != null && clockCrack > 0) {
+            var cnt = 0
+            for (i in 0 until nR) if (regClock[i]) cnt++
+            if (cnt >= 2) for (i in 0 until nR) if (regClock[i] && nPieces < Clock3D.MAX_PIECES) pieceRegion[nPieces++] = i
+        }
+        val map: Bitmap
+        if (nPieces == 0) {
+            // ganze Uhr: überall Stück 1
+            map = Bitmap.createBitmap(intArrayOf(Color.rgb(1, 0, 0)), 1, 1, Bitmap.Config.ARGB_8888)
+            regMapX = -1e6f
+            regMapY = -1e6f
+        } else {
+            val mx = (ck.x - margin).toInt()
+            val my = (ck.y - margin).toInt()
+            val mw = layer.width + 2 * margin
+            val mh = layer.height + 2 * margin
+            map = Bitmap.createBitmap(mw, mh, Bitmap.Config.ARGB_8888)
+            val c = Canvas(map)
+            c.drawColor(Color.BLACK)
+            c.translate(-mx.toFloat(), -my.toFloat())
+            val p = Paint()   // ohne Kantenglättung: genaue Nummern
+            for (k in 0 until nPieces) {
+                val path = regPath[pieceRegion[k]] ?: continue
+                p.color = Color.rgb(k + 1, 0, 0)
+                c.drawPath(path, p)
+            }
+            regMapX = mx.toFloat()
+            regMapY = my.toFloat()
+        }
+        regMap = map
+        m.setRegions(map)
+    }
+
+    /** Uhr aus Metall in 3D zeichnen. false = geht gerade nicht (dann die Uhr ohne 3D). */
+    private fun draw3D(c: Canvas, ck: ClockFace, layer: Bitmap, m: Clock3D): Boolean {
+        val big = max(12, ck.bigPx).toFloat()
+        val k3 = d3 / 10f
+        val tx = tiltX * k3
+        val ty = tiltY * k3
+        val amp = 12f * density
+        val pad = ceil(big * 0.07f + amp * 0.6f + 4f).toInt()
+        if (!m.setFace(ck, pad)) return false
+        updateRegionMap(ck, layer, m, pad + (amp + 24f * density).toInt())
+        // die Uhr liegt im Display, tiefer als die Streifen: sie wandert mit dem Blick (Parallax), ihr Sockel noch etwas
+        // mehr – so zeigen sich die Seitenwände der Ziffern auf der Seite, von der man schaut
+        val ox = amp * tx * 0.6f
+        val oy = amp * ty * 0.6f
+        val ix = floor(ox)
+        val iy = floor(oy)
+        val depth = max(1f, big * (0.026f + 0.04f * k3))
+        val clx = ck.x - pad + ix
+        val cly = ck.y - pad + iy
+        // Lage der ruhigen Ebene (für Effekte, die mit dem Bild der Uhr gezeichnet werden)
+        val sx = ck.x + ix
+        val sy = ck.y + iy
+        val alpha = (clockAlpha * 255f).toInt().coerceIn(0, 255)
+
+        // Zustand je Stück
+        val n = if (nPieces == 0) 1 else nPieces
+        for (k in 0 until Clock3D.MAX_PIECES) {
+            pAlpha[k] = 0f; pOff[2 * k] = 0f; pOff[2 * k + 1] = 0f
+            pTint[4 * k] = 0f; pTint[4 * k + 1] = 0f; pTint[4 * k + 2] = 0f; pTint[4 * k + 3] = 0f
+            pTransient[k] = false; pVisible[k] = false
+        }
+        for (k in 0 until n) {
+            val ri = if (nPieces == 0) -1 else pieceRegion[k]
+            val z = czones[if (ri < 0) nR else ri]
+            val zone = if (ri < 0) clockZoneOf(ck, layer.height) else regZone[ri]
+            if (!stepClockZone(z, zone)) continue
+            pVisible[k] = true
+            val kc = if (ri >= 0) clockCrack else 0
+            val jx = if (ri >= 0) jit() else 1f
+            pDx[k] = if (ri >= 0) round(regS[ri] * kc * 0.9f * density * jx) else 0f
+            pDy[k] = if (ri >= 0) round(abs(regS[ri]) * kc * 0.12f * density) else 0f
+            pOff[2 * k] = pDx[k]
+            pOff[2 * k + 1] = pDy[k]
+            // kurze Effekte (Farbkanäle, verrutschte Zeilen) zeichnet die ruhige Ebene; der Shader spart das Stück aus
+            pTransient[k] = z.split > 0f || z.slice > 0f
+            pAlpha[k] = if (pTransient[k]) 0f else z.fl
+            if (z.flash > 0f) {
+                pTint[4 * k] = Color.red(z.col) / 255f
+                pTint[4 * k + 1] = Color.green(z.col) / 255f
+                pTint[4 * k + 2] = Color.blue(z.col) / 255f
+                pTint[4 * k + 3] = 0.75f
+            }
+        }
+        // Bänder glitchender Streifen über der Uhr
+        nBands = 0
+        for (i in pBand.indices) pBand[i] = 0f
+        val lw = layer.width.toFloat()
+        for (k in 0 until n) {
+            if (!pVisible[k]) continue
+            val ri = if (nPieces == 0) -1 else pieceRegion[k]
+            val x0 = sx + pDx[k]
+            for (rj in 0 until nR) {
+                if (ri >= 0) { if (rj != ri) continue } else if (cs != null && !regClock[rj]) continue
+                for (l in lines) {
+                    if (nBands >= Clock3D.MAX_BANDS) break
+                    val zz = l.zones[rj]
+                    if (!zz.drawn || !zz.fl) continue
+                    val half = zz.flW / 2f
+                    if (zz.x + half < x0 || zz.x - half > x0 + lw) continue
+                    val b = nBands++
+                    bPiece[b] = k; bX0[b] = zz.x - half; bX1[b] = zz.x + half; bDx[b] = zz.flDx; bCol[b] = zz.flCol
+                    pBand[4 * b] = bX0[b] - clx
+                    pBand[4 * b + 1] = bX1[b] - clx
+                    pBand[4 * b + 2] = if (nPieces == 0) 0f else (k + 1).toFloat()
+                    pBand[4 * b + 3] = 1f
+                }
+            }
+        }
+        // Neon: der Schein kommt aus der ruhigen Ebene (Leuchtröhre darunter)
+        if (ck.neon != 0) {
+            tintPaint.colorFilter = null
+            tintPaint.alpha = (0.8f * alpha).toInt()
+            c.drawBitmap(layer, sx, sy, tintPaint)
+        }
+        m.setFrame(ck, tx, ty, amp * tx * 0.4f, depth + amp * ty * 0.4f, 0.3f, ox - ix, oy - iy, regMapX - clx, regMapY - cly)
+        m.setPieces(pOff, pAlpha, pTint, pBand)
+        m.draw(c, clx, cly, alpha)
+        // kurze Effekte mit der ruhigen Ebene
+        for (k in 0 until n) {
+            if (!pVisible[k] || !pTransient[k]) continue
+            val ri = if (nPieces == 0) -1 else pieceRegion[k]
+            val z = czones[if (ri < 0) nR else ri]
+            val a = (z.fl * clockAlpha * 255f).toInt().coerceIn(0, 255)
+            c.save()
+            if (ri >= 0) regPath[ri]?.let { c.clipPath(it) }
+            drawStaticEffects(c, layer, z, sx + pDx[k], sy + pDy[k], a)
+            if (z.flash > 0f) {
+                tintPaint.colorFilter = tint(z.col)
+                tintPaint.alpha = (0.75f * a).toInt()
+                c.drawBitmap(layer, sx + pDx[k], sy + pDy[k], tintPaint)
+            }
+            c.restore()
+        }
+        // in den Bändern: Uhr verrutscht und in der Farbe des Streifens
+        for (b in 0 until nBands) {
+            val k = bPiece[b]
+            val ri = if (nPieces == 0) -1 else pieceRegion[k]
+            val z = czones[if (ri < 0) nR else ri]
+            val a = (z.fl * clockAlpha * 255f).toInt().coerceIn(0, 255)
+            val y = sy + pDy[k]
+            c.save()
+            c.clipRect(bX0[b], y - 2f, bX1[b], y + layer.height + 2f)
+            if (ri >= 0) regPath[ri]?.let { c.clipPath(it) }
+            drawBand(c, layer, sx + pDx[k] + bDx[b], y, a, bCol[b])
+            c.restore()
+        }
+        return true
     }
 
     /** Ein Bild zeichnen. dtSeconds = Zeit seit dem letzten Bild. */
@@ -826,11 +1222,12 @@ class GlitchRenderer(private val density: Float) {
         calmF = calm / 10f
         val bur = burst.coerceAtLeast(0) / 10f
         g = if (bur > 0f) 0.02f + 0.98f * bur.pow(1.6f) else 0f
+        val now = System.currentTimeMillis()
 
         if (burstT > 0f) {
             burstT -= dt
             // Option: nach einem Ausbruch manchmal neue Streifen (Risse bleiben gleich)
-            if (burstT <= 0f && mutate && chance(0.5f)) buildLines(Random(rnd.nextLong()))
+            if (burstT <= 0f && mutate && chance(0.5f) && !pendingRestart) buildPool(rnd.nextLong())
         } else if (bur > 0f) {
             nextBurst -= dt
             if (nextBurst <= 0f) {
@@ -839,7 +1236,27 @@ class GlitchRenderer(private val density: Float) {
                 if (all) onBigBurst?.invoke()
             }
         }
+        // Mehr Streifen mit der Zeit: am Ende großer Glitch, danach geht es mit wenigen Streifen von vorn los
+        if (growTime && !pendingRestart && growStart > 0L && now - growStart >= growHours * 3_600_000L) {
+            pendingRestart = true
+            triggerBurst(ZONE_ALL)
+            burstT = r(1.4f, 2.2f)
+            burstPow = 1.5f
+            onBigBurst?.invoke()
+        }
+        if (pendingRestart && burstT <= 0f) {
+            pendingRestart = false
+            growStart = now
+            val cb = onGrowRestart
+            if (cb != null) cb() else buildPool(rnd.nextLong())
+        }
+        setVisible(targetCount(now))
         val bursting = burstT > 0f && burstZone == ZONE_ALL
+
+        // Neigung weich nachziehen
+        val ts = 1f - exp(-dt * 9f)
+        tiltX += (tiltTX - tiltX) * ts
+        tiltY += (tiltTY - tiltY) * ts
 
         // Uhr vorbereiten (ihre Lage braucht der Riss, der durch sie laufen soll)
         val ck = clock
@@ -849,8 +1266,10 @@ class GlitchRenderer(private val density: Float) {
         if (cracksDirty || builtW != w.toInt() || builtH != h.toInt()) buildCracks()
         if (ck?.layer !== clockLayerSeen) updateClockPieces()
 
+        updatePresses()
         c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
         stripeStates(bursting)
+        // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
         drawClock(c)
         drawStripes(c, bursting)
         crackBmp?.let { c.drawBitmap(it, 0f, 0f, null) }
@@ -870,6 +1289,9 @@ class GlitchRenderer(private val density: Float) {
         const val ZONE_TOP = 1
         const val ZONE_MID = 2
         const val ZONE_BOTTOM = 3
+
+        /** Größe des Streifen-Vorrats: höchstens 150 Streifen plus Doppellinien. */
+        private const val POOL = 172
 
         // Farben aus den vier Vorlagen
         val PAL = intArrayOf(

@@ -38,7 +38,25 @@
     <string name="s_shear">Versatz am Riss</string>
     <string name="s_calm">Grundflackern</string>
     <string name="s_burst">Glitch-Ausbrüche</string>
-    <string name="s_count">Anzahl Streifen</string>
+    <string name="s_count">Anzahl Streifen (von)</string>
+    <string name="s_count_max">Anzahl Streifen bis</string>
+    <string name="s_grow_time">Mehr Streifen mit der Zeit</string>
+    <string name="s_grow_hours">Von „von“ bis „bis“ in</string>
+    <string name="s_grow_batt">Mehr Streifen bei sinkendem Akku</string>
+    <string name="grow_note">Ist die Zeit um, gibt es einen großen Glitch und es geht mit wenigen Streifen von vorn los. Beim Akku gilt: voll = „von“, fast leer = „bis“. Sind beide an, zählt der höhere Wert.</string>
+    <string name="gi_now">Jetzt %d Streifen</string>
+    <string name="gi_restart">Neustart in %s</string>
+    <string name="gi_batt">Akku %d %%</string>
+    <string name="gi_lapse">Zeitraffer</string>
+    <string name="dur_h">%1$d Std. %2$d Min.</string>
+    <string name="dur_m">%1$d Min. %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Zeitraffer zum Testen</string>
+    <string name="b_lapse_off">Zeitraffer aus</string>
+    <string name="lapse_on">Zeitraffer an: 1 Stunde vergeht in 3 Sekunden (auch für den Hintergrund). „Neues Muster“ setzt die Zeit zurück.</string>
+    <string name="lapse_off">Zeitraffer aus.</string>
+    <string name="s_touch">Glitch unter dem Finger</string>
+    <string name="touch_note">Auf dem Startbildschirm. Ob es auch auf dem Sperrbildschirm geht, hängt vom Handy ab.</string>
     <string name="s_random">Neues Muster bei jedem Einschalten</string>
     <string name="s_mutate">Glitches verändern das Muster</string>
     <string name="tap_1">Tippe auf die Stelle, an der das Handy aufgeschlagen ist.</string>
@@ -47,13 +65,16 @@
 
     <!-- Uhr -->
     <string name="c_title">Uhr</string>
-    <string name="c_note">Die Uhr gilt für alle Hintergründe, an jedem Hintergrund einzeln einschaltbar.</string>
-    <string name="c_show">Uhr anzeigen</string>
+    <string name="c_note">Die Einstellungen der Uhr gelten für alle Hintergründe, wo sie erscheint, stellst du je Hintergrund ein. Uhr und Datum des Handys selbst lassen sich von einer App aus nicht ausblenden – mit „Höhe der Uhr“ kannst du diese Uhr z. B. unter das Datum legen.</string>
     <string name="c_where">Uhr zeigen</string>
-    <string name="where_0">Überall</string>
-    <string name="where_1">Nur Start</string>
-    <string name="where_2">Nur Sperrbild</string>
-    <string name="where_note">„Nur Start“ zeigt die Uhr nur auf dem Startbildschirm, „Nur Sperrbild“ nur auf dem Sperrbildschirm. Die eigene Uhr des Handys lässt sich von einer App aus nicht ausblenden.</string>
+    <string name="mode_lock">Sperrbild</string>
+    <string name="mode_home">Start</string>
+    <string name="mode_both">Beides</string>
+    <string name="mode_note_lock">In der Vorschau ist die Uhr immer zu sehen. Als Hintergrund erscheint sie nur auf dem Sperrbildschirm.</string>
+    <string name="mode_note_home">In der Vorschau ist die Uhr immer zu sehen. Als Hintergrund erscheint sie nur auf dem Startbildschirm.</string>
+    <string name="c_3d">3D-Effekt der Uhr (beim Neigen)</string>
+    <string name="c_3d_none">Metall-Spiegelung und 3D-Effekt laufen auf diesem Handy nicht (erst ab Android 13), die Uhr bleibt flach.</string>
+    <string name="c_cy">Höhe der Uhr (15 = wie Original)</string>
     <string name="c_finish">Oberfläche</string>
     <string name="f_chrome">Chrom</string>
     <string name="f_gold">Gold</string>
@@ -63,10 +84,6 @@
     <string name="f_copper">Kupfer</string>
     <string name="f_neon">Neon</string>
     <string name="f_white">Weiß (Original)</string>
-    <string name="c_pos">Position der Uhr</string>
-    <string name="c_top">Oben</string>
-    <string name="c_mid">Mitte</string>
-    <string name="c_bottom">Unten</string>
     <string name="c_size">Größe der Uhr (5 = wie Original)</string>
     <string name="c_date">Datum</string>
     <string name="c_date_orig">Wie Original</string>

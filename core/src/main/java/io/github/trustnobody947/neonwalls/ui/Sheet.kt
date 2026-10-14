@@ -68,7 +68,16 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
 
     /** Schieberegler; step > 1 rastet in Schritten ein. */
     fun addSlider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
-                  fmt: (Int) -> String, onChange: () -> Unit): SeekBar {
+                  fmt: (Int) -> String, onChange: () -> Unit): SeekBar =
+        slider(label, prefs, key, def, min, max, step, fmt, onChange, null)
+
+    /** Schieberegler wie oben; onRelease wird beim Loslassen aufgerufen (für Änderungen, die nicht laufend gehen). */
+    fun addSlider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
+                  fmt: (Int) -> String, onChange: () -> Unit, onRelease: () -> Unit): SeekBar =
+        slider(label, prefs, key, def, min, max, step, fmt, onChange, onRelease)
+
+    private fun slider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
+                       fmt: (Int) -> String, onChange: () -> Unit, onRelease: (() -> Unit)?): SeekBar {
         val value = prefs.getInt(key, def).coerceIn(min, max)
         val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
         val name = TextView(act).apply { text = label; setTextColor(muted); textSize = 14f }
@@ -91,23 +100,29 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
                 }
 
                 override fun onStartTrackingTouch(s: SeekBar?) {}
-                override fun onStopTrackingTouch(s: SeekBar?) {}
+                override fun onStopTrackingTouch(s: SeekBar?) {
+                    onRelease?.invoke()
+                }
             })
         }
         panel.addView(bar, full())
         return bar
     }
 
-    /** Auswahlknöpfe, höchstens drei pro Zeile. Gibt eine Funktion zurück, die die Auswahl von außen umstellt. */
+    /**
+     * Auswahlknöpfe, höchstens perRow pro Zeile (Standard drei). Gibt eine Funktion zurück, die die Auswahl von außen
+     * umstellt.
+     */
     fun addChoice(label: String, prefs: SharedPreferences, key: String, def: Int, options: List<String>,
-                  onChange: (Int) -> Unit): (Int) -> Unit {
+                  perRow: Int = 3, onChange: (Int) -> Unit): (Int) -> Unit {
         panel.addView(TextView(act).apply { text = label; setTextColor(muted); textSize = 14f }, full(dpi(10)))
         val buttons = ArrayList<Button>()
         val cur = prefs.getInt(key, def)
-        options.chunked(3).forEachIndexed { r, chunk ->
+        val n = perRow.coerceAtLeast(1)
+        options.chunked(n).forEachIndexed { r, chunk ->
             val row = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
             chunk.forEachIndexed { j, o ->
-                val idx = r * 3 + j
+                val idx = r * n + j
                 val b = makeButton(o, idx == cur) {}
                 b.textSize = 13f
                 b.maxLines = 1
@@ -123,12 +138,25 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
                 })
             }
             // Platzhalter, damit die Knöpfe in kurzen Zeilen gleich breit bleiben
-            for (k in chunk.size until minOf(3, options.size)) {
+            for (k in chunk.size until minOf(n, options.size)) {
                 row.addView(View(act), LinearLayout.LayoutParams(0, 1, 1f).apply { marginStart = dpi(6) })
             }
             panel.addView(row, full(dpi(6)))
         }
         return { idx -> buttons.forEachIndexed { k, x -> styleButton(x, k == idx) } }
+    }
+
+    /** Statuszeile (Text wird von außen gesetzt), anfangs ausgeblendet. */
+    fun addInfo(): TextView {
+        val v = TextView(act).apply {
+            setTextColor(fg)
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setPadding(0, dpi(6), 0, dpi(2))
+            visibility = View.GONE
+        }
+        panel.addView(v, full())
+        return v
     }
 
     fun addSwitch(label: String, prefs: SharedPreferences, key: String, def: Boolean, onChange: () -> Unit): Switch {
@@ -146,17 +174,21 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
         return sw
     }
 
-    fun addButtonRow(vararg items: Pair<String, () -> Unit>) {
+    fun addButtonRow(vararg items: Pair<String, () -> Unit>): List<Button> {
         val row = LinearLayout(act).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dpi(12), 0, 0)
         }
+        val out = ArrayList<Button>()
         items.forEachIndexed { i, (label, action) ->
-            row.addView(makeButton(label, false) { action() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+            val b = makeButton(label, false) { action() }
+            out.add(b)
+            row.addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
                 if (i < items.size - 1) marginEnd = dpi(8)
             })
         }
         panel.addView(row)
+        return out
     }
 
     fun addPrimaryButton(label: String, onClick: () -> Unit) {
