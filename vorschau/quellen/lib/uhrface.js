@@ -198,7 +198,7 @@ function buildLayer() {
   tintC = mk(lw, lh);
   // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe.
   // Mit Höhenregler (settings.cy, Prozent der Bildschirmhöhe) frei wählbar.
-  const cy = (settings.cy != null ? settings.cy / 100 : [0.1466, 0.42, 0.66][settings.pos]) * H;
+  const cy = (settings.cy != null ? (settings.cy === 15 ? 0.1466 : settings.cy / 100) : [0.1466, 0.42, 0.66][settings.pos]) * H;
   lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
   stamp = T.time + T.ds;
   layerKey = [settings.size, settings.date, settings.finish, settings.pos, settings.cy, W, H].join('|');

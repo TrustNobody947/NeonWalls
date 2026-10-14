@@ -7,11 +7,12 @@
 // enden genau an der Risskante. Der Riss selbst: dunkle Bruchkante mit feinem Glanz daneben (Licht von oben).
 // Auf Wunsch werden die Streifen mit der Zeit (1–24 Stunden) oder mit sinkendem Akku mehr; ist die Zeit um, gibt es
 // einen großen Glitch und es geht von vorn los. Unter dem Finger flackern die Streifen, dazu kurze Druckstreifen.
-// Die Uhr ist aus Metall in 3D: Beim Neigen schwebt sie leicht über den Streifen und die Spiegelung wandert.
+// Die Uhr ist aus Metall in 3D und liegt im Display: Beim Neigen wandert sie etwas mit, ihre Seitenwände zeigen sich
+// und die Spiegelung wandert; die kaputten Streifen laufen über sie, die Risse bleiben fest im Glas.
 // Mit Uhr läuft ein Riss mitten durch die Ziffern und weiter übers ganze Bild; die Uhr zerfällt dort in Stücke.
 const settings = { cracks: 3, impact: 0, splinter: 1, auto: 0, hours: 6, shear: 5, calm: 4, burst: 5, countPos: 59,
   countMax: 85, growTime: 0, growHours: 6, growBatt: 0, battTest: 0, touchFx: 1,
-  rndWake: 0, mutate: 0, clock: 0, d3: 5, cy: 15, crack: 5, size: 5, date: 0, finish: 7,
+  rndWake: 0, mutate: 0, clockWhere: 2, d3: 5, cy: 15, crack: 5, size: 5, date: 0, finish: 7,
   // selbst angetippt: Aufschlag (px, py) und Richtung (tx, ty) als Anteil von Breite und Höhe
   px: -1, py: -1, tx: -1, ty: -1 };
 const countFromPos = v => Math.round(3 * Math.pow(50, v / 100));
@@ -35,7 +36,8 @@ const controls = [
   { type: 'choice', id: 'touchFx', label: 'Glitch unter dem Finger', options: ['Aus', 'An'] },
   { type: 'choice', id: 'rndWake', label: 'Neues Muster bei jedem Einschalten', options: ['Aus', 'An'] },
   { type: 'choice', id: 'mutate', label: 'Glitches verändern das Muster', options: ['Aus', 'An'] },
-  { type: 'choice', id: 'clock', label: 'Uhr', options: ['An', 'Aus'] },
+  { type: 'choice', id: 'clockWhere', label: 'Uhr zeigen', options: ['Sperrbild', 'Start', 'Beides', 'Aus'] },
+  { type: 'info', id: 'clockNote', text: () => settings.clockWhere < 2 ? 'In der Vorschau ist die Uhr immer zu sehen. Als Hintergrund erscheint sie nur ' + (settings.clockWhere === 0 ? 'auf dem Sperrbildschirm.' : 'auf dem Startbildschirm.') : '' },
   { type: 'range', id: 'd3', label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl },
   { type: 'range', id: 'cy', label: 'Höhe der Uhr (15 = wie Original)', min: 0, max: 100, fmt: v => v + ' %' },
   { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl },
@@ -330,7 +332,7 @@ function makeCracks() {
     dirs = fanDirs(R, a0, a1, N, QUER);
     md = (a0 + a1) / 2;
     // Mit Uhr: ein Riss läuft durch die Ziffern (der nächstliegende wird dorthin gelenkt)
-    if (settings.clock === 0 && settings.crack > 0 && layer) {
+    if (clockOn() && settings.crack > 0 && layer) {
       const tx = (lx + layer.width * r(0.3, 0.7)) / W, ty = (ly + layer.height * r(0.3, 0.55)) / W;
       const d = angDiff(Math.atan2(ty - Py, tx - Px), md);
       if (Math.abs(d) <= (a1 - a0) / 2 + 0.17) {
@@ -685,11 +687,12 @@ function drawStripes(bursting) {
   }
 }
 
-// ---------- Metall-Uhr in 3D: Normalenkarte, Schatten, Neigung ----------
-let m3dOK = false, bigPx = 0, shadowCv = null, glowCv = null;
+// ---------- Metall-Uhr in 3D: Normalenkarte, Neigung ----------
+const clockOn = () => settings.clockWhere !== 3;
+let m3dOK = false, bigPx = 0, glowCv = null;
 // wird von buildLayer (uhrface.js) aufgerufen, sobald sich die Uhr ändert (jede Minute, Einstellungen, Größe)
 function onLayerBuilt(L) {
-  bigPx = L.big; m3dOK = false; shadowCv = null; glowCv = null;
+  bigPx = L.big; m3dOK = false; glowCv = null;
   if (!m3dInit()) return;
   const lw = L.lw, lh = L.lh;
   const A = new Uint8ClampedArray(lw * lh * 4), B = new Uint8ClampedArray(lw * lh * 4);
@@ -722,7 +725,7 @@ function onLayerBuilt(L) {
   }
   m3dOK = m3dSetLayer(A, B, lw, lh, pad);
   if (!m3dOK) return;
-  // Schatten auf dem Display unter der schwebenden Uhr, beim Neon der Schein: weichgezeichnete Form
+  // beim Neon der Schein: weichgezeichnete Form
   const mask = mk(lw, lh), mx = mask.getContext('2d');
   if (!mx || !mx.createImageData) return;
   const id = mx.createImageData(lw, lh);
@@ -734,7 +737,6 @@ function onLayerBuilt(L) {
     x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
     return { c, sp };
   };
-  shadowCv = soft(Math.max(2, L.big * 0.05), '#000');
   const F = FIN[settings.finish] || FIN[0];
   if (F.neon) glowCv = soft(Math.max(3, L.big * 0.1), 'rgb(' + F.neon + ')');
 }
@@ -762,13 +764,14 @@ function prepClock(dt) {
   if (!layer) return;
   updateTilt(dt);
   const k3 = settings.d3 / 10, T = [tilt[0] * k3, tilt[1] * k3], amp = 12 * dpr;
-  // die Oberseite schwebt: sie verschiebt sich gegen die Blickrichtung, die Seitenwände zeigen sich auf der anderen Seite
-  const ox = -amp * T[0], oy = -amp * T[1];
+  // die Uhr liegt im Display, tiefer als die Streifen: sie wandert mit dem Blick (Parallax), ihr Sockel noch etwas
+  // mehr – so zeigen sich die Seitenwände der Ziffern auf der Seite, von der man schaut
+  const ox = amp * T[0] * 0.6, oy = amp * T[1] * 0.6;
   const ix = Math.floor(ox), iy = Math.floor(oy);
   if (m3dOK) {
     const depth = Math.max(1, bigPx * (0.026 + 0.04 * k3));
     M3D.sub = [ox - ix, oy - iy];
-    CL = m3dRender(settings.finish, T, [amp * T[0] * 0.55, depth + amp * T[1] * 0.55], 0.3, FIN[settings.finish] || FIN[0]);
+    CL = m3dRender(settings.finish, T, [amp * T[0] * 0.4, depth + amp * T[1] * 0.4], 0.3, FIN[settings.finish] || FIN[0]);
     CLX = lx - M3D.pad + ix; CLY = ly - M3D.pad + iy;
   } else { CL = layer; CLX = lx + Math.round(ox); CLY = ly + Math.round(oy); }
 }
@@ -879,9 +882,8 @@ function glitchBands(ri) {
 }
 function drawClock(ctx, calm) {
   if (!CL) return;
-  // Schatten liegt fest auf dem Display (die Uhr schwebt darüber), beim Neon der Schein
+  // beim Neon der Schein
   ctx.globalCompositeOperation = 'source-over';
-  if (shadowCv && CL !== layer) { ctx.globalAlpha = 0.55; ctx.drawImage(shadowCv.c, lx - shadowCv.sp, ly - shadowCv.sp + Math.round(bigPx * 0.04)); }
   if (glowCv && CL !== layer) {
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.8;
     ctx.drawImage(glowCv.c, CLX + M3D.pad - glowCv.sp, CLY + M3D.pad - glowCv.sp);
@@ -953,7 +955,7 @@ return {
     if (id === 'finish') for (const k in cache) delete cache[k];
     if (id === 'size' || id === 'date' || id === 'finish' || id === 'cy') buildLayer();
     if (id === 'cy') updateClockPieces();
-    if (id === 'cracks' || id === 'splinter' || id === 'clock' || id === 'crack' || id === 'size' || id === 'date') makeCracks();
+    if (id === 'cracks' || id === 'splinter' || id === 'clockWhere' || id === 'crack' || id === 'size' || id === 'date') makeCracks();
     // „Selbst angetippt“ ohne angetippte Stelle: gleich antippen lassen
     if (id === 'impact') { if (settings.impact === 1 && !(settings.px >= 0 && settings.tx >= 0)) startTap(); else { tapStep = 0; newCracks(); } }
     if (id === 'auto' || id === 'hours') autoT = 0;
@@ -1008,13 +1010,13 @@ return {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H);
     stripeStates(dt, calm, bursting);
+    // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
+    if (clockOn()) { prepClock(dt); drawClock(ctx, calm); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;
     drawStripes(bursting);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    // die Uhr liegt über den Streifen (sie schwebt), die Glasrisse über allem
-    if (settings.clock === 0) { prepClock(dt); drawClock(ctx, calm); }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     if (crackLayer) ctx.drawImage(crackLayer, 0, 0);
     // beim Antippen: Markierung der gewählten Aufschlagstelle, bis die Richtung angetippt ist
@@ -1025,7 +1027,7 @@ return {
       ctx.beginPath(); ctx.arc(mx, my, 2 * dpr, 0, 2 * Math.PI); ctx.fillStyle = '#fff'; ctx.fill();
     }
     // einmal sagen, ob der Neigungssensor in der Vorschau ankommt
-    if (!tiltHintDone && t > 2.5 && settings.clock === 0 && settings.d3 > 0 && api) {
+    if (!tiltHintDone && t > 2.5 && clockOn() && settings.d3 > 0 && api) {
       tiltHintDone = true;
       api.toast(t - sensorAt < 1.5 ? 'Neige das Handy: Die Uhr bewegt sich in 3D.' : 'In dieser Vorschau kommt der Neigungssensor nicht an. Die Uhr schwenkt deshalb von selbst hin und her, in der App folgt sie dem Handy.', 6000);
     }
