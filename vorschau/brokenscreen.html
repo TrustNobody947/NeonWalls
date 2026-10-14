@@ -334,7 +334,7 @@ function buildLayer() {
   tintC = mk(lw, lh);
   // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe.
   // Mit Höhenregler (settings.cy, Prozent der Bildschirmhöhe) frei wählbar.
-  const cy = (settings.cy != null ? settings.cy / 100 : [0.1466, 0.42, 0.66][settings.pos]) * H;
+  const cy = (settings.cy != null ? (settings.cy === 15 ? 0.1466 : settings.cy / 100) : [0.1466, 0.42, 0.66][settings.pos]) * H;
   lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
   stamp = T.time + T.ds;
   layerKey = [settings.size, settings.date, settings.finish, settings.pos, settings.cy, W, H].join('|');
@@ -1118,12 +1118,28 @@ function updatePresses(dt) {
 }
 
 // ---------- Streifen zeichnen: je Bruchstück ausgeschnitten und versetzt ----------
+// Bereich der Uhr in diesem Bild (CSS-Pixel, großzügig): dort verdecken die Streifen die Uhr
+let CV = null;
 function paintLine(L, x, y0, y1, alpha, col) {
   const [r, g, b] = col;
   let xa = x + L.tilt * Wc * (y0 / Hc - 0.5), xb = x + L.tilt * Wc * (y1 / Hc - 0.5);
   if (!L.tilt) xa = xb = (Math.round(x * dpr - 0.5) + 0.5) / dpr;   // senkrechte Streifen aufs Pixelraster
   const seg = () => { cx.beginPath(); cx.moveTo(xa, y0); cx.lineTo(xb, y1); cx.stroke(); };
   cx.lineCap = 'butt';
+  // Über der Uhr ist diese Spalte des Displays kaputt: erst schwarz, dann der Streifen darauf. So liegt er wirklich
+  // über der Uhr und sieht genauso aus wie auf dem schwarzen Grund (statt nur durchzuschimmern).
+  if (CV && y1 > CV[1] && y0 < CV[3]) {
+    const n = Math.max(1, Math.round(L.w * dpr)), xm = (xa + xb) / 2;
+    if (xm + n / dpr > CV[0] && xm - n / dpr < CV[2]) {
+      const ya = Math.max(y0, CV[1]), yb = Math.min(y1, CV[3]);
+      const ea = L.tilt ? x + L.tilt * Wc * (ya / Hc - 0.5) : xa, eb = L.tilt ? x + L.tilt * Wc * (yb / Hc - 0.5) : xa;
+      cx.globalCompositeOperation = 'source-over'; cx.strokeStyle = '#000'; cx.setLineDash([]);
+      // gerade Breiten liegen halb auf den Nachbarpixeln: dort ganz abdecken, sonst bleibt ein heller Rand
+      cx.lineWidth = (n % 2 === 0 ? n + 1 : n) / dpr;
+      cx.beginPath(); cx.moveTo(ea, ya); cx.lineTo(eb, yb); cx.stroke();
+      cx.globalCompositeOperation = 'lighter';
+    }
+  }
   cx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha * 0.1 + ')';
   cx.lineWidth = Math.max(L.w * 2.5, 1.5 / dpr); cx.setLineDash([]); seg();
   cx.strokeStyle = 'rgba(' + Math.min(255, r + 120) + ',' + Math.min(255, g + 120) + ',' + Math.min(255, b + 120) + ',' + alpha * 0.55 + ')';
@@ -1433,6 +1449,9 @@ function glitchBands(ri) {
 }
 function drawClock(ctx, calm) {
   if (!CL) return;
+  // Bereich der Uhr samt Platz für versetzte Bruchstücke und verrutschte Zeilen (für die Streifen darüber)
+  const M = 30 * dpr;
+  CV = [(CLX - M) / dpr, (CLY - M) / dpr, (CLX + CL.width + M) / dpr, (CLY + CL.height + M) / dpr];
   // beim Neon der Schein
   ctx.globalCompositeOperation = 'source-over';
   if (glowCv && CL !== layer) {
@@ -1562,6 +1581,7 @@ return {
     ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H);
     stripeStates(dt, calm, bursting);
     // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
+    CV = null;
     if (clockOn()) { prepClock(dt); drawClock(ctx, calm); }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 1;

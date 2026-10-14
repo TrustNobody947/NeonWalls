@@ -594,6 +594,29 @@ class GlitchRenderer(private val density: Float) {
     private fun argb(a: Float, r: Int, g: Int, b: Int) =
         Color.argb((a.coerceIn(0f, 1f) * 255f).toInt(), r.coerceAtMost(255), g.coerceAtMost(255), b.coerceAtMost(255))
 
+    // Bereich der Uhr in diesem Bild (Bildschirmpixel, großzügig): dort verdecken die Streifen die Uhr
+    private var cvOn = false
+    private var cvX0 = 0f
+    private var cvY0 = 0f
+    private var cvX1 = 0f
+    private var cvY1 = 0f
+    private val pErase = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.BUTT
+        color = Color.BLACK
+    }
+
+    private fun setClockArea(x0: Float, y0: Float, x1: Float, y1: Float) {
+        // Platz für Bruchstücke, die am Riss versetzt sind, und für verrutschte Zeilen bei Glitches
+        val m = 30f * density
+        cvOn = true
+        cvX0 = x0 - m
+        cvY0 = y0 - m
+        cvX1 = x1 + m
+        cvY1 = y1 + m
+    }
+
     /** Ein Streifen von y0 bis y1 an der Stelle x (bei y = Bildmitte), leicht schräg je nach Streifen. */
     private fun drawSeg(c: Canvas, l: Line, x: Float, y0: Float, y1: Float, a: Float, col: Int) {
         var xa = x + l.tilt * w * (y0 / h - 0.5f)
@@ -607,6 +630,21 @@ class GlitchRenderer(private val density: Float) {
         val g = Color.green(col)
         val b = Color.blue(col)
         val lw = l.w * density
+        // Über der Uhr ist diese Spalte des Displays kaputt: erst schwarz, dann der Streifen darauf. So liegt er wirklich
+        // über der Uhr und sieht genauso aus wie auf dem schwarzen Grund (statt nur durchzuschimmern).
+        if (cvOn && y1 > cvY0 && y0 < cvY1) {
+            val core = max(1f, round(lw))
+            val xm = (xa + xb) * 0.5f
+            if (xm + core > cvX0 && xm - core < cvX1) {
+                val ya = max(y0, cvY0)
+                val yb = min(y1, cvY1)
+                val ea = if (l.tilt == 0f) xa else x + l.tilt * w * (ya / h - 0.5f)
+                val eb = if (l.tilt == 0f) xa else x + l.tilt * w * (yb / h - 0.5f)
+                // gerade Breiten liegen halb auf den Nachbarpixeln: dort ganz abdecken, sonst bleibt ein heller Rand
+                pErase.strokeWidth = if (core.toInt() % 2 == 0) core + 1f else core
+                c.drawLine(ea, ya, eb, yb, pErase)
+            }
+        }
         // Glow
         pGlow.color = argb(a * 0.10f, r, g, b)
         pGlow.strokeWidth = max(lw * 2.5f, 1.5f)
@@ -931,12 +969,14 @@ class GlitchRenderer(private val density: Float) {
     }
 
     private fun drawClock(c: Canvas) {
+        cvOn = false
         val ck = clock ?: return
         val layer = ck.layer ?: return
         if (clockAlpha <= 0.01f) return
         val m = metal
         // Shader nur auf der Grafikkarte (ohne sie die Uhr wie bisher)
         if (m != null && c.isHardwareAccelerated && draw3D(c, ck, layer, m)) return
+        setClockArea(ck.x, ck.y, ck.x + layer.width, ck.y + layer.height)
         var pieces = 0
         if (cs != null && clockCrack > 0) for (i in 0 until nR) if (regClock[i]) pieces++
         if (pieces < 2) drawClockPiece(c, ck, layer, -1)
@@ -1113,6 +1153,7 @@ class GlitchRenderer(private val density: Float) {
         val depth = max(1f, big * (0.026f + 0.04f * k3))
         val clx = ck.x - pad + ix
         val cly = ck.y - pad + iy
+        setClockArea(clx, cly, clx + m.w3, cly + m.h3)
         // Lage der ruhigen Ebene (für Effekte, die mit dem Bild der Uhr gezeichnet werden)
         val sx = ck.x + ix
         val sy = ck.y + iy
