@@ -126,6 +126,13 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
+    /** Ergebnis der Bildauswahl (eigenes Hintergrundbild für Broken Screen). */
+    @Deprecated("Bildauswahl ohne AndroidX")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (glitchUi?.onActivityResult(requestCode, resultCode, data) != true) super.onActivityResult(requestCode, resultCode, data)
+    }
+
     /** Vorschau und Einstellungen für den gewählten Hintergrund aufbauen. */
     private fun build() {
         preview?.let { root.removeView(it) }

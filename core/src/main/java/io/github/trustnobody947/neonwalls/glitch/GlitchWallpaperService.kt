@@ -91,6 +91,11 @@ class GlitchWallpaperService : WallpaperService() {
                 GlitchPrefs.restartGrowth(ctx)
                 GlitchPrefs.applyTo(ctx, renderer)
             }
+            // „Mehr Risse mit der Zeit“ ist durch: neue Risse, wieder mit wenigen
+            renderer.onCrackRestart = {
+                GlitchPrefs.restartCrackGrowth(ctx)
+                GlitchPrefs.applyTo(ctx, renderer)
+            }
             prefs.registerOnSharedPreferenceChangeListener(this)
             clockPrefs.registerOnSharedPreferenceChangeListener(this)
             val filter = IntentFilter().apply {

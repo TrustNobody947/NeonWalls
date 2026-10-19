@@ -243,7 +243,15 @@ half4 main(float2 p) {
         float3 e = env(R, 0.35);
         col += 0.05 * e + 0.3 * max(e - float3(1.0), float3(0.0));
     } else {
-        col = mix(float3(1.0), uNeon, 0.25 + 0.35 * v) + 0.2 * max(env(R, 0.25) - float3(1.0), float3(0.0));
+        // Neon: helle Fläche, die Fase satt in der Neonfarbe mit Licht und Schatten, am Übergang ein heller Saum –
+        // so ist der Rand der Ziffern gut zu sehen, wie bei den Metallen
+        float3 face = mix(float3(1.0), uNeon, 0.25 + 0.35 * v);
+        float bev = clamp((1.0 - n.z) * 4.0, 0.0, 1.0);
+        float3 Ld = normalize(float3(-0.25, -0.78, 0.58));
+        float lit = clamp(0.3 + 1.0 * max(dot(n, Ld), 0.0), 0.0, 1.25);
+        col = mix(face, uNeon * lit, smoothstep(0.1, 0.6, bev));
+        col += float3(0.45) * smoothstep(0.03, 0.14, bev) * (1.0 - smoothstep(0.14, 0.34, bev));
+        col += 0.2 * max(env(R, 0.25) - float3(1.0), float3(0.0));
     }
     float2 wd = normalize(uDepth + float2(0.0001, 0.0001));
     float3 Rw = reflect(-V, normalize(float3(wd, 0.45)));

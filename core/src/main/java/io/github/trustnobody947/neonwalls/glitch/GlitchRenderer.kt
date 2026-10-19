@@ -10,6 +10,7 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
+import android.graphics.RectF
 import io.github.trustnobody947.neonwalls.uhr.Clock3D
 import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import java.util.Random
@@ -24,11 +25,14 @@ import kotlin.math.round
 
 /**
  * "Broken Screen": flackernde Farbstreifen wie bei einem kaputten Display hinter echtem Glasbruch.
- * Die Risse ([Cracks]) laufen von einer Aufschlagstelle quer übers Bild und teilen das Display in Bruchstücke:
- * Die Streifen werden genau entlang der Risse ausgeschnitten, jedes Stück ist etwas versetzt und flackert für sich.
+ * Die Risse ([Cracks]) laufen von bis zu drei Aufschlagstellen (und auf Wunsch waagerecht) quer übers Bild und teilen
+ * das Display in Bruchstücke: Die Streifen werden genau entlang der Risse ausgeschnitten, jedes Stück ist etwas
+ * versetzt und flackert für sich; bei vielen Streifen fällt ab und zu ein ganzes Stück für ein paar Sekunden aus.
+ * Auf Wunsch werden es mit der Zeit mehr Risse (jeder neue springt mit kurzem Aufblitzen ins Glas).
  * Die Risse selbst: dunkle Bruchkante mit weich schwankendem Glanz, am Aufschlag Splitter.
  * Die Streifen stehen in fester Reihenfolge und können mit der Zeit oder mit sinkendem Akku mehr werden; unter dem
- * Finger flackern sie, dazu kurze Druckstreifen.
+ * Finger flackern sie, dazu kurze Druckstreifen, und Bruchstücke leuchten grauweiß auf (nie zwei nebeneinander).
+ * Ein eigenes Bild liegt auf Wunsch unter allem und zerbricht mit den Rissen.
  * Optional liegt die Schablonen-Uhr im Bild – auf neueren Handys aus Metall in 3D ([Clock3D]): Beim Neigen wandert
  * sie etwas mit und die Spiegelung wandert. Ein Riss läuft durch die Ziffern, die Uhr zerfällt dort in versetzte
  * Stücke und glitcht nur dort, wo gerade auch die Streifen glitchen. Die kaputten Streifen laufen über die Uhr.
@@ -45,8 +49,11 @@ class GlitchRenderer(private val density: Float) {
     var clockCrack = 5             // Riss durch die Uhr 0..10
     /** false = Uhr gerade ausgeblendet (z. B. nur auf dem Startbildschirm gewünscht und der Sperrbildschirm ist zu sehen). */
     var clockShown = true
-    /** Vorschau: angetippte Aufschlagstelle in Pixeln, bis die Richtung angetippt ist (sonst null). */
-    var marker: FloatArray? = null
+    /**
+     * Vorschau beim Antippen: schon angetippte Stellen in Pixeln (x, y, x, y, …) in der Reihenfolge Aufschlag,
+     * Richtung, Aufschlag, … (sonst null).
+     */
+    var marks: FloatArray? = null
     /** Wird bei jedem großen Glitch-Ausbruch über das ganze Bild aufgerufen (für „Risse wechseln bei Glitches“). */
     var onBigBurst: (() -> Unit)? = null
 
@@ -63,6 +70,10 @@ class GlitchRenderer(private val density: Float) {
     var onGrowRestart: (() -> Unit)? = null
     /** Glitch unter dem Finger. */
     var touchFx = true
+    /** Bruchstücke leuchten beim Berühren grauweiß auf. */
+    var touchFlash = true
+    /** Schwarze Stellen zwischen den Rissen 0..10 (ganze Bruchstücke fallen ab und zu aus). */
+    var dark = 5
 
     /** Metall-Uhr in 3D (null = Gerät kann es nicht, dann die bisherige Uhr). */
     var metal: Clock3D? = null
@@ -85,12 +96,33 @@ class GlitchRenderer(private val density: Float) {
 
     private var seed = 0L
 
-    // Risse
-    private var crackN = 3
+    // Risse: Anzahl von – bis, mehr mit der Zeit (Durchgang ab crackStart, Uhrzeit in ms)
+    var crackFrom = 3
+        private set
+    var crackTo = 3
+        private set
+    var crackGrow = false
+        private set
+    var crackHours = 6
+        private set
+    var crackStart = 0L
+        private set
+    /** Ende des Durchgangs nach dem großen Glitch: neue Risse und neue Startzeit festhalten (sonst nur hier). */
+    var onCrackRestart: (() -> Unit)? = null
+    private var crackPending = false
+    /** gerade gezeigte Anzahl Hauptrisse (−1 = noch keine gebaut) */
+    private var crackN = -1
     private var splinter = 1
     private var crackSeed = 1L
-    private var manual: FloatArray? = null
+    private var impacts = 1
+    private var manual: Array<FloatArray?> = arrayOfNulls(3)
+    private var hshare = 30
     private var clockKey = ""
+    private var shapeKey = ""
+    /** Anzahl hat sich über die Einstellungen geändert (dann blitzen neue Risse nicht auf) */
+    private var countChanged = false
+    /** beim nächsten Aufbau die neu dazugekommenen Risse aufblitzen lassen */
+    private var growFlash = false
     private var cracksDirty = true
     private var cs: CrackSet? = null
     private var crackBmp: Bitmap? = null
@@ -110,6 +142,11 @@ class GlitchRenderer(private val density: Float) {
     private var regZone = intArrayOf(ZONE_ALL)
     private var regClock = booleanArrayOf(false)
     private var regDx = floatArrayOf(0f)
+    private var regNb: Array<IntArray> = arrayOf(IntArray(0))
+    // ganz ausgefallene Bruchstücke: Restzeit, Dauer, gerade schwarz (beim Aus- und Angehen flackert es kurz)
+    private var regDead = floatArrayOf(0f)
+    private var regDeadT = floatArrayOf(0f)
+    private var regDv = booleanArrayOf(false)
 
     private val rnd = Random()
     private fun r(a: Float, b: Float) = a + rnd.nextFloat() * (b - a)
@@ -198,20 +235,48 @@ class GlitchRenderer(private val density: Float) {
     }
 
     /**
-     * Risse einstellen. manual: selbst angetippt (Aufschlag x, y, Richtung x, y als Anteil von Breite und Höhe) oder null.
+     * Risse einstellen. from/to: Anzahl Hauptrisse von – bis (0..14); grow: mehr mit der Zeit (in hours Stunden, Durchgang
+     * ab start). impacts: Anzahl Aufschläge 1..3; manual: je Aufschlag selbst angetippt (Aufschlag x, y, Richtung x, y
+     * als Anteil von Breite und Höhe) oder null. hshare: Anteil waagerechter Risse in Prozent.
      * clockKey: Einstellungen der Uhr, von denen der Riss durch die Uhr abhängt.
      */
-    fun configureCracks(n: Int, splinter: Int, seed: Long, manual: FloatArray?, clockKey: String) {
-        val same = n == crackN && splinter == this.splinter && seed == crackSeed && clockKey == this.clockKey &&
-            (manual?.contentEquals(this.manual) ?: (this.manual == null))
-        if (same) return
-        crackN = n
+    fun configureCracks(from: Int, to: Int, grow: Boolean, hours: Int, start: Long, splinter: Int, seed: Long,
+                        impacts: Int, manual: Array<FloatArray?>, hshare: Int, clockKey: String) {
+        if (from != crackFrom || to != crackTo || grow != crackGrow || hours != crackHours) countChanged = true
+        crackFrom = from
+        crackTo = to
+        crackGrow = grow
+        crackHours = hours
+        crackStart = start
+        val mk = manual.joinToString(";") { m -> m?.joinToString(",") ?: "-" }
+        val key = "$splinter|$seed|$impacts|$mk|$hshare|$clockKey"
+        if (key == shapeKey) return
+        shapeKey = key
         this.splinter = splinter
         crackSeed = seed
+        this.impacts = impacts
         this.manual = manual
+        this.hshare = hshare
         this.clockKey = clockKey
+        countChanged = true
         cracksDirty = true
     }
+
+    /** Anzahl Hauptrisse jetzt (mit „Mehr Risse mit der Zeit“ wachsend). */
+    fun crackTarget(now: Long): Int {
+        val a = crackFrom.coerceIn(0, Cracks.MAX)
+        val b = crackTo.coerceIn(0, Cracks.MAX)
+        if (!crackGrow || b <= a || crackStart <= 0L) return a
+        val f = ((now - crackStart) / (crackHours * 3_600_000f)).coerceIn(0f, 1f)
+        return Math.round(a + (b - a) * f)
+    }
+
+    /** Gerade zu sehende Anzahl Hauptrisse (für die Anzeige in den Einstellungen). */
+    val shownCracks: Int get() = max(0, crackN)
+
+    /** Restzeit bis zum Neustart der wachsenden Risse in ms (−1 = wachsen nicht). */
+    fun crackRemainingMs(now: Long): Long =
+        if (crackGrow && crackStart > 0L && crackTo > crackFrom) max(0L, crackHours * 3_600_000L - (now - crackStart)) else -1L
 
     private fun makeLine(pr: Random, x: Float): Line {
         fun p(a: Float, b: Float) = a + pr.nextFloat() * (b - a)
@@ -302,10 +367,15 @@ class GlitchRenderer(private val density: Float) {
         val rect = if (ck != null && layer != null && clockCrack > 0)
             doubleArrayOf(ck.x / w.toDouble(), ck.y / w.toDouble(), (ck.x + layer.width) / w.toDouble(), (ck.y + layer.height) / w.toDouble())
         else null
-        val set = Cracks.make(crackN, splinter, crackSeed, h / w.toDouble(), manual, rect)
+        // neue Risse beim Wachsen: die bisherigen bleiben genau gleich, nur die dazugekommenen blitzen auf
+        val flash = growFlash && cs != null
+        growFlash = false
+        val before = cs?.divs?.size ?: 0
+        val set = Cracks.make(max(0, crackN), splinter, crackSeed, h / w.toDouble(), impacts, manual, hshare, rect)
         cs = set
         crackBmp?.recycle()
         crackBmp = null
+        regFlash.clear()
         if (set == null) {
             nR = 1
             regPath = arrayOf(null)
@@ -314,6 +384,8 @@ class GlitchRenderer(private val density: Float) {
             regY0 = floatArrayOf(0f); regY1 = floatArrayOf(1e6f)
             regS = floatArrayOf(0f); regZone = intArrayOf(ZONE_ALL)
             regClock = booleanArrayOf(false); regDx = floatArrayOf(0f)
+            regNb = arrayOf(IntArray(0))
+            regDead = floatArrayOf(0f); regDeadT = floatArrayOf(0f); regDv = booleanArrayOf(false)
         } else {
             val rs = set.regions
             nR = rs.size
@@ -341,7 +413,28 @@ class GlitchRenderer(private val density: Float) {
             regZone = IntArray(nR) { rs[it].zone }
             regClock = BooleanArray(nR)
             regDx = FloatArray(nR)
+            regNb = Array(nR) { rs[it].nb }
+            regDead = FloatArray(nR)
+            regDeadT = FloatArray(nR)
+            regDv = BooleanArray(nR)
             crackBmp = renderCracks(set)
+            if (flash) {
+                for (i in before until set.divs.size) {
+                    val p = set.divs[i]
+                    if (p.size < 4) continue
+                    val path = Path()
+                    path.moveTo((p[0] * w).toFloat(), (p[1] * w).toFloat())
+                    var k = 2
+                    while (k + 1 < p.size) {
+                        path.lineTo((p[k] * w).toFloat(), (p[k + 1] * w).toFloat())
+                        k += 2
+                    }
+                    crackFlashes.add(CrackFlash(path, t))
+                }
+                // der neue Riss springt mit einem kurzen Glitch ins Glas
+                triggerBurst(ZONE_ALL)
+                burstT = r(0.2f, 0.45f)
+            }
         }
         czones = Array(nR + 1) { ClockZone() }
         for (l in lines) {
@@ -391,8 +484,12 @@ class GlitchRenderer(private val density: Float) {
             style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
         }
         val path = Path()
-        // am Aufschlag ist das Glas zertrümmert und fängt mehr Licht
-        fun boost(x: Double, y: Double) = 1 + 1.3 * exp(-Math.hypot(x - set.px, y - set.py) / 0.05)
+        // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht
+        fun boost(x: Double, y: Double): Double {
+            var m = 0.0
+            for (p in set.imps) m = max(m, exp(-Math.hypot(x - p[0], y - p[1]) / 0.05))
+            return 1 + 1.3 * m
+        }
 
         // 1) dunkle Bruchkante: am Aufschlag breiter, zum Ende hin schmaler (in Stücken gezeichnet)
         for (cl in set.lines) {
@@ -724,9 +821,20 @@ class GlitchRenderer(private val density: Float) {
             }
             l.vis = true
         }
-        // je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke
+        // je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke; bei vielen Streifen fallen Teilstücke öfter
+        // und länger aus
+        val many = ((shownCount - 12) / 110f).coerceIn(0f, 1f)
         for (ri in 0 until nR) {
-            val dx = round(regS[ri] * shearAmt * 1.2f * density * jit())
+            // ganz ausgefallenes Bruchstück: bleibt schwarz
+            if (regDv[ri]) {
+                for (l in lines) {
+                    val z = l.zones[ri]
+                    z.drawn = false
+                    z.fl = false
+                }
+                continue
+            }
+            val dx = round(regS[ri] * shearAmt * SHEAR_K * density * jit())
             regDx[ri] = dx
             val sb = burstT > 0f && multi && (burstZone == ZONE_ALL || burstZone == regZone[ri])
             val lo = regX0[ri] - 6f * density
@@ -745,8 +853,8 @@ class GlitchRenderer(private val density: Float) {
                     if (z.off > 0f) {
                         z.off -= dt
                         if (z.off > 0f) continue
-                    } else if (chance(if (sb) 0.035f * burstPow else p(0.05f * g))) {
-                        z.off = r(0.15f, if (sb) 0.8f else 2.2f)
+                    } else if (chance(if (sb) 0.035f * burstPow else p(0.05f * g * (1f + 1.2f * many)))) {
+                        z.off = r(0.2f, if (sb) 1.2f else 2.2f + 2.3f * many)
                         continue
                     }
                     if (z.flash > 0f) z.flash -= dt
@@ -831,6 +939,8 @@ class GlitchRenderer(private val density: Float) {
     /** Streifen zeichnen: in jedem Bruchstück nur bis genau an den Riss. */
     private fun drawStripes(c: Canvas, bursting: Boolean) {
         for (ri in 0 until nR) {
+            // ausgefallenes Bruchstück: bleibt ganz schwarz
+            if (regDv[ri]) continue
             val poly = regPoly[ri]
             for (l in lines) {
                 val z = l.zones[ri]
@@ -968,11 +1078,23 @@ class GlitchRenderer(private val density: Float) {
         }
     }
 
+    /** Liegt die Uhr ganz in ausgefallenen Bruchstücken? Dann bleibt sie mit ihnen schwarz. */
+    private fun clockAllDead(): Boolean {
+        if (cs == null) return false
+        var any = false
+        for (i in 0 until nR) if (regClock[i]) {
+            if (!regDv[i]) return false
+            any = true
+        }
+        return any
+    }
+
     private fun drawClock(c: Canvas) {
         cvOn = false
         val ck = clock ?: return
         val layer = ck.layer ?: return
         if (clockAlpha <= 0.01f) return
+        if (clockAllDead()) return
         val m = metal
         // Shader nur auf der Grafikkarte (ohne sie die Uhr wie bisher)
         if (m != null && c.isHardwareAccelerated && draw3D(c, ck, layer, m)) return
@@ -982,7 +1104,7 @@ class GlitchRenderer(private val density: Float) {
         if (pieces < 2) drawClockPiece(c, ck, layer, -1)
         else {
             cutClockPieces(ck, layer)
-            for (i in 0 until nR) if (regClock[i]) drawClockPiece(c, ck, layer, i)
+            for (i in 0 until nR) if (regClock[i] && !regDv[i]) drawClockPiece(c, ck, layer, i)
         }
     }
 
@@ -1168,6 +1290,8 @@ class GlitchRenderer(private val density: Float) {
         }
         for (k in 0 until n) {
             val ri = if (nPieces == 0) -1 else pieceRegion[k]
+            // ausgefallenes Bruchstück: dieses Stück der Uhr bleibt schwarz
+            if (ri >= 0 && regDv[ri]) continue
             val z = czones[if (ri < 0) nR else ri]
             val zone = if (ri < 0) clockZoneOf(ck, layer.height) else regZone[ri]
             if (!stepClockZone(z, zone)) continue
@@ -1292,6 +1416,31 @@ class GlitchRenderer(private val density: Float) {
             if (cb != null) cb() else buildPool(rnd.nextLong())
         }
         setVisible(targetCount(now))
+        // Mehr Risse mit der Zeit: am Ende großer Glitch, danach ein neues Rissmuster mit wenigen Rissen
+        if (crackGrow && crackTo > crackFrom && !crackPending && crackStart > 0L && now - crackStart >= crackHours * 3_600_000L) {
+            crackPending = true
+            triggerBurst(ZONE_ALL)
+            burstT = r(1.4f, 2.2f)
+            burstPow = 1.5f
+        }
+        if (crackPending && burstT <= 0f) {
+            crackPending = false
+            val cb = onCrackRestart
+            if (cb != null) cb() else {
+                crackSeed = rnd.nextLong()
+                crackStart = now
+                cracksDirty = true
+            }
+            countChanged = true
+        }
+        val cn = if (crackPending) crackTo.coerceIn(0, Cracks.MAX) else crackTarget(now)
+        if (cn != crackN) {
+            // nur echtes Wachsen lässt die neuen Risse aufblitzen (nicht das Verstellen in den Einstellungen)
+            growFlash = crackN >= 0 && cn > crackN && !countChanged && cs != null
+            crackN = cn
+            cracksDirty = true
+        }
+        countChanged = false
         val bursting = burstT > 0f && burstZone == ZONE_ALL
 
         // Neigung weich nachziehen
@@ -1308,28 +1457,254 @@ class GlitchRenderer(private val density: Float) {
         if (ck?.layer !== clockLayerSeen) updateClockPieces()
 
         updatePresses()
-        c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
+        updateFlash()
+        updateDead()
+        updateBg()
+        val bg = bgLayer
+        if (bg != null) c.drawBitmap(bg, 0f, 0f, null)
+        else c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
+        // ausgefallene Bruchstücke: schwarz
+        if (cs != null) for (i in 0 until nR) if (regDv[i]) regPath[i]?.let { c.drawPath(it, deadPaint) }
         stripeStates(bursting)
         // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
         drawClock(c)
+        drawFlash(c)
         drawStripes(c, bursting)
         crackBmp?.let { c.drawBitmap(it, 0f, 0f, null) }
-        // Vorschau: Markierung der angetippten Aufschlagstelle
-        marker?.let { m ->
+        drawCrackFlash(c)
+        // Vorschau beim Antippen: Kreise an den Aufschlagstellen, gestrichelte Linien zu den Richtungen
+        marks?.let { m ->
             markPaint.strokeWidth = 1.5f * density
-            c.drawCircle(m[0], m[1], 10f * density, markPaint)
-            c.drawCircle(m[0], m[1], 2f * density, markFill)
+            markDash.strokeWidth = 1.5f * density
+            var i = 0
+            while (i + 1 < m.size) {
+                if ((i / 2) % 2 == 0) {
+                    c.drawCircle(m[i], m[i + 1], 10f * density, markPaint)
+                    c.drawCircle(m[i], m[i + 1], 2f * density, markFill)
+                } else c.drawLine(m[i - 2], m[i - 1], m[i], m[i + 1], markDash)
+                i += 2
+            }
         }
     }
 
     private val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = Color.argb(217, 255, 255, 255) }
     private val markFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.WHITE }
+    private val markDash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        color = Color.argb(217, 255, 255, 255)
+        pathEffect = DashPathEffect(floatArrayOf(4f * density, 4f * density), 0f)
+    }
+
+    // ---------- Schwarze Bruchstücke ----------
+    // Bei vielen Streifen fällt ab und zu ein ganzes Bruchstück für ein paar Sekunden aus (beim Aus- und Angehen flackert
+    // es kurz). Höchstens jedes vierte Stück, nie zwei nebeneinander.
+
+    private val deadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.BLACK }
+
+    private fun updateDead() {
+        if (cs == null) return
+        val many = ((shownCount - 12) / 110f).coerceIn(0f, 1f)
+        val dk = dark / 5f
+        val maxDead = max(1, nR / 4)
+        var nd = 0
+        for (i in 0 until nR) if (regDead[i] > 0f) {
+            regDead[i] -= dt
+            if (regDead[i] > 0f) nd++
+        }
+        if (nR >= 3 && dk > 0f) for (i in 0 until nR) {
+            if (regDead[i] > 0f || nd >= maxDead) continue
+            val sb = burstT > 0f && (burstZone == ZONE_ALL || burstZone == regZone[i])
+            val rate = dk * (0.0015f + 0.02f * many) * (if (sb) 4f else 1f)
+            if (chance(p(rate)) && regNb[i].none { regDead[it] > 0f }) {
+                regDead[i] = r(1f, 4.5f) * (0.6f + 0.8f * many)
+                regDeadT[i] = regDead[i]
+                nd++
+            }
+        }
+        // sichtbar aus? beim Aus- und Angehen kurz flackern
+        for (i in 0 until nR) regDv[i] = regDead[i] > 0f && !((regDeadT[i] - regDead[i] < 0.16f || regDead[i] < 0.14f) && chance(0.5f))
+    }
+
+    // ---------- Bruchstücke leuchten beim Berühren ----------
+    // Das Stück unter dem Finger und ein, zwei weitere flackern grauweiß wie ein gedrücktes, kaputtes Display – nie zwei,
+    // die nebeneinander liegen. Solange der Finger liegt, wechseln die Stücke ab und zu.
+
+    private class RegFlash(val i: Int) {
+        var a = 0f
+        var next = 0f
+        var col = Color.rgb(220, 225, 232)
+    }
+
+    private val regFlash = ArrayList<RegFlash>()
+    private var flashPick = 0f
+    private var flashTouched = IntArray(0)
+    private val flashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+    private fun updateFlash() {
+        if (!touchFlash || cs == null || presses.isEmpty()) {
+            val k = exp(-dt * 18f)
+            val it = regFlash.iterator()
+            while (it.hasNext()) {
+                val f = it.next()
+                f.a *= k
+                if (f.a <= 0.01f) it.remove()
+            }
+            flashTouched = IntArray(0)
+            return
+        }
+        val touched = presses.map { it.ri }.filter { it in 0 until nR }.distinct().sorted().toIntArray()
+        flashPick -= dt
+        if (flashPick <= 0f || !touched.contentEquals(flashTouched)) {
+            flashPick = r(0.35f, 0.9f)
+            flashTouched = touched
+            val set = ArrayList<Int>()
+            for (i in touched) set.add(i)
+            val others = (0 until nR).filter { it !in set }.shuffled(rnd)
+            var extra = rnd.nextInt(3)
+            for (i in others) {
+                if (extra <= 0) break
+                if (set.any { j -> j == i || regNb[j].contains(i) }) continue
+                set.add(i)
+                extra--
+            }
+            val old = HashMap<Int, RegFlash>()
+            for (f in regFlash) old[f.i] = f
+            regFlash.clear()
+            for (i in set) regFlash.add(old[i] ?: RegFlash(i))
+        }
+        for (f in regFlash) {
+            f.next -= dt
+            if (f.next <= 0f) {
+                f.next = r(0.03f, 0.09f)
+                f.a = if (chance(0.18f)) 0f else r(0.08f, 0.5f)
+                f.col = Color.rgb(200 + rnd.nextInt(36), 206 + rnd.nextInt(35), 214 + rnd.nextInt(37))
+            }
+        }
+    }
+
+    private fun drawFlash(c: Canvas) {
+        if (cs == null) return
+        for (f in regFlash) {
+            if (f.i >= nR || f.a <= 0.01f || regDv[f.i]) continue
+            val path = regPath[f.i] ?: continue
+            flashPaint.color = Color.argb((f.a * 255f).toInt().coerceIn(0, 255), Color.red(f.col), Color.green(f.col), Color.blue(f.col))
+            c.drawPath(path, flashPaint)
+        }
+    }
+
+    // ---------- Neue Risse blitzen auf ----------
+
+    private class CrackFlash(val path: Path, val t0: Float)
+
+    private val crackFlashes = ArrayList<CrackFlash>()
+    private val crackFlashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+
+    private fun drawCrackFlash(c: Canvas) {
+        val it = crackFlashes.iterator()
+        while (it.hasNext()) {
+            val f = it.next()
+            val age = t - f.t0
+            if (age >= 0.6f || age < 0f) {
+                it.remove()
+                continue
+            }
+            val k = 1f - age / 0.6f
+            crackFlashPaint.color = Color.argb((0.9f * k * k * 255f).toInt().coerceIn(0, 255), 240, 246, 255)
+            crackFlashPaint.strokeWidth = max(1f, (1f + 2.5f * k) * density)
+            c.drawPath(f.path, crackFlashPaint)
+        }
+    }
+
+    // ---------- Eigenes Bild ----------
+    // Liegt unter allem, zerbricht mit den Rissen (jedes Bruchstück so versetzt wie die Streifen) und lässt sich abdunkeln.
+
+    /** Eigenes Bild abdunkeln 0..90 %. */
+    var bgDim = 40
+    private var bgSrc: Bitmap? = null
+    private var bgStamp = 0L
+    private var bgLayer: Bitmap? = null
+    private var bgFor: CrackSet? = null
+    private var bgShear = -1
+    private var bgDimB = -1
+    private var bgSrcB: Bitmap? = null
+    private val bgPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val bgDst = RectF()
+
+    /** Eigenes Bild setzen: stamp = Zeitpunkt der Wahl (0 = keins); load wird nur bei einem neuen Bild aufgerufen. */
+    fun setBackground(stamp: Long, load: () -> Bitmap?) {
+        if (stamp == bgStamp) return
+        bgStamp = stamp
+        bgSrc?.recycle()
+        bgSrc = if (stamp > 0L) try {
+            load()
+        } catch (e: Throwable) {
+            null
+        } else null
+        bgSrcB = null
+    }
+
+    private fun updateBg() {
+        val src = bgSrc
+        if (src == null) {
+            bgLayer?.recycle()
+            bgLayer = null
+            return
+        }
+        val bw = max(1, w.toInt())
+        val bh = max(1, h.toInt())
+        val cur = bgLayer
+        if (cur != null && cur.width == bw && cur.height == bh && bgFor === cs && bgShear == shearAmt && bgDimB == bgDim && bgSrcB === src) return
+        val bmp = if (cur != null && cur.width == bw && cur.height == bh) cur else {
+            cur?.recycle()
+            try {
+                Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888)
+            } catch (e: Throwable) {
+                bgLayer = null
+                return
+            }
+        }
+        val c = Canvas(bmp)
+        c.drawColor(Color.BLACK)
+        // so groß, dass das Bild den Bildschirm füllt (Mitte), wie ein normales Hintergrundbild
+        val sc = max(bw / src.width.toFloat(), bh / src.height.toFloat())
+        val iw = src.width * sc
+        val ih = src.height * sc
+        val ix = (bw - iw) / 2f
+        val iy = (bh - ih) / 2f
+        if (cs != null && nR > 1) {
+            for (i in 0 until nR) {
+                val path = regPath[i] ?: continue
+                val dx = round(regS[i] * shearAmt * SHEAR_K * density)
+                c.save()
+                c.clipPath(path)
+                bgDst.set(ix + dx, iy, ix + dx + iw, iy + ih)
+                c.drawBitmap(src, null, bgDst, bgPaint)
+                c.restore()
+            }
+        } else {
+            bgDst.set(ix, iy, ix + iw, iy + ih)
+            c.drawBitmap(src, null, bgDst, bgPaint)
+        }
+        c.drawColor(Color.argb((bgDim.coerceIn(0, 90) / 100f * 255f).toInt(), 0, 0, 0))
+        bgLayer = bmp
+        bgFor = cs
+        bgShear = shearAmt
+        bgDimB = bgDim
+        bgSrcB = src
+    }
 
     companion object {
         const val ZONE_ALL = 0
         const val ZONE_TOP = 1
         const val ZONE_MID = 2
         const val ZONE_BOTTOM = 3
+
+        /** „Versatz am Riss“: Stärke je Stufe (55 % weniger als in der ersten Version) */
+        private const val SHEAR_K = 1.2f * 0.45f
 
         /** Größe des Streifen-Vorrats: höchstens 150 Streifen plus Doppellinien. */
         private const val POOL = 172

@@ -19,11 +19,17 @@
     <!-- Broken Screen -->
     <string name="bs_name">Broken Screen</string>
     <string name="bs_hint">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
-    <string name="s_cracks">Anzahl Risse</string>
+    <string name="s_cracks">Anzahl Risse (von)</string>
+    <string name="s_cracks_max">Anzahl Risse bis</string>
+    <string name="s_crack_grow">Mehr Risse mit der Zeit</string>
+    <string name="ci_now">Jetzt %d Risse</string>
+    <string name="ci_flat">„Bis“ ist nicht größer als „von“: Die Risse bleiben bei %d.</string>
+    <string name="s_impacts">Aufschläge</string>
     <string name="cracks_none">keine</string>
     <string name="s_impact">Aufschlagstelle</string>
     <string name="impact_random">Zufällig</string>
     <string name="impact_tap">Selbst angetippt</string>
+    <string name="s_hshare">Waagerechte Risse quer übers Bild</string>
     <string name="s_splinter">Splitter am Aufschlag</string>
     <string name="spl_0">Aus</string>
     <string name="spl_1">Wenig</string>
@@ -36,6 +42,7 @@
     <string name="hours_1">1 Stunde</string>
     <string name="hours_n">%d Stunden</string>
     <string name="s_shear">Versatz am Riss</string>
+    <string name="s_dark">Schwarze Stellen zwischen den Rissen</string>
     <string name="s_calm">Grundflackern</string>
     <string name="s_burst">Glitch-Ausbrüche</string>
     <string name="s_count">Anzahl Streifen (von)</string>
@@ -56,12 +63,27 @@
     <string name="lapse_on">Zeitraffer an: 1 Stunde vergeht in 3 Sekunden (auch für den Hintergrund). „Neues Muster“ setzt die Zeit zurück.</string>
     <string name="lapse_off">Zeitraffer aus.</string>
     <string name="s_touch">Glitch unter dem Finger</string>
+    <string name="s_touch_flash">Bruchstücke leuchten beim Berühren</string>
     <string name="touch_note">Auf dem Startbildschirm. Ob es auch auf dem Sperrbildschirm geht, hängt vom Handy ab.</string>
     <string name="s_random">Neues Muster bei jedem Einschalten</string>
     <string name="s_mutate">Glitches verändern das Muster</string>
     <string name="tap_1">Tippe auf die Stelle, an der das Handy aufgeschlagen ist.</string>
     <string name="tap_2">Und jetzt dorthin tippen, wohin der Riss laufen soll.</string>
+    <string name="tap_1n">Tippe auf die Stelle des %1$d. Aufschlags (von %2$d).</string>
+    <string name="tap_2n">Und jetzt dorthin tippen, wohin der Riss vom %d. Aufschlag laufen soll.</string>
     <string name="tap_done">Fertig! „Neues Muster“ zeigt einen anderen Verlauf, unter „Aufschlagstelle“ geht es zurück auf Zufall.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Eigenes Bild</string>
+    <string name="bg_note_none">Dein eigenes Bild liegt unter Streifen und Rissen und zerbricht mit dem Glas. Gerade ist keins gewählt.</string>
+    <string name="bg_note_set">Dein Bild liegt unter Streifen und Rissen und zerbricht mit dem Glas.</string>
+    <string name="b_bg_pick">Bild wählen</string>
+    <string name="b_bg_clear">Bild entfernen</string>
+    <string name="s_bg_dim">Eigenes Bild abdunkeln</string>
+    <string name="bg_loading">Bild wird geladen …</string>
+    <string name="bg_set">Bild gesetzt. Mit „Eigenes Bild abdunkeln“ stellst du ein, wie hell es ist.</string>
+    <string name="bg_cleared">Eigenes Bild entfernt.</string>
+    <string name="bg_err">Das Bild ließ sich nicht laden. Probier ein anderes.</string>
 
     <!-- Uhr -->
     <string name="c_title">Uhr</string>

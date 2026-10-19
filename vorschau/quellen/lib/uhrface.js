@@ -13,7 +13,7 @@ const FIN = [
   // Kupfer
   { face: [[0, '#fff0de'], [0.4, '#e99b62'], [0.49, '#8a4a22'], [0.56, '#da8b52'], [1, '#a95d2c']], lit: [255, 236, 214], mid: [206, 130, 82], shade: [80, 36, 14], side: [hex('#6a3516'), hex('#1c0c04')], date: [222, 146, 98] },
   // Neon leuchtend: helle Fläche mit Schein, wie eine Leuchtröhre in Ziffernform
-  { neon: [40, 225, 255], face: [[0, '#ffffff'], [0.45, '#e6fdff'], [1, '#a8f1ff']], lit: [255, 255, 255], mid: [176, 242, 255], shade: [52, 168, 205], side: [hex('#0d4b5d'), hex('#021116')], date: [196, 246, 255] },
+  { neon: [40, 225, 255], face: [[0, '#ffffff'], [0.45, '#e6fdff'], [1, '#a8f1ff']], lit: [255, 255, 255], mid: [176, 242, 255], shade: [52, 168, 205], side: [hex('#198c9e'), hex('#082d34')], date: [196, 246, 255] },
   // Weiß wie das Original: matte weiße Fläche, Fasen hellgrau, Unterkanten grau, dunkle Kante darunter; Datum flach hellgrau
   { face: [[0, '#ffffff'], [1, '#ffffff']], lit: [255, 255, 255], mid: [220, 221, 222], shade: [172, 174, 178], side: [[60, 64, 68], [24, 26, 28]], date: [218, 218, 218] },
 ];

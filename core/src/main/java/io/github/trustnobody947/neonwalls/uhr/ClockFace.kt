@@ -564,7 +564,7 @@ class ClockFace {
                 Color.rgb(255, 236, 214), Color.rgb(206, 130, 82), Color.rgb(80, 36, 14), c("#6a3516"), c("#1c0c04"), Color.rgb(222, 146, 98)),
             // Neon: helle Fläche mit türkisem Schein
             Finish(intArrayOf(c("#ffffff"), c("#e6fdff"), c("#a8f1ff")), floatArrayOf(0f, 0.45f, 1f),
-                Color.rgb(255, 255, 255), Color.rgb(176, 242, 255), Color.rgb(52, 168, 205), c("#0d4b5d"), c("#021116"), Color.rgb(196, 246, 255),
+                Color.rgb(255, 255, 255), Color.rgb(176, 242, 255), Color.rgb(52, 168, 205), c("#198c9e"), c("#082d34"), Color.rgb(196, 246, 255),
                 neon = Color.rgb(40, 225, 255)),
             // Weiß wie das Original: matte weiße Fläche, Fasen hellgrau, Unterkanten grau, dunkle Kante darunter
             Finish(intArrayOf(c("#ffffff"), c("#ffffff")), floatArrayOf(0f, 1f),

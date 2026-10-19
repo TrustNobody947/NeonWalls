@@ -89,6 +89,13 @@ class SettingsActivity : Activity() {
         setContentView(root)
     }
 
+    /** Ergebnis der Bildauswahl (eigenes Hintergrundbild). */
+    @Deprecated("Bildauswahl ohne AndroidX")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!settings.onActivityResult(requestCode, resultCode, data)) super.onActivityResult(requestCode, resultCode, data)
+    }
+
     /** Einstellungen zeigen, oder ausblenden und Status-/Navigationsleiste verstecken (Vollbild). */
     private fun showPanel(show: Boolean) {
         sheet.visibility = if (show) View.VISIBLE else View.GONE

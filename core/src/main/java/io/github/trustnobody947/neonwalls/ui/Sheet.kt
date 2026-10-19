@@ -76,8 +76,16 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
                   fmt: (Int) -> String, onChange: () -> Unit, onRelease: () -> Unit): SeekBar =
         slider(label, prefs, key, def, min, max, step, fmt, onChange, onRelease)
 
+    /**
+     * Schieberegler, bei dem das Menü beim Schieben zurücktritt: Nur dieser Regler bleibt zu sehen, dahinter ist das
+     * Bild frei (z. B. Anzahl Streifen und Risse).
+     */
+    fun addFocusSlider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
+                       fmt: (Int) -> String, onChange: () -> Unit): SeekBar =
+        slider(label, prefs, key, def, min, max, step, fmt, onChange, null, true)
+
     private fun slider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
-                       fmt: (Int) -> String, onChange: () -> Unit, onRelease: (() -> Unit)?): SeekBar {
+                       fmt: (Int) -> String, onChange: () -> Unit, onRelease: (() -> Unit)?, focus: Boolean = false): SeekBar {
         val value = prefs.getInt(key, def).coerceIn(min, max)
         val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL }
         val name = TextView(act).apply { text = label; setTextColor(muted); textSize = 14f }
@@ -87,7 +95,18 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
         }
         head.addView(name, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         head.addView(out, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        panel.addView(head, full(dpi(8)))
+        // Regler mit Fokus: Überschrift und Regler in einem eigenen Kasten, der beim Schieben dunkel hinterlegt wird.
+        // Innenabstand und negative Ränder heben sich auf, damit nichts verrutscht.
+        val box: LinearLayout? = if (focus) LinearLayout(act).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpi(10), dpi(6), dpi(10), dpi(6))
+        } else null
+        if (box != null) {
+            box.addView(head, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            panel.addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dpi(2); bottomMargin = -dpi(6); leftMargin = -dpi(10); rightMargin = -dpi(10)
+            })
+        } else panel.addView(head, full(dpi(8)))
         val bar = SeekBar(act).apply {
             this.max = (max - min) / step
             progress = (value - min) / step
@@ -99,14 +118,55 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
                     onChange()
                 }
 
-                override fun onStartTrackingTouch(s: SeekBar?) {}
+                override fun onStartTrackingTouch(s: SeekBar?) {
+                    if (box != null) enterFocus(box)
+                }
+
                 override fun onStopTrackingTouch(s: SeekBar?) {
+                    if (box != null) exitFocus()
                     onRelease?.invoke()
                 }
             })
         }
-        panel.addView(bar, full())
+        if (box != null) box.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        else panel.addView(bar, full())
         return bar
+    }
+
+    // ---------- Menü tritt beim Schieben zurück ----------
+
+    private var focusBox: View? = null
+    private val focusHidden = ArrayList<View>()
+
+    /** Schiebt gerade jemand einen Regler mit Fokus (dann sind die anderen Einträge ausgeblendet)? */
+    val inFocus: Boolean get() = focusBox != null
+
+    private fun enterFocus(box: View) {
+        if (focusBox != null) return
+        focusBox = box
+        focusHidden.clear()
+        for (i in 0 until panel.childCount) {
+            val v = panel.getChildAt(i)
+            if (v !== box && v.visibility == View.VISIBLE) {
+                v.visibility = View.INVISIBLE
+                focusHidden.add(v)
+            }
+        }
+        box.background = GradientDrawable().apply {
+            cornerRadius = dp(10f)
+            setColor(Color.argb(209, 12, 14, 18))
+        }
+        // der Hintergrund der Einstellungen wird durchsichtig
+        (panel.parent as? View)?.background?.alpha = 0
+    }
+
+    private fun exitFocus() {
+        val box = focusBox ?: return
+        focusBox = null
+        for (v in focusHidden) if (v.visibility == View.INVISIBLE) v.visibility = View.VISIBLE
+        focusHidden.clear()
+        box.background = null
+        (panel.parent as? View)?.background?.alpha = 255
     }
 
     /**

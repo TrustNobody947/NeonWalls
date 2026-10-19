@@ -1,11 +1,14 @@
 package io.github.trustnobody947.neonwalls.glitch
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.provider.MediaStore
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -22,9 +25,10 @@ import kotlin.math.roundToInt
 
 /**
  * Einstellungen für Broken Screen – gemeinsam für Neon Walls und die eigene App „Broken Screen“.
- * Baut die Regler, verbindet sie mit der Vorschau und führt durch „Aufschlag antippen“
- * (erst die Aufschlagstelle, dann die Richtung des Risses). Statuszeile für wachsende Streifen und ein Zeitraffer
- * zum Ausprobieren (1 Stunde in 3 Sekunden).
+ * Baut die Regler, verbindet sie mit der Vorschau und führt durch „Aufschlag antippen“ (je Aufschlag erst die Stelle,
+ * dann die Richtung des Risses). Statuszeilen für wachsende Streifen und Risse und ein Zeitraffer zum Ausprobieren
+ * (1 Stunde in 3 Sekunden). Eigenes Hintergrundbild über die Bildauswahl des Handys (die Activity reicht das Ergebnis
+ * mit [onActivityResult] weiter).
  */
 class GlitchSettings(
     private val act: Activity,
@@ -35,13 +39,16 @@ class GlitchSettings(
     private val onSetWallpaper: () -> Unit
 ) {
     private val p = GlitchPrefs.prefs(act)
+    /** Antippen: 0 = aus, sonst Nummer des nächsten Tipps (1 = erster Aufschlag, 2 = seine Richtung, 3 = zweiter …) */
     private var tapStep = 0
-    private var tapX = 0f
-    private var tapY = 0f
+    private var tapPts = FloatArray(0)
+    private var tapPx = FloatArray(0)
     private var setImpactChoice: ((Int) -> Unit)? = null
     private val handler = Handler(Looper.getMainLooper())
     private val hideHint = Runnable { hint.visibility = View.GONE }
     private var info: TextView? = null
+    private var crackInfo: TextView? = null
+    private var bgNote: TextView? = null
     private var lapse = false
     private var lapseBtn: Button? = null
     private var lastTick = 0L
@@ -68,36 +75,59 @@ class GlitchSettings(
             GlitchPrefs.restartGrowth(act)
             reapply()
         }
+        // „Mehr Risse mit der Zeit“ ist durch: neue Risse, wieder mit wenigen
+        view.renderer.onCrackRestart = {
+            GlitchPrefs.restartCrackGrowth(act)
+            reapply()
+        }
         view.onFrame = { tick() }
         val re = { reapply() }
         val offOn = listOf(s(R.string.off), s(R.string.on))
 
-        // Glasrisse
-        ui.addSlider(s(R.string.s_cracks), p, GlitchPrefs.CRACKS, 3, 0, 6, 1,
+        // Glasrisse: Anzahl von – bis, mehr mit der Zeit
+        ui.addFocusSlider(s(R.string.s_cracks), p, GlitchPrefs.CRACKS, 3, 0, Cracks.MAX, 1,
             { if (it == 0) s(R.string.cracks_none) else it.toString() }, re)
+        ui.addFocusSlider(s(R.string.s_cracks_max), p, GlitchPrefs.CRACKS_MAX, 10, 0, Cracks.MAX, 1, { it.toString() }, re)
+        ui.addChoice(s(R.string.s_crack_grow), p, GlitchPrefs.CRACK_GROW, 0, offOn) { idx ->
+            // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
+            GlitchPrefs.setCrackGrow(act, idx == 1)
+            reapply()
+        }
+        ui.addSlider(s(R.string.s_grow_hours), p, GlitchPrefs.CRACK_HOURS, 6, 1, 24, 1, this::hours, re)
+        crackInfo = ui.addInfo()
+        // Aufschläge: wie viele, zufällig oder selbst angetippt
+        ui.addChoice(s(R.string.s_impacts), p, GlitchPrefs.IMPACTS, 0, listOf("1", "2", "3")) {
+            // „Selbst angetippt“ und für einen Aufschlag fehlt noch die Stelle: gleich antippen lassen
+            if (p.getInt(GlitchPrefs.IMPACT, 0) == 1 && !GlitchPrefs.allTapped(p)) startTap()
+            else {
+                cancelTap()
+                reapply()
+            }
+        }
         setImpactChoice = ui.addChoice(s(R.string.s_impact), p, GlitchPrefs.IMPACT, 0,
             listOf(s(R.string.impact_random), s(R.string.impact_tap))) { idx ->
-            // „Selbst angetippt“ ohne angetippte Stelle: gleich antippen lassen
-            if (idx == 1 && !GlitchPrefs.hasImpact(p)) startTap()
+            if (idx == 1 && !GlitchPrefs.allTapped(p)) startTap()
             else {
                 cancelTap()
                 GlitchPrefs.newCracks(act)
                 reapply()
             }
         }
+        ui.addFocusSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 10, { "$it %" }, re)
         ui.addChoice(s(R.string.s_splinter), p, GlitchPrefs.SPLINTER, 1,
             listOf(s(R.string.spl_0), s(R.string.spl_1), s(R.string.spl_2))) { reapply() }
         ui.addChoice(s(R.string.s_auto), p, GlitchPrefs.AUTO, 0,
             listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2))) { restartAutoClock() }
         ui.addSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, { restartAutoClock() })
-        ui.addSlider(s(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ui::level, re)
+        ui.addFocusSlider(s(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ui::level, re)
+        ui.addFocusSlider(s(R.string.s_dark), p, GlitchPrefs.DARK, 5, 0, 10, 1, ui::level, re)
 
         // Streifen und Glitches
-        ui.addSlider(s(R.string.s_calm), p, GlitchPrefs.CALM, 4, 0, 10, 1, ui::level, re)
-        ui.addSlider(s(R.string.s_burst), p, GlitchPrefs.BURST, 5, 0, 10, 1, ui::level, re)
-        ui.addSlider(s(R.string.s_count), p, GlitchPrefs.COUNT_POS, 59, 0, 100, 1,
+        ui.addFocusSlider(s(R.string.s_calm), p, GlitchPrefs.CALM, 4, 0, 10, 1, ui::level, re)
+        ui.addFocusSlider(s(R.string.s_burst), p, GlitchPrefs.BURST, 5, 0, 10, 1, ui::level, re)
+        ui.addFocusSlider(s(R.string.s_count), p, GlitchPrefs.COUNT_POS, 59, 0, 100, 1,
             { GlitchPrefs.countFromPos(it).toString() }, re)
-        ui.addSlider(s(R.string.s_count_max), p, GlitchPrefs.COUNT_MAX, 85, 0, 100, 1,
+        ui.addFocusSlider(s(R.string.s_count_max), p, GlitchPrefs.COUNT_MAX, 85, 0, 100, 1,
             { GlitchPrefs.countFromPos(it).toString() }, re)
         ui.addChoice(s(R.string.s_grow_time), p, GlitchPrefs.GROW_TIME, 0, offOn) { idx ->
             // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
@@ -110,9 +140,20 @@ class GlitchSettings(
         info = ui.addInfo()
         lapseBtn = ui.addButtonRow(s(R.string.b_lapse) to { toggleLapse() }).firstOrNull()
         ui.addChoice(s(R.string.s_touch), p, GlitchPrefs.TOUCH_FX, 1, offOn) { reapply() }
+        ui.addChoice(s(R.string.s_touch_flash), p, GlitchPrefs.TOUCH_FLASH, 1, offOn) { reapply() }
         ui.addNote(s(R.string.touch_note))
         ui.addSwitch(s(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, false, re)
         ui.addSwitch(s(R.string.s_mutate), p, GlitchPrefs.MUTATE, false, re)
+
+        // Eigenes Bild
+        ui.addTitle(s(R.string.bg_title), null, ui.dpi(22))
+        bgNote = ui.addNote("")
+        ui.addButtonRow(
+            s(R.string.b_bg_pick) to { pickImage() },
+            s(R.string.b_bg_clear) to { clearImage() }
+        )
+        ui.addFocusSlider(s(R.string.s_bg_dim), p, GlitchPrefs.BG_DIM, 40, 0, 90, 5, { "$it %" }, re)
+        updateBgNote()
 
         addClockSection(act, ui, ClockPrefs.ON_GLITCH, true, view.renderer.metal != null, re)
 
@@ -138,7 +179,7 @@ class GlitchSettings(
 
     private fun hours(v: Int) = if (v == 1) s(R.string.hours_1) else act.getString(R.string.hours_n, v)
 
-    // ---------- Statuszeile und Zeitraffer ----------
+    // ---------- Statuszeilen und Zeitraffer ----------
 
     /** Nach jedem Bild der Vorschau, wirkt höchstens viermal pro Sekunde. */
     private fun tick() {
@@ -156,13 +197,17 @@ class GlitchSettings(
         updateInfo()
     }
 
-    /** Beginn des Durchgangs und letzten Risswechsel vorverlegen (gilt auch für den Hintergrund). */
+    /** Beginn der Durchgänge und letzten Risswechsel vorverlegen (gilt auch für den Hintergrund). */
     private fun shiftTime(ms: Long) {
         val now = System.currentTimeMillis()
         val e = p.edit()
         var any = false
         if (p.getInt(GlitchPrefs.GROW_TIME, 0) == 1) {
             e.putLong(GlitchPrefs.GROW_START, p.getLong(GlitchPrefs.GROW_START, now) - ms)
+            any = true
+        }
+        if (p.getInt(GlitchPrefs.CRACK_GROW, 0) == 1) {
+            e.putLong(GlitchPrefs.CRACK_START, p.getLong(GlitchPrefs.CRACK_START, now) - ms)
             any = true
         }
         if (p.getInt(GlitchPrefs.AUTO, 0) == 2) {
@@ -193,23 +238,42 @@ class GlitchSettings(
         }
     }
 
-    /** „Jetzt N Streifen · Neustart in … · Akku … %“ (nur wenn Streifen wachsen). */
-    private fun updateInfo() {
-        val tv = info ?: return
-        val gt = p.getInt(GlitchPrefs.GROW_TIME, 0) == 1
-        val gb = p.getInt(GlitchPrefs.GROW_BATT, 0) == 1
-        if (!gt && !gb) {
+    private fun setInfo(tv: TextView?, t: String) {
+        if (tv == null) return
+        if (t.isEmpty()) {
             if (tv.visibility != View.GONE) tv.visibility = View.GONE
             return
         }
-        val r = view.renderer
-        val sb = StringBuilder(act.getString(R.string.gi_now, r.shownCount))
-        if (gt) sb.append(" · ").append(act.getString(R.string.gi_restart, dur(max(0L, r.growRemainingMs(System.currentTimeMillis())))))
-        if (gb) sb.append(" · ").append(act.getString(R.string.gi_batt, (r.battery * 100f).roundToInt()))
-        if (lapse) sb.append(" · ").append(s(R.string.gi_lapse))
-        val t = sb.toString()
         if (tv.text.toString() != t) tv.text = t
         if (tv.visibility != View.VISIBLE) tv.visibility = View.VISIBLE
+    }
+
+    /** „Jetzt N Streifen · Neustart in … · Akku … %“ und „Jetzt N Risse · Neustart in …“ (nur wenn sie wachsen). */
+    private fun updateInfo() {
+        // während ein Regler mit Fokus geschoben wird, bleibt alles andere ausgeblendet
+        if (ui.inFocus) return
+        val r = view.renderer
+        val now = System.currentTimeMillis()
+        val gt = p.getInt(GlitchPrefs.GROW_TIME, 0) == 1
+        val gb = p.getInt(GlitchPrefs.GROW_BATT, 0) == 1
+        if (gt || gb) {
+            val sb = StringBuilder(act.getString(R.string.gi_now, r.shownCount))
+            if (gt) sb.append(" · ").append(act.getString(R.string.gi_restart, dur(max(0L, r.growRemainingMs(now)))))
+            if (gb) sb.append(" · ").append(act.getString(R.string.gi_batt, (r.battery * 100f).roundToInt()))
+            if (lapse) sb.append(" · ").append(s(R.string.gi_lapse))
+            setInfo(info, sb.toString())
+        } else setInfo(info, "")
+        if (p.getInt(GlitchPrefs.CRACK_GROW, 0) == 1) {
+            val a = p.getInt(GlitchPrefs.CRACKS, 3)
+            val b = p.getInt(GlitchPrefs.CRACKS_MAX, 10)
+            if (b <= a) setInfo(crackInfo, act.getString(R.string.ci_flat, a))
+            else {
+                val sb = StringBuilder(act.getString(R.string.ci_now, r.shownCracks))
+                sb.append(" · ").append(act.getString(R.string.gi_restart, dur(max(0L, r.crackRemainingMs(now)))))
+                if (lapse) sb.append(" · ").append(s(R.string.gi_lapse))
+                setInfo(crackInfo, sb.toString())
+            }
+        } else setInfo(crackInfo, "")
     }
 
     /** „Nach Stunden“: Zeit ab jetzt neu zählen. */
@@ -217,40 +281,107 @@ class GlitchSettings(
         p.edit().putLong(GlitchPrefs.CRACK_TIME, System.currentTimeMillis()).apply()
     }
 
+    // ---------- Eigenes Bild ----------
+
+    private fun updateBgNote() {
+        bgNote?.text = s(if (p.getLong(GlitchPrefs.BG_STAMP, 0L) > 0L) R.string.bg_note_set else R.string.bg_note_none)
+    }
+
+    private fun pickImage() {
+        // Android 13 und neuer: die Fotoauswahl des Systems (braucht keine Berechtigung), sonst die Dateiauswahl
+        val i = if (Build.VERSION.SDK_INT >= 33) Intent(MediaStore.ACTION_PICK_IMAGES).setType("image/*")
+        else Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*")
+        try {
+            act.startActivityForResult(i, REQ_IMAGE)
+        } catch (e: Exception) {
+            try {
+                act.startActivityForResult(Intent(Intent.ACTION_GET_CONTENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), REQ_IMAGE)
+            } catch (e2: Exception) {
+                Toast.makeText(act, R.string.bg_err, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun clearImage() {
+        GlitchPrefs.clearBackground(act)
+        reapply()
+        updateBgNote()
+        Toast.makeText(act, R.string.bg_cleared, Toast.LENGTH_SHORT).show()
+    }
+
+    /** Ergebnis der Bildauswahl (von der Activity weitergereicht). true = war für uns. */
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != REQ_IMAGE) return false
+        val uri = data?.data
+        if (resultCode != Activity.RESULT_OK || uri == null) return true
+        Toast.makeText(act, R.string.bg_loading, Toast.LENGTH_SHORT).show()
+        // Bild laden und zuschneiden dauert einen Moment: nicht auf dem Haupt-Thread
+        Thread {
+            val ok = try {
+                GlitchImage.import(act.applicationContext, uri)
+            } catch (e: Throwable) {
+                false
+            }
+            handler.post {
+                if (act.isFinishing || act.isDestroyed) return@post
+                reapply()
+                updateBgNote()
+                Toast.makeText(act, if (ok) R.string.bg_set else R.string.bg_err, Toast.LENGTH_LONG).show()
+            }
+        }.start()
+        return true
+    }
+
     // ---------- Aufschlag antippen ----------
+
+    private fun tapHint() {
+        val n = GlitchPrefs.impacts(p)
+        val k = (tapStep - 1) / 2 + 1
+        val t = if (tapStep % 2 == 1) {
+            if (n == 1) s(R.string.tap_1) else act.getString(R.string.tap_1n, k, n)
+        } else {
+            if (n == 1) s(R.string.tap_2) else act.getString(R.string.tap_2n, k)
+        }
+        showHint(t, 0)
+    }
 
     fun startTap() {
         tapStep = 1
-        view.renderer.marker = null
+        tapPts = FloatArray(0)
+        tapPx = FloatArray(0)
+        view.renderer.marks = null
         showPanel(false)
-        showHint(s(R.string.tap_1), 0)
+        tapHint()
     }
 
     fun cancelTap() {
         if (tapStep == 0) return
         tapStep = 0
-        view.renderer.marker = null
+        view.renderer.marks = null
         hint.visibility = View.GONE
     }
 
-    /** Antippen der Vorschau: im Auswahlmodus erst die Aufschlagstelle, dann die Richtung. true = verbraucht. */
+    /**
+     * Antippen der Vorschau: im Auswahlmodus je Aufschlag erst die Stelle, dann die Richtung. true = verbraucht.
+     */
     fun handleTap(): Boolean {
         if (tapStep == 0) return false
         val x = view.lastX
         val y = view.lastY
         val w = max(1, view.width).toFloat()
         val h = max(1, view.height).toFloat()
-        if (tapStep == 1) {
-            tapX = x / w
-            tapY = y / h
-            tapStep = 2
-            view.renderer.marker = floatArrayOf(x, y)
-            showHint(s(R.string.tap_2), 0)
+        tapPts += floatArrayOf((x / w).coerceIn(0f, 1f), (y / h).coerceIn(0f, 1f))
+        tapPx += floatArrayOf(x, y)
+        val n = GlitchPrefs.impacts(p)
+        if (tapPts.size < 4 * n) {
+            tapStep++
+            view.renderer.marks = tapPx
+            tapHint()
             return true
         }
         tapStep = 0
-        view.renderer.marker = null
-        GlitchPrefs.setImpact(act, tapX, tapY, (x / w).coerceIn(0f, 1f), (y / h).coerceIn(0f, 1f))
+        view.renderer.marks = null
+        GlitchPrefs.setImpacts(act, tapPts)
         setImpactChoice?.invoke(1)
         reapply()
         showHint(s(R.string.tap_done), 5000)
@@ -265,6 +396,9 @@ class GlitchSettings(
     }
 
     companion object {
+        /** Anfrage-Nummer der Bildauswahl (für onActivityResult der Activity). */
+        const val REQ_IMAGE = 4711
+
         /** Hinweis-Feld unten über der Vorschau (für „Aufschlag antippen“). */
         fun makeHint(act: Activity, root: FrameLayout): TextView {
             val d = act.resources.displayMetrics.density

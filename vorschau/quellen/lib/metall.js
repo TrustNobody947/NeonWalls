@@ -168,7 +168,15 @@ void main() {
     vec3 e = env(R, 0.35);
     col += 0.05 * e + 0.3 * max(e - vec3(1.0), 0.0);
   } else {
-    col = mix(vec3(1.0), uNeon, 0.25 + 0.35 * v) + 0.2 * max(env(R, 0.25) - vec3(1.0), 0.0);
+    // Neon: helle Fläche, die Fase satt in der Neonfarbe mit Licht und Schatten, am Übergang ein heller Saum –
+    // so ist der Rand der Ziffern gut zu sehen, wie bei den Metallen
+    vec3 face = mix(vec3(1.0), uNeon, 0.25 + 0.35 * v);
+    float bev = clamp((1.0 - n.z) * 4.0, 0.0, 1.0);
+    vec3 Ld = normalize(vec3(-0.25, -0.78, 0.58));
+    float lit = clamp(0.3 + 1.0 * max(dot(n, Ld), 0.0), 0.0, 1.25);
+    col = mix(face, uNeon * lit, smoothstep(0.1, 0.6, bev));
+    col += vec3(0.45) * smoothstep(0.03, 0.14, bev) * (1.0 - smoothstep(0.14, 0.34, bev));
+    col += 0.2 * max(env(R, 0.25) - vec3(1.0), 0.0);
   }
   // Wand: senkrechte Fläche Richtung Tiefe, nach hinten dunkler
   vec2 wd = normalize(uDepth + vec2(1e-4, 1e-4));
