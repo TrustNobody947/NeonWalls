@@ -26,7 +26,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .sheet{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;
   max-height:calc(100% - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;
   background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:16px;
-  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px)}
+  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px);box-sizing:border-box}
 .sheet h2{margin:0;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .sheet .sub{margin:-6px 0 0;color:var(--muted);font-size:13px}
 #controls{display:grid;gap:14px}
@@ -52,6 +52,16 @@ button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(2
   border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);color:#000;border-color:transparent}
+/* Beim Schieben mancher Regler tritt das Menü zurück: nur der Regler bleibt sichtbar, das Bild dahinter ist frei */
+.sheet{transition:background-color .15s,border-color .15s,opacity .12s}
+.sheet.focus{background:transparent;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
+.sheet.focus h2,.sheet.focus .sub,.sheet.focus .btns,.sheet.focus .row:not(.active){visibility:hidden}
+.sheet.focus .row.active{background:rgba(12,14,18,.82);border-radius:10px;padding:8px 10px;margin:-8px -10px}
+/* Finger gedrückt halten: Das Menü verschwindet, solange der Finger liegt – man sieht das ganze Bild */
+.sheet{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sheet input[type=text]{-webkit-user-select:text;user-select:text}
+.sheet.peek{opacity:0;visibility:hidden;transition:opacity .12s,visibility 0s linear .12s}
+.sheet .tip{margin:-4px 0 0;color:var(--muted);font-size:12px;text-align:center}
 </style>
 
 <canvas id="c" aria-label="Animierter Hintergrund: kantige Metall-Uhr mit echter Uhrzeit, wahlweise über flackernden Glitch-Streifen"></canvas>
@@ -67,6 +77,7 @@ button.primary{background:var(--accent);color:#000;border-color:transparent}
     <button id="fsBtn" type="button">Vollbild</button>
     <button id="closeBtn" type="button">Schließen</button>
   </div>
+  <p class="tip">Finger gedrückt halten blendet das Menü aus, solange er liegt.</p>
 </div>
 
 <script>
@@ -127,7 +138,7 @@ const FIN = [
   // Kupfer
   { face: [[0, '#fff0de'], [0.4, '#e99b62'], [0.49, '#8a4a22'], [0.56, '#da8b52'], [1, '#a95d2c']], lit: [255, 236, 214], mid: [206, 130, 82], shade: [80, 36, 14], side: [hex('#6a3516'), hex('#1c0c04')], date: [222, 146, 98] },
   // Neon leuchtend: helle Fläche mit Schein, wie eine Leuchtröhre in Ziffernform
-  { neon: [40, 225, 255], face: [[0, '#ffffff'], [0.45, '#e6fdff'], [1, '#a8f1ff']], lit: [255, 255, 255], mid: [176, 242, 255], shade: [52, 168, 205], side: [hex('#0d4b5d'), hex('#021116')], date: [196, 246, 255] },
+  { neon: [40, 225, 255], face: [[0, '#ffffff'], [0.45, '#e6fdff'], [1, '#a8f1ff']], lit: [255, 255, 255], mid: [176, 242, 255], shade: [52, 168, 205], side: [hex('#198c9e'), hex('#082d34')], date: [196, 246, 255] },
   // Weiß wie das Original: matte weiße Fläche, Fasen hellgrau, Unterkanten grau, dunkle Kante darunter; Datum flach hellgrau
   { face: [[0, '#ffffff'], [1, '#ffffff']], lit: [255, 255, 255], mid: [220, 221, 222], shade: [172, 174, 178], side: [[60, 64, 68], [24, 26, 28]], date: [218, 218, 218] },
 ];
@@ -312,7 +323,7 @@ function buildLayer() {
   tintC = mk(lw, lh);
   // „Oben“ wie beim Original: Uhr und Datum zusammen mittig bei 14,66 % der Bildschirmhöhe.
   // Mit Höhenregler (settings.cy, Prozent der Bildschirmhöhe) frei wählbar.
-  const cy = (settings.cy != null ? settings.cy / 100 : [0.1466, 0.42, 0.66][settings.pos]) * H;
+  const cy = (settings.cy != null ? (settings.cy === 15 ? 0.1466 : settings.cy / 100) : [0.1466, 0.42, 0.66][settings.pos]) * H;
   lx = Math.round(W / 2 - lw / 2); ly = Math.round(clamp(cy - lh / 2, H * 0.03, H * 0.97 - lh));
   stamp = T.time + T.ds;
   layerKey = [settings.size, settings.date, settings.finish, settings.pos, settings.cy, W, H].join('|');
@@ -628,6 +639,14 @@ for (const c of E.controls) {
     el.addEventListener('input', () => { S[c.id] = +el.value; out.textContent = fmt(S[c.id]); if (c.swatch) el.style.setProperty('--sw', c.swatch(S[c.id])); save(); if (E.change) E.change(c.id); });
     // Regler losgelassen (z. B. erst dann die Risse neu ausrichten)
     if (E.release) el.addEventListener('change', () => E.release(c.id));
+    // Regler mit focus: Während man schiebt, tritt das Menü zurück und gibt den Blick aufs Bild frei
+    if (c.focus) {
+      const on = () => { sheet.classList.add('focus'); row.classList.add('active'); };
+      const off = () => { sheet.classList.remove('focus'); row.classList.remove('active'); };
+      el.addEventListener('pointerdown', on);
+      el.addEventListener('touchstart', on, { passive: true });
+      for (const ev of ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'change', 'blur']) el.addEventListener(ev, off);
+    }
   } else if (c.type === 'info') {
     // Statuszeile des Effekts, wird laufend aufgefrischt, solange die Einstellungen offen sind
     row.innerHTML = '<span class="lbl"></span>';
@@ -693,7 +712,30 @@ if (E.touch) {
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
+// Finger gedrückt halten (ohne zu schieben), während die Einstellungen offen sind: Das Menü verschwindet, solange der
+// Finger liegt, und kommt beim Loslassen zurück. Geht auf freien Stellen des Menüs (nicht auf Knöpfen und Reglern) und
+// auf dem Bild.
+const PEEK_MS = 400;
+let peekTimer = 0, peeking = false, peekX = 0, peekY = 0, peekEnd = -1e9;
+function peekStart(e) {
+  if (sheet.hidden || !e.isPrimary || e.button > 0) return;
+  clearTimeout(peekTimer); peekX = e.clientX; peekY = e.clientY;
+  peekTimer = setTimeout(() => { if (!sheet.hidden) { peeking = true; sheet.classList.add('peek'); } }, PEEK_MS);
+}
+function peekStop() {
+  clearTimeout(peekTimer);
+  if (peeking) { peeking = false; sheet.classList.remove('peek'); peekEnd = performance.now(); }
+}
+sheet.addEventListener('pointerdown', e => { if (!e.target.closest('button, input, select, textarea, a')) peekStart(e); });
+cv.addEventListener('pointerdown', peekStart);
+addEventListener('pointermove', e => { if (!peeking && e.isPrimary && Math.hypot(e.clientX - peekX, e.clientY - peekY) > 10) clearTimeout(peekTimer); });
+for (const ev of ['pointerup', 'pointercancel', 'blur']) addEventListener(ev, peekStop);
+// solange das Menü weg ist: nicht scrollen, kein Kontextmenü; der Klick beim Loslassen löst nichts aus
+sheet.addEventListener('touchmove', e => { if (peeking && e.cancelable) e.preventDefault(); }, { passive: false });
+addEventListener('contextmenu', e => { if (peeking || performance.now() - peekEnd < 600) e.preventDefault(); });
+sheet.addEventListener('click', e => { if (performance.now() - peekEnd < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 cv.addEventListener('click', e => {
+  if (performance.now() - peekEnd < 400) { dragged = false; return; }
   if (dragged) { dragged = false; return; }
   // Effekte können ein Antippen für sich nutzen (z. B. Aufschlagstelle wählen)
   if (E.tap && E.tap(e.clientX * dpr, e.clientY * dpr)) return;

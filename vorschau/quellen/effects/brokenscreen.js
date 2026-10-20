@@ -4,7 +4,7 @@
 // sternförmig übers Bild, auf Wunsch laufen auch Risse waagerecht quer über den Bildschirm. Jeder Riss endet am Rand
 // oder an einem anderen Riss (bis zu 23). Manche haben einen Abzweig, an den großen hängen kleine Risse, an den
 // Aufschlägen ein kleines Splitternetz. Auf Wunsch werden es mit der Zeit mehr Risse (1–24 Stunden, am Ende großer
-// Glitch und von vorn), oder sie wechseln von selbst. Glitch-Ausbrüche dauern 0,6 bis 1,6 Sekunden.
+// Glitch und von vorn), oder sie wechseln von selbst. Glitch-Ausbrüche dauern 0,3 bis 0,8 Sekunden.
 // Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
 // enden genau an der Risskante; bei vielen Streifen fällt ab und zu ein ganzes Stück für ein paar Sekunden aus.
 // Der Riss selbst: dunkle Bruchkante mit feinem Glanz daneben (Licht von oben).
@@ -152,9 +152,9 @@ function growInfo() {
 }
 function newStripes() { stripeSeed = (Math.random() * 2147483647) | 0; buildPool(); applyCount(false); }
 
-// Glitch-Ausbruch: dauert zufällig 0,6 bis 1,6 Sekunden
+// Glitch-Ausbruch: dauert zufällig 0,3 bis 0,8 Sekunden
 function triggerBurst(zone) {
-  burstT = rnd(0.6, 1.6);
+  burstT = rnd(0.3, 0.8);
   burstPow = rnd(0.5, 1.5);
   const r = Math.random();
   burstZone = zone || (r < 0.35 ? 'all' : r < 0.65 ? 'bottom' : r < 0.85 ? 'top' : 'mid');

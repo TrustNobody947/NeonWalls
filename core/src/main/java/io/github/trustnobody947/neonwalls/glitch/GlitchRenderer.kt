@@ -571,11 +571,11 @@ class GlitchRenderer(private val density: Float) {
     // ---------- Glitch-Ausbrüche ----------
 
     /**
-     * Ausbruch auslösen (zone = −1: zufälliger Bereich): dauert zufällig 0,6 bis 1,6 Sekunden.
+     * Ausbruch auslösen (zone = −1: zufälliger Bereich): dauert zufällig 0,3 bis 0,8 Sekunden.
      * Gibt true zurück, wenn er das ganze Bild betrifft.
      */
     fun triggerBurst(zone: Int = -1): Boolean {
-        burstT = r(0.6f, 1.6f)
+        burstT = r(0.3f, 0.8f)
         burstPow = r(0.5f, 1.5f)
         val q = rnd.nextFloat()
         burstZone = if (zone >= 0) zone else when {
