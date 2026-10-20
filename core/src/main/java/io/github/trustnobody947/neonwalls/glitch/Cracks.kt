@@ -19,10 +19,11 @@ import kotlin.math.sin
  * Alles in Breiten-Einheiten: x von 0 bis 1, y von 0 bis a (= Höhe / Breite). Gleicher Zufallswert = gleiche Risse.
  *
  * Das Handy ist an bis zu drei Stellen aufgeschlagen (zufällig an Ecke, Kante oder mitten im Glas, oder selbst
- * angetippt). Von dort laufen die Hauptrisse (bis zu 23) sternförmig übers Bild, auf Wunsch laufen auch Risse waagerecht
+ * angetippt). Von dort laufen die Hauptrisse (bis zu 36) sternförmig übers Bild, auf Wunsch laufen auch Risse waagerecht
  * quer über den Bildschirm. Die Risse entstehen nacheinander, jeder endet am Rand oder an einem schon vorhandenen Riss,
  * wie bei echtem Glas. Kommen Risse dazu („Mehr Risse mit der Zeit“), bleiben die vorhandenen genau, wie sie sind.
- * An den großen Rissen hängen kleine, die zur Spitze hin auslaufen.
+ * Mit Uhr läuft einer der Risse (zufällig welcher) durch die Ziffern.
+ * An den großen Rissen hängen kleine, die zur Spitze hin auslaufen, dazu ein paar feine Haarrisse (nicht mitgezählt).
  * Die Risse teilen das Display in Bruchstücke ([CrackSet.Region], die Flächen dieses Netzes); jedes Stück kennt seine
  * Nachbarn.
  */
@@ -92,12 +93,14 @@ class CrackSet(
         const val HORIZ = 3
         /** kleiner Riss, der an einem großen hängt (läuft zur Spitze hin aus) */
         const val TWIG = 4
+        /** feiner Haarriss (nicht mitgezählt, teilt nichts) */
+        const val HAIR = 5
     }
 }
 
 object Cracks {
     /** Höchstzahl der Hauptrisse */
-    const val MAX = 23
+    const val MAX = 36
 
     /** Wie stark zufällige Risse quer statt steil laufen (0 = gleich verteilt). */
     private const val QUER = 0.55
@@ -107,6 +110,7 @@ object Cracks {
     private const val D_SPOKE = 1   // vom Aufschlag übers Bild
     private const val D_BACK = 2    // Aufschlag mitten im Glas: nach hinten durchgerissen
     private const val D_H = 3       // waagerecht quer übers Bild
+    private const val D_C = 4       // durch die Uhr (von einem Riss oder vom Rand aus, wenn sonst keiner hinkommt)
 
     private class Pt(@JvmField val x: Double, @JvmField val y: Double)
 
@@ -157,8 +161,11 @@ object Cracks {
 
     private const val CHUNK = 16
 
-    /** Der eigene Aufschlag eines Risses: Lage und Knoten (dicht daran zählen nur die dort losgehenden Risse nicht) */
-    private class Ign(@JvmField val x: Double, @JvmField val y: Double, @JvmField val node: Int)
+    /**
+     * Der eigene Aufschlag eines Risses: Lage und Knoten (dicht daran zählen nur die dort losgehenden Risse nicht).
+     * host: geht der Riss von einem anderen ab, zählt dieser dicht am Startpunkt auch nicht.
+     */
+    private class Ign(@JvmField val x: Double, @JvmField val y: Double, @JvmField val node: Int, @JvmField val host: PL? = null)
 
     private class Div(pts: List<Pt>, val n0: Int, val n1: Int, val kind: Int, val imp: Int, val dir: Double) : PL(pts) {
         val splits = ArrayList<Split>()
@@ -191,6 +198,15 @@ object Cracks {
         return l
     }
 
+    /** Abstand des Punkts (x, y) zur Strecke p→q */
+    private fun segDist(x: Double, y: Double, p: Pt, q: Pt): Double {
+        val vx = q.x - p.x
+        val vy = q.y - p.y
+        val l2 = vx * vx + vy * vy
+        val u = if (l2 > 0) (((x - p.x) * vx + (y - p.y) * vy) / l2).coerceIn(0.0, 1.0) else 0.0
+        return hypot(x - p.x - vx * u, y - p.y - vy * u)
+    }
+
     /** Punkt in der Entfernung d entlang des Risses, mit Richtung. */
     private fun pointAtLen(p: List<Pt>, d0: Double): DoubleArray {
         var d = d0
@@ -221,8 +237,9 @@ object Cracks {
             if (s.bx0 > mx1 + 1e-9 || s.bx1 < mx0 - 1e-9 || s.by0 > my1 + 1e-9 || s.by1 < my0 - 1e-9) continue
             val sp = s.pts
             val ch = s.chunks
-            // geht dieser Riss am eigenen Aufschlag los, zählen Treffer dicht am Aufschlag nicht
-            val own = if (ign != null && s is Div && s.n0 == ign.node) ign else null
+            // geht dieser Riss am eigenen Aufschlag los (oder geht der neue Riss von ihm ab), zählen Treffer dicht am
+            // Startpunkt nicht
+            val own = if (ign != null && ((s is Div && s.n0 == ign.node) || s === ign.host)) ign else null
             var c = 0
             while (c < ch.size) {
                 if (ch[c] > mx1 + 1e-9 || ch[c + 2] < mx0 - 1e-9 || ch[c + 1] > my1 + 1e-9 || ch[c + 3] < my0 - 1e-9) { c += 6; continue }
@@ -261,7 +278,7 @@ object Cracks {
         for (guard in 0 until 400) {
             val l = 0.015 + R() * 0.045
             base += (R() - 0.5) * 0.05
-            val wob = (R() - 0.5) * 0.22
+            val wob = (R() - 0.5) * 0.15
             if (guard > 0) dir += wob + angDiff(base, dir) * 0.35
             if (aiming && aim != null) {
                 val dA = hypot(aim.x - x, aim.y - y)
@@ -348,7 +365,7 @@ object Cracks {
     }
 
     /**
-     * Feine Zacken wie bei echtem Glasbruch (klein, zusammenhängend, quer zur Richtung; die Enden bleiben genau). Am
+     * Feine Zacken wie bei echtem Glasbruch (klein, weich zusammenhängend, quer zur Richtung; die Enden bleiben genau). Am
      * Anfang und am Ende laufen die Zacken weich aus (t0, t1: Länge), damit sich Risse am selben Punkt nicht kreuzen.
      * Mit a > 0 bleiben die Zacken im Bild (ein Riss, der flach auf den Rand zuläuft, darf ihn nicht vorher kreuzen).
      * s0: so lang bleibt der Anfang ganz gerade (Risse aus demselben Aufschlag kreuzen sich dort sonst leicht).
@@ -367,8 +384,8 @@ object Cracks {
             val n = max(1, (l / 0.007).roundToInt())
             for (k in 1 until n) {
                 val f = k.toDouble() / n
-                j = j * 0.55 + (R() - 0.5) * 2 * amp
-                if (R() < 0.05) j += (R() - 0.5) * 4 * amp   // ab und zu ein kleiner Sprung
+                j = j * 0.78 + (R() - 0.5) * 1.1 * amp
+                if (R() < 0.02) j += (R() - 0.5) * 3 * amp   // selten ein kleiner Sprung
                 val s = acc + l * f
                 var tp = 1.0
                 if (t0 > 0) tp = min(tp, (s - s0) / t0)
@@ -545,15 +562,18 @@ object Cracks {
 
     /**
      * Risse bauen.
-     * @param n Anzahl Hauptrisse 0..23 (0 = keine Risse)
+     * @param n Anzahl Hauptrisse 0..36 (0 = keine Risse)
      * @param splinter Splitter am Aufschlag: 0 aus, 1 wenig, 2 viel
      * @param a Höhe / Breite
      * @param impacts Anzahl Aufschläge 1..3
      * @param manual je Aufschlag selbst angetippt: Aufschlag x, y und Richtung x, y als Anteil von Breite und Höhe (sonst null)
      * @param hshare Anteil der Risse, die waagerecht quer übers Bild laufen (0..100 %)
      * @param clockRect Bereich der Uhr in Breiten-Einheiten (x0, y0, x1, y1), durch den ein Riss laufen soll (oder null)
+     * @param clockSpan aus so vielen Rissen wird zufällig der gewählt, der durch die Uhr läuft (ohne „Mehr Risse mit der
+     * Zeit“ die sichtbaren, sonst alle bis „bis“). Muss für alle Anzahlen gleich bleiben, sonst ändern sich alte Risse.
      */
-    fun make(n: Int, splinter: Int, seed: Long, a: Double, impacts: Int, manual: Array<FloatArray?>, hshare: Int, clockRect: DoubleArray?): CrackSet? {
+    fun make(n: Int, splinter: Int, seed: Long, a: Double, impacts: Int, manual: Array<FloatArray?>, hshare: Int,
+             clockRect: DoubleArray?, clockSpan: Int): CrackSet? {
         val count = n.coerceIn(0, MAX)
         if (count <= 0 || a <= 0) return null
         val rnd = Random(seed)
@@ -561,14 +581,18 @@ object Cracks {
         fun r(x: Double, y: Double) = x + R() * (y - x)
         val nImp = impacts.coerceIn(1, 3)
         val imps = makeImpacts(R, a, nImp, manual)
-        // welche der (bis zu 23) Risse waagerecht quer laufen: feste Reihenfolge, auch für später dazukommende
+        // welche der (bis zu 36) Risse waagerecht quer laufen: feste Reihenfolge, auch für später dazukommende
         val hs = hshare.coerceIn(0, 100) / 100.0
         val horiz = BooleanArray(MAX) { i -> Math.round((i + 1) * hs) > Math.round(i * hs) }
-        // Mit Uhr: der erste passende Riss läuft durch die Ziffern (immer ausgewürfelt, damit die Reihenfolge gleich bleibt)
+        // Mit Uhr: einer der Risse läuft durch die Ziffern – welcher, ist Zufall (immer ausgewürfelt, damit die Reihenfolge
+        // gleich bleibt); mit „Mehr Risse mit der Zeit“ bekommt die Uhr ihren Riss also irgendwann unterwegs. Hat schon ein
+        // anderer Riss die Uhr getroffen, braucht es keinen eigenen mehr.
         val ctx0 = r(0.3, 0.7)
         val cty0 = r(0.3, 0.55)
-        var clockAim: Pt? = if (clockRect != null)
+        var clockDue = floor(R() * max(1, clockSpan.coerceAtMost(MAX))).toInt()
+        val clockAim: Pt? = if (clockRect != null)
             Pt(clockRect[0] + (clockRect[2] - clockRect[0]) * ctx0, clockRect[1] + (clockRect[3] - clockRect[1]) * cty0) else null
+        if (clockAim == null) clockDue = -1
         val bands = intArrayOf(0, 1, 2)
         for (i in 2 downTo 1) {
             val j = floor(R() * (i + 1)).toInt()
@@ -627,14 +651,13 @@ object Cracks {
         // Abstand eines Punkts zum nächsten Riss
         fun distToCracks(x: Double, y: Double): Double {
             var m = 1e9
-            for (d in divs) for (i in 1 until d.pts.size) {
-                val p = d.pts[i - 1]; val q = d.pts[i]
-                val vx = q.x - p.x; val vy = q.y - p.y
-                val l2 = vx * vx + vy * vy
-                val t1 = if (l2 > 0) (((x - p.x) * vx + (y - p.y) * vy) / l2).coerceIn(0.0, 1.0) else 0.0
-                m = min(m, hypot(x - p.x - vx * t1, y - p.y - vy * t1))
-            }
+            for (d in divs) for (i in 1 until d.pts.size) m = min(m, segDist(x, y, d.pts[i - 1], d.pts[i]))
             return m
+        }
+        // Läuft der Riss durch die Uhr (dicht am Zielpunkt in den Ziffern vorbei)?
+        fun reaches(p: List<Pt>, aim: Pt): Boolean {
+            for (i in 1 until p.size) if (segDist(aim.x, aim.y, p[i - 1], p[i]) < 0.04) return true
+            return false
         }
         fun startImpact(imp: Imp) {
             imp.started = true
@@ -647,9 +670,10 @@ object Cracks {
             }
             imp.node = addNode(imp.px, imp.py)
             // am Rand: der Aufschlag reißt bis an den Rand durch
-            if (imp.hasStub) finish(listOf(Pt(imp.px, imp.py), Pt(imp.sx, imp.sy)), imp.node, null, D_STUB, 0.0009, Ign(imp.px, imp.py, imp.node), imp.k, 0.0)
+            if (imp.hasStub) finish(listOf(Pt(imp.px, imp.py), Pt(imp.sx, imp.sy)), imp.node, null, D_STUB, 0.0007, Ign(imp.px, imp.py, imp.node), imp.k, 0.0)
         }
-        fun spoke(imp: Imp, dir: Double, aim: Pt?, kind: Int) {
+        // Riss vom Aufschlag aus. need: muss durch diese Stelle laufen (Uhr), sonst wird er nicht gesetzt (false)
+        fun spoke(imp: Imp, dir: Double, aim: Pt?, kind: Int, need: Pt? = null): Boolean {
             val p = Ign(imp.px, imp.py, imp.node)
             var best: Grown? = null
             var bestLen = 0.0
@@ -660,69 +684,120 @@ object Cracks {
                 best = bb
                 if (len > 0.08 || bb.hit == null) break
             }
-            val b = best ?: return
-            finish(if (b.hit != null) b.pts else toEdge(b.pts, a), imp.node, b.hit, kind, 0.0014, p, imp.k, dir)
+            val b = best ?: return false
+            if (need != null && !reaches(b.pts, need)) return false
+            finish(if (b.hit != null) b.pts else toEdge(b.pts, a), imp.node, b.hit, kind, 0.0010, p, imp.k, dir)
+            return true
         }
-        fun horizontal(j: Int) {
+        // Riss waagerecht quer übers Bild; mit aim auf Höhe der Uhr durch die Ziffern (false, wenn er nicht hinkommt)
+        fun horizontal(j: Int, aim: Pt?): Boolean {
             var best: Grown? = null
             var bestLen = 0.0
             var bx0 = 0.0
             var by0 = 0.0
-            var bAim: Pt? = null
             for (tr in 0 until 6) {
+                if (aim != null && tr >= 2) break
                 val band = bands[(j + tr) % 3]
                 var y = (band + r(0.12, 0.88)) / 3 * a
                 val left = R() < 0.5
                 val dir = (if (left) 0.0 else PI) + r(-0.12, 0.12)
-                var aim: Pt? = null
-                val ca = clockAim
-                if (ca != null && tr == 0) {
-                    y = (ca.y + r(-0.03, 0.03)).coerceIn(0.02, a - 0.02)
-                    aim = ca
-                }
+                if (aim != null) y = (aim.y + r(-0.03, 0.03)).coerceIn(0.02, a - 0.02)
                 val x0 = if (left) 0.0 else 1.0
                 if (border.any { hypot(nodes[it].x - x0, nodes[it].y - y) < 0.03 }) continue
                 val g = grow(R, a, x0, y, dir, 0.0, aim, divs, null)
+                if (aim != null && !reaches(g.pts, aim)) continue
                 // gleich am Anfang an einem Riss hängen geblieben: andere Höhe nehmen
                 val len = polyLen(g.pts)
-                if (best == null || len > bestLen) { best = g; bestLen = len; bx0 = x0; by0 = y; bAim = aim }
-                if (len > 0.45) break
+                if (best == null || len > bestLen) { best = g; bestLen = len; bx0 = x0; by0 = y }
+                if (aim != null || len > 0.45) break
             }
-            val b = best ?: return
-            if (bAim != null) clockAim = null
+            val b = best ?: return false
             val n0 = borderNode(bx0, by0)
-            finish(if (b.hit != null) b.pts else toEdge(b.pts, a), n0, b.hit, D_H, 0.0012, null, -1, if (bx0 > 0.5) PI else 0.0)
+            finish(if (b.hit != null) b.pts else toEdge(b.pts, a), n0, b.hit, D_H, 0.0009, null, -1, if (bx0 > 0.5) PI else 0.0)
+            return true
+        }
+        // Riss durch die Uhr, wenn er weder vom Aufschlag noch von der Seite hinkommt: Er geht von einem Riss oder vom Rand
+        // aus, und zwar von einer Stelle, von der aus kein anderer Riss im Weg liegt (die nächste Stelle des Netzes, oder
+        // links, rechts, oben am Rand, wenn der Weg frei ist), läuft mitten durch die Ziffern und weiter, bis er auf einen
+        // Riss oder den Rand trifft.
+        fun clockCrack(aim: Pt) {
+            val cx = ArrayList<Double>(); val cy = ArrayList<Double>(); val cw = ArrayList<Double>(); val ch = ArrayList<Hit?>()
+            var near: Hit? = null
+            var nearD = 1e9
+            for (ci in divs.indices) {
+                val d = divs[ci]
+                for (k in 1 until d.pts.size) {
+                    val p = d.pts[k - 1]; val q = d.pts[k]
+                    val vx = q.x - p.x; val vy = q.y - p.y
+                    val l2 = vx * vx + vy * vy
+                    val u = if (l2 > 0) (((aim.x - p.x) * vx + (aim.y - p.y) * vy) / l2).coerceIn(0.0, 1.0) else 0.0
+                    val x = p.x + vx * u; val y = p.y + vy * u
+                    val dd = hypot(aim.x - x, aim.y - y)
+                    if (dd < nearD) { nearD = dd; near = Hit(0.0, ci, k - 1 + u, x, y) }
+                }
+            }
+            near?.let { cx.add(it.x); cy.add(it.y); cw.add(1.5); ch.add(it) }
+            for (s in 0..2) {
+                val x = when (s) { 0 -> 0.0; 1 -> 1.0; else -> aim.x }
+                val y = if (s < 2) aim.y else 0.0
+                if (border.any { hypot(nodes[it].x - x, nodes[it].y - y) < 0.02 }) continue
+                if (hitAny(x, y, aim.x, aim.y, divs, null, null) != null) continue
+                cx.add(x); cy.add(y); cw.add(if (s < 2) 1.0 else 0.6); ch.add(null)
+            }
+            if (cw.isEmpty()) return
+            var sv = R() * cw.sum()
+            var pick = cw.size - 1
+            for (i in cw.indices) {
+                sv -= cw[i]
+                if (sv <= 0) { pick = i; break }
+            }
+            val host = ch[pick]
+            val sx = cx[pick]; val sy = cy[pick]
+            // geht er von einem Riss ab, zählt dieser dicht am Startpunkt nicht als Ende
+            val ign = if (host != null) Ign(sx, sy, -2, divs[host.ci]) else null
+            val g = grow(R, a, sx, sy, atan2(aim.y - sy, aim.x - sx), 0.0, aim, divs, ign)
+            if (polyLen(g.pts) < 0.01) return
+            val n0 = if (host != null) hostNode(host) else borderNode(sx, sy)
+            finish(if (g.hit != null) g.pts else toEdge(g.pts, a), n0, g.hit, D_C, 0.0009, ign, -1, 0.0)
         }
 
         var si = 0
         var hj = 0
         for (i in 0 until count) {
+            val ca = clockAim
+            // Uhr schon von einem anderen Riss getroffen: braucht keinen eigenen mehr
+            if (ca != null && clockDue in 0..i && distToCracks(ca.x, ca.y) < 0.025) clockDue = -1
+            val aimC = if (ca != null && clockDue in 0..i) ca else null
             if (horiz[i]) {
-                horizontal(hj++)
+                if (aimC != null) {
+                    if (!horizontal(hj++, aimC)) clockCrack(aimC)
+                    clockDue = -1
+                } else horizontal(hj++, null)
                 continue
             }
             val imp = imps[si % nImp]
             si++
             if (!imp.started) startImpact(imp)
-            var dir: Double
-            var aim: Pt? = null
-            val ca = clockAim
             if (imp.manual && imp.chosen.isEmpty()) {
-                dir = imp.md
-                aim = imp.aim
-            } else if (ca != null && imp.k == 0 && imp.chosen.isEmpty()) {
-                val ta = atan2(ca.y - imp.py, ca.x - imp.px)
+                // selbst angetippt: der erste Riss läuft genau in die gewählte Richtung (die Uhr kommt dann beim nächsten dran)
+                imp.chosen.add(imp.md)
+                spoke(imp, imp.md, imp.aim, D_SPOKE)
+            } else if (aimC != null) {
+                clockDue = -1
+                val ta = atan2(aimC.y - imp.py, aimC.x - imp.px)
                 val inFan = imp.full || abs(angDiff(ta, imp.md)) <= (imp.a1 - imp.a0) / 2 + 0.17
-                dir = if (inFan) ta else nextDir(R, imp)
-                if (inFan) {
-                    aim = ca
-                    clockAim = null
+                if (inFan && spoke(imp, ta, aimC, D_SPOKE, aimC)) imp.chosen.add(ta)
+                else {
+                    clockCrack(aimC)
+                    continue
                 }
-            } else dir = nextDir(R, imp)
-            imp.chosen.add(dir)
-            spoke(imp, dir, aim, D_SPOKE)
+            } else {
+                val dir = nextDir(R, imp)
+                imp.chosen.add(dir)
+                spoke(imp, dir, null, D_SPOKE)
+            }
             // mitten im Glas: der erste Riss reißt auch nach hinten durch (sonst hinge er lose im Glas und teilte nichts)
-            if (imp.back && !imp.backDone) {
+            if (imp.back && !imp.backDone && imp.chosen.isNotEmpty()) {
                 imp.backDone = true
                 imp.backDir = imp.chosen[0] + PI + r(-0.35, 0.35)
                 spoke(imp, imp.backDir, null, D_BACK)
@@ -748,7 +823,7 @@ object Cracks {
                 val stop = ArrayList<PL>()
                 for (o in divs) if (o !== d) stop.add(o)
                 stop.addAll(branchPL)
-                val br = refine(Rb, grow(Rb, a, at[0], at[1], bd, rr(0.1, 0.45), null, stop, null).pts, 0.0012, 0.01, 0.0, 0.0)
+                val br = refine(Rb, grow(Rb, a, at[0], at[1], bd, rr(0.1, 0.45), null, stop, null).pts, 0.0009, 0.01, 0.0, 0.0)
                 branches.add(br)
                 branchPL.add(PL(br))
             }
@@ -769,7 +844,7 @@ object Cracks {
             stop.addAll(branchPL)
             fun twig(x: Double, y: Double, dir: Double, len: Double): List<Pt> {
                 val g = grow(Rt, a, x, y, dir, len, null, stop, null)
-                if (g.pts.size > 1 && polyLen(g.pts) > 0.004) twigs.add(refine(Rt, g.pts, 0.0007, 0.003, 0.0, 0.0))
+                if (g.pts.size > 1 && polyLen(g.pts) > 0.004) twigs.add(refine(Rt, g.pts, 0.0005, 0.003, 0.0, 0.0))
                 return g.pts
             }
             val n = min(5, floor(total * rr(0.8, 2.2) + Rt()).toInt())
@@ -788,6 +863,42 @@ object Cracks {
                 val back = pointAtLen(d.pts, max(0.0, total - rr(0.012, 0.035)))
                 val m = if (Rt() < 0.4) 2 else 1
                 for (k in 0 until m) twig(back[0], back[1], back[2] + (if (k > 0) -1 else 1) * rr(0.3, 0.75), rr(0.015, 0.05))
+            }
+        }
+
+        // Haarrisse (nicht mitgezählt): sehr fein und fast gerade, laufen von einem Riss ins Glas und hören dort einfach auf,
+        // ab und zu einer vom Rand aus. Sie teilen nichts. Eigener Zufall je Riss, damit sie bleiben, wenn Risse dazukommen.
+        val hairs = ArrayList<List<Pt>>()
+        val hairStop = ArrayList<PL>()
+        hairStop.addAll(divs)
+        hairStop.addAll(branchPL)
+        divs.forEachIndexed { i, d ->
+            if (d.kind == D_STUB) return@forEachIndexed
+            val rh = Random(seed xor (0x7FEB352DL * (i + 13)))
+            val Rh = { rh.nextDouble() }
+            fun rr(x: Double, y: Double) = x + Rh() * (y - x)
+            fun addHair(p: ArrayList<Pt>) {
+                if (p.size < 2) return
+                hairs.add(p)
+                hairStop.add(PL(p))
+            }
+            val total = polyLen(d.pts)
+            if (Rh() < 0.4 && total > 0.08) {
+                // vom Riss aus (der eigene Riss zählt nur dicht am Startpunkt nicht als Ende)
+                val at = pointAtLen(d.pts, total * rr(0.12, 0.88))
+                val side = if (Rh() < 0.5) -1 else 1
+                val g = grow(Rh, a, at[0], at[1], at[2] + side * rr(0.45, 1.25), rr(0.05, 0.2), null, hairStop, Ign(at[0], at[1], -2, d))
+                if (polyLen(g.pts) > 0.02) addHair(refine(Rh, g.pts, 0.00025, 0.004, 0.003, a))
+            }
+            if (Rh() < 0.12) {
+                // vom Rand aus
+                val side = floor(Rh() * 4).toInt()
+                val q = rr(0.08, 0.92)
+                val x0 = when (side) { 0 -> 0.0; 1 -> 1.0; else -> q }
+                val y0 = when (side) { 2 -> 0.0; 3 -> a; else -> q * a }
+                val din = when (side) { 0 -> 0.0; 1 -> PI; 2 -> PI / 2; else -> -PI / 2 }
+                val g = grow(Rh, a, x0, y0, din + rr(-0.6, 0.6), rr(0.04, 0.14), null, hairStop, null)
+                if (polyLen(g.pts) > 0.015) addHair(refine(Rh, g.pts, 0.00025, 0.004, 0.003, a))
             }
         }
 
@@ -815,7 +926,7 @@ object Cracks {
                 val ox = mx - px; val oy = my - py
                 val ol = hypot(ox, oy).let { if (it > 0) it else 1.0 }
                 val bulge = rad * rr(0.02, 0.15)
-                web.add(refine(Rw, listOf(Pt(pa[0], pa[1]), Pt(mx + ox / ol * bulge, my + oy / ol * bulge), Pt(pb[0], pb[1])), 0.0009, 0.0, 0.0, 0.0))
+                web.add(refine(Rw, listOf(Pt(pa[0], pa[1]), Pt(mx + ox / ol * bulge, my + oy / ol * bulge), Pt(pb[0], pb[1])), 0.0007, 0.0, 0.0, 0.0))
             }
             val nt = (if (splinter == 1) 2 + (Rw() * 3).toInt() else 6 + (Rw() * 5).toInt()) + (if (imp.started) 0 else 3)
             for (q in 0 until nt) {
@@ -823,7 +934,7 @@ object Cracks {
                 val d0 = rr(0.004, if (splinter == 1) 0.03 else 0.05)
                 val x0 = px + cos(ang) * d0; val y0 = py + sin(ang) * d0
                 if (x0 <= 0 || x0 >= 1 || y0 <= 0 || y0 >= a) continue
-                web.add(refine(Rw, grow(Rw, a, x0, y0, ang + rr(-0.9, 0.9), rr(0.006, 0.025), null, null, null).pts, 0.0008, 0.0, 0.0, 0.0))
+                web.add(refine(Rw, grow(Rw, a, x0, y0, ang + rr(-0.9, 0.9), rr(0.006, 0.025), null, null, null).pts, 0.0006, 0.0, 0.0, 0.0))
             }
             // kleine Glassplitter: Dreiecke mit hellen Kanten, dicht am Aufschlag
             val ns = if (splinter == 1) 5 + (Rw() * 4).toInt() else 14 + (Rw() * 8).toInt()
@@ -861,11 +972,14 @@ object Cracks {
             if (ny > 0 || (abs(ny) < 0.25 && nx > 0)) { nx = -nx; ny = -ny }
             lines.add(CrackSet.Line(pts, cl, w, kind, base, CrackSet.Glint(rl), nx, ny))
         }
-        for (d in divs) add(d.pts, if (d.kind == D_STUB) 1.2 else if (d.kind == D_H) 0.9 else 1.0,
-            if (d.kind == D_H) CrackSet.HORIZ else CrackSet.SPOKE, 0.5 + rl.nextDouble() * 0.25)
+        for (d in divs) {
+            val quer = d.kind == D_H || d.kind == D_C
+            add(d.pts, if (d.kind == D_STUB) 1.2 else if (quer) 0.9 else 1.0, if (quer) CrackSet.HORIZ else CrackSet.SPOKE, 0.5 + rl.nextDouble() * 0.25)
+        }
         for (b in branches) add(b, 0.8, CrackSet.BRANCH, 0.4 + rl.nextDouble() * 0.25)
         for (w in web) add(w, 0.65, CrackSet.WEB, 0.55 + rl.nextDouble() * 0.35)
         for (t in twigs) add(t, 0.55, CrackSet.TWIG, 0.45 + rl.nextDouble() * 0.3)
+        for (hr in hairs) add(hr, 0.42, CrackSet.HAIR, 0.35 + rl.nextDouble() * 0.3)
 
         val divPts = divs.map { d -> DoubleArray(d.pts.size * 2) { i -> if (i % 2 == 0) d.pts[i / 2].x else d.pts[i / 2].y } }
         return CrackSet(imps.map { doubleArrayOf(it.px, it.py) }, a, regions, lines, shards, divPts)

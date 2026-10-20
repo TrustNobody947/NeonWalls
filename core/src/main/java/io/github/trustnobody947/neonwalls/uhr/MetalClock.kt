@@ -13,6 +13,8 @@ import android.graphics.Shader
  * Metall-Uhr in 3D als AGSL-Shader (ab Android 13). Gleiche Rechnung wie die Vorschau (vorschau/quellen/lib/metall.js):
  * Aus der Normalenkarte der Zeichen (Fasen) und einem Fotostudio (Himmel, scharfer Horizont, dunkler Boden,
  * Lichtkästen) entsteht die Spiegelung; beim Neigen wandert sie und die Seitenwände der Ziffern zeigen sich.
+ * Die Karte ist doppelt so fein wie der Bildschirm, die Oberfläche wird vierfach je Pixel gerechnet und gemittelt:
+ * Fasen, Gehrungen und Ränder bleiben scharf und glatt (keine Treppen, keine hellen Pünktchen).
  * Fern der Ziffern (Abstand steht in der Normalenkarte) hört der Shader sofort auf.
  * Zusätzlich: Karte der Bruchstücke (die Uhr zerfällt an den Rissen in versetzte Stücke) und Bänder, in denen die Uhr
  * gerade wegen eines glitchenden Streifens ausgespart wird.
@@ -47,12 +49,14 @@ class MetalClock private constructor(private val rt: RuntimeShader) : Clock3D {
             // alte Bilder nicht sofort freigeben: das letzte Bild kann noch gezeichnet werden (der Müllsammler räumt auf)
             bmpA = a
             bmpB = b
-            lw = nm.w
-            lh = nm.h
+            // die Karte ist nm.scale-mal so fein wie die Uhr auf dem Bildschirm
+            lw = nm.w / nm.scale
+            lh = nm.h / nm.scale
             this.pad = pad
             w3 = lw + 2 * pad
             h3 = lh + 2 * pad
             rt.setFloatUniform("uLay", lw.toFloat(), lh.toFloat())
+            rt.setFloatUniform("uS", nm.scale.toFloat())
             version = ck.version
             if (!hasRegions) setRegions(Bitmap.createBitmap(intArrayOf(Color.rgb(1, 0, 0)), 1, 1, Bitmap.Config.ARGB_8888))
             ready = true
@@ -129,6 +133,7 @@ uniform shader texA;
 uniform shader texB;
 uniform shader texR;
 uniform float2 uLay;
+uniform float uS;
 uniform float2 uPad;
 uniform float2 uROrg;
 uniform float2 uTilt;
@@ -146,8 +151,8 @@ uniform float uRA[8];
 uniform float4 uTint[8];
 uniform float4 uBand[10];
 
-float4 tA(float2 l) { return float4(texA.eval(l)); }
-float4 tB(float2 l) { return float4(texB.eval(l)); }
+float4 tA(float2 l) { return float4(texA.eval(l * uS)); }
+float4 tB(float2 l) { return float4(texB.eval(l * uS)); }
 
 float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
 
@@ -168,6 +173,52 @@ float3 env(float3 R, float r) {
     c += float3(1.3) * box(s, float2(0.72, -0.42), float2(0.08, 0.22), r);
     c += float3(0.8) * box(s, float2(-0.1, 0.86), float2(0.45, 0.05), r);
     return c;
+}
+
+// Blickrichtung: Neigung plus etwas Perspektive über die Breite und die Zeilenhöhe (der Horizont läuft quer durch)
+float3 viewDir(float2 l, float v) {
+    return normalize(float3(-uTilt.x * 0.65 + (l.x / uLay.x - 0.5) * 0.3, -uTilt.y * 0.65 + (0.5 - v) * 0.95, 1.0));
+}
+
+// Oberfläche an der Stelle l (mit Farbblitz tint): Farbe mal Deckung, Deckung in .a
+float4 surf(float2 l, float v, float4 tint) {
+    float cov = tB(l).r;
+    if (cov < 0.003) { return float4(0.0); }
+    float4 a = tA(l);
+    float3 n = float3(a.r * 2.0 - 1.0, a.g * 2.0 - 1.0, 0.0);
+    n.z = sqrt(max(0.04, 1.0 - dot(n.xy, n.xy)));
+    n = normalize(n);
+    float3 V = viewDir(l, v);
+    float3 R = reflect(-V, n);
+    float br = 1.0 + (hash(float2(floor(l.y), floor(l.x / 23.0))) - 0.5) * 0.06 * uBrush;
+    float3 col;
+    if (uKind < 0.5) {
+        float3 e = env(R, uRough);
+        float ct = clamp(dot(n, V), 0.0, 1.0);
+        float3 F = uF0 + (float3(1.0) - uF0) * pow(1.0 - ct, 5.0);
+        col = e * F * br;
+    } else if (uKind < 1.5) {
+        float3 e = env(R, uRough);
+        col = e * 0.2 * br + max(e - float3(1.0), float3(0.0)) * 0.9;
+    } else if (uKind < 2.5) {
+        float3 L = normalize(float3(-0.25, -0.78, 0.58));
+        float dif = 1.0 + 1.1 * (dot(n, L) - L.z);
+        col = float3(clamp(dif, 0.5, 1.0));
+        float3 e = env(R, 0.35);
+        col += 0.05 * e + 0.3 * max(e - float3(1.0), float3(0.0));
+    } else {
+        // Neon: helle Fläche, die Fase satt in der Neonfarbe mit Licht und Schatten, am Übergang ein heller Saum –
+        // so ist der Rand der Ziffern gut zu sehen, wie bei den Metallen
+        float3 face = mix(float3(1.0), uNeon, 0.25 + 0.35 * v);
+        float bev = clamp((1.0 - n.z) * 4.0, 0.0, 1.0);
+        float3 Ld = normalize(float3(-0.25, -0.78, 0.58));
+        float lit = clamp(0.3 + 1.0 * max(dot(n, Ld), 0.0), 0.0, 1.25);
+        col = mix(face, uNeon * lit, smoothstep(0.1, 0.6, bev));
+        col += float3(0.45) * smoothstep(0.03, 0.14, bev) * (1.0 - smoothstep(0.14, 0.34, bev));
+        col += 0.2 * max(env(R, 0.25) - float3(1.0), float3(0.0));
+    }
+    col = clamp(col + tint.rgb * tint.a, 0.0, 1.0);
+    return float4(col * cov, cov);
 }
 
 half4 main(float2 p) {
@@ -219,40 +270,13 @@ half4 main(float2 p) {
         wa = smoothstep(0.15, 0.6, cmax);
         if (wk == 0.0) { wk = kmax; }
     }
-    if (cov < 0.003 && wa < 0.003) { return half4(0.0); }
-    float3 n = float3(a.r * 2.0 - 1.0, a.g * 2.0 - 1.0, 0.0);
-    n.z = sqrt(max(0.04, 1.0 - dot(n.xy, n.xy)));
-    n = normalize(n);
     float v = b.g;
-    float3 V = normalize(float3(-uTilt.x * 0.65 + (l.x / uLay.x - 0.5) * 0.3, -uTilt.y * 0.65 + (0.5 - v) * 0.95, 1.0));
-    float3 R = reflect(-V, n);
-    float br = 1.0 + (hash(float2(floor(l.y), floor(l.x / 23.0))) - 0.5) * 0.06 * uBrush;
-    float3 col;
-    if (uKind < 0.5) {
-        float3 e = env(R, uRough);
-        float ct = clamp(dot(n, V), 0.0, 1.0);
-        float3 F = uF0 + (float3(1.0) - uF0) * pow(1.0 - ct, 5.0);
-        col = e * F * br;
-    } else if (uKind < 1.5) {
-        float3 e = env(R, uRough);
-        col = e * 0.2 * br + max(e - float3(1.0), float3(0.0)) * 0.9;
-    } else if (uKind < 2.5) {
-        float3 L = normalize(float3(-0.25, -0.78, 0.58));
-        float dif = 1.0 + 1.1 * (dot(n, L) - L.z);
-        col = float3(clamp(dif, 0.5, 1.0));
-        float3 e = env(R, 0.35);
-        col += 0.05 * e + 0.3 * max(e - float3(1.0), float3(0.0));
-    } else {
-        // Neon: helle Fläche, die Fase satt in der Neonfarbe mit Licht und Schatten, am Übergang ein heller Saum –
-        // so ist der Rand der Ziffern gut zu sehen, wie bei den Metallen
-        float3 face = mix(float3(1.0), uNeon, 0.25 + 0.35 * v);
-        float bev = clamp((1.0 - n.z) * 4.0, 0.0, 1.0);
-        float3 Ld = normalize(float3(-0.25, -0.78, 0.58));
-        float lit = clamp(0.3 + 1.0 * max(dot(n, Ld), 0.0), 0.0, 1.25);
-        col = mix(face, uNeon * lit, smoothstep(0.1, 0.6, bev));
-        col += float3(0.45) * smoothstep(0.03, 0.14, bev) * (1.0 - smoothstep(0.14, 0.34, bev));
-        col += 0.2 * max(env(R, 0.25) - float3(1.0), float3(0.0));
-    }
+    // Oberfläche vierfach je Pixel (die Karte ist doppelt so fein): Fasen, Gehrungen und Ränder werden sauber
+    // geglättet, statt eine gemittelte Normale zu spiegeln
+    float4 f = 0.25 * (surf(l + float2(-0.25, -0.25), v, tint) + surf(l + float2(0.25, -0.25), v, tint)
+        + surf(l + float2(-0.25, 0.25), v, tint) + surf(l + float2(0.25, 0.25), v, tint));
+    if (f.a < 0.003 && wa < 0.003) { return half4(0.0); }
+    float3 V = viewDir(l, v);
     float2 wd = normalize(uDepth + float2(0.0001, 0.0001));
     float3 Rw = reflect(-V, normalize(float3(wd, 0.45)));
     float3 wc;
@@ -263,10 +287,10 @@ half4 main(float2 p) {
         wc = mix(uSide0, uSide1, wk);
     }
     wc *= 1.0 - 0.6 * wk;
-    col = clamp(col + tint.rgb * tint.a, 0.0, 1.0);
     wc = clamp(wc + tint.rgb * (tint.a * 0.5), 0.0, 1.0);
-    float al = (cov + wa * (1.0 - cov)) * ra;
-    float3 rgb = (col * cov + wc * wa * (1.0 - cov)) * ra;
+    float A = f.a;
+    float al = (A + wa * (1.0 - A)) * ra;
+    float3 rgb = (f.rgb + wc * wa * (1.0 - A)) * ra;
     return half4(half3(rgb), half(al));
 }
 """

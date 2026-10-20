@@ -1,6 +1,8 @@
 // Metall-Uhr in 3D (Vorschau; gleiche Rechnung später in der App als AGSL-Shader).
 // Aus den Formen der Zeichen wird eine Normalenkarte gerechnet: Fläche oben flach, ringsum eine Fase wie gefräst
-// (exakter Abstand zum Rand, Gehrung an den Ecken). Ein kleiner WebGL-Shader spiegelt darin ein Fotostudio:
+// (exakter Abstand zum Rand, Gehrung an den Ecken). Die Karte hat doppelte Auflösung, der Shader rechnet die
+// Oberfläche vierfach je Pixel – so bleiben Kanten und Gehrungen scharf und glatt. Ein kleiner WebGL-Shader spiegelt
+// darin ein Fotostudio:
 // heller Himmel, scharfer Horizont, dunkler Boden, zwei Lichtkästen. Beim Neigen wandert die Spiegelung, die Uhr
 // schwebt ein wenig (Parallax) und ihre Seitenwände zeigen sich auf der passenden Seite.
 // Erwartet: GLYPHS/glyph/GH aus uhrface.js, mk und clamp aus dem Rahmen.
@@ -36,8 +38,42 @@ function edt2(inside, w, h) {
 
 // ---------- Normalenkarte je Zeichen (zwischengespeichert, unabhängig von der Oberfläche) ----------
 // Ergebnis: RGBA je Pixel = Normale x, Normale y (128 = flach), Höhe (Fase 0..255 Fläche), Deckung.
+// Die Fase wird genau aus dem Umriss gerechnet: Jede Stelle neigt sich zur nächsten Kante des Umrisses hin. So sind die
+// Fasen glatt (kein Treppenmuster) und die Gehrungen scharf.
 const nmCache = {};
 const BEVEL_SLOPE = 1.25;   // Steilheit der Fase (1 = 45°)
+// Außenrand eines Zeichens als Strecken [ax, ay, bx, by] (Einheiten der Schrift). Kanten, die an einem anderen Teil
+// desselben Zeichens anliegen (z. B. der Steg im H), gehören nicht zum Rand und fallen weg.
+function glyphEdges(S) {
+  const onOrIn = (Q, x, y) => {
+    let inside = false;
+    for (let i = 0, j = Q.length - 1; i < Q.length; j = i++) {
+      const a = Q[i], b = Q[j];
+      const vx = b[0] - a[0], vy = b[1] - a[1], l2 = vx * vx + vy * vy;
+      const t = l2 > 0 ? clamp(((x - a[0]) * vx + (y - a[1]) * vy) / l2, 0, 1) : 0;
+      if (Math.hypot(x - a[0] - vx * t, y - a[1] - vy * t) < 1e-6) return true;
+      if ((a[1] > y) !== (b[1] > y) && x < vx * (y - a[1]) / vy + a[0]) inside = !inside;
+    }
+    return inside;
+  };
+  const E = [];
+  S.forEach((P, pi) => {
+    for (let i = 0; i < P.length; i++) {
+      const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 1e-9) continue;
+      const n = Math.max(1, Math.ceil(L / 1.5));
+      let run = null;
+      const flush = () => { if (run) E.push([a[0] + (b[0] - a[0]) * run[0], a[1] + (b[1] - a[1]) * run[0], a[0] + (b[0] - a[0]) * run[1], a[1] + (b[1] - a[1]) * run[1]]); run = null; };
+      for (let k = 0; k < n; k++) {
+        const tm = (k + 0.5) / n, mx = a[0] + (b[0] - a[0]) * tm, my = a[1] + (b[1] - a[1]) * tm;
+        if (S.some((Q, qi) => qi !== pi && onOrIn(Q, mx, my))) flush();
+        else if (run) run[1] = (k + 1) / n; else run = [k / n, (k + 1) / n];
+      }
+      flush();
+    }
+  });
+  return E;
+}
 function glyphNM(ch, hPx, flat) {
   const key = ch + '|' + hPx + '|' + (flat ? 1 : 0);
   if (nmCache[key]) return nmCache[key];
@@ -55,27 +91,31 @@ function glyphNM(ch, hPx, flat) {
   for (const p of g.S) { x.moveTo(pad + p[0][0] * u, pad + p[0][1] * u); for (let i = 1; i < p.length; i++) x.lineTo(pad + p[i][0] * u, pad + p[i][1] * u); x.closePath(); }
   x.fillStyle = '#fff'; x.fill();
   const id = x.getImageData(0, 0, W2, H2).data;
-  const ins = new Uint8Array(W2 * H2);
-  for (let i = 0; i < W2 * H2; i++) ins[i] = id[i * 4 + 3] > 127 ? 1 : 0;
-  const dist = edt2(ins, W2, H2);
+  // Umriss in Pixeln dieser Karte
+  const E = glyphEdges(g.S).map(e => { const ax = pad + e[0] * u, ay = pad + e[1] * u, vx = (e[2] - e[0]) * u, vy = (e[3] - e[1]) * u; return [ax, ay, vx, vy, vx * vx + vy * vy]; });
   // Fasenbreite: große Ziffern etwa 4 % der Zeichenhöhe, Datum etwas mehr (sonst kaum zu sehen)
-  const bev = (flat ? Math.max(1, hPx * 0.06) : Math.max(1.4, hPx * 0.042)) * SS;
+  const bev = flat ? Math.max(1, hPx * 0.06) : Math.max(1.4, hPx * 0.042);
   const k = BEVEL_SLOPE / Math.sqrt(1 + BEVEL_SLOPE * BEVEL_SLOPE);
   for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
     let nx = 0, ny = 0, hs = 0, cov = 0;
     for (let sy = 0; sy < SS; sy++) for (let sx = 0; sx < SS; sx++) {
-      const X = xx * SS + sx, Y = yy * SS + sy, i = Y * W2 + X;
-      if (!ins[i]) continue;
+      const X = xx * SS + sx, Y = yy * SS + sy;
+      if (id[(Y * W2 + X) * 4 + 3] <= 127) continue;
       cov++;
-      const dd = dist[i] - 0.5;
-      if (dd < bev) {
-        const dl = X > 0 ? dist[i - 1] : 0, dr = X < W2 - 1 ? dist[i + 1] : 0;
-        const du = Y > 0 ? dist[i - W2] : 0, dn = Y < H2 - 1 ? dist[i + W2] : 0;
-        let gx = (dr - dl) / 2, gy = (dn - du) / 2;
-        const gl = Math.hypot(gx, gy) || 1;
-        // Normale zeigt von der Fase nach außen-oben
-        nx -= gx / gl * k; ny -= gy / gl * k;
-        hs += Math.max(0, dd) / bev;
+      // nächste Stelle auf dem Umriss
+      const px = (X + 0.5) / SS, py = (Y + 0.5) / SS;
+      let best = 1e18, qx = 0, qy = 0;
+      for (const e of E) {
+        let t = ((px - e[0]) * e[2] + (py - e[1]) * e[3]) / e[4];
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const ex = e[0] + e[2] * t - px, ey = e[1] + e[3] * t - py, dd = ex * ex + ey * ey;
+        if (dd < best) { best = dd; qx = ex; qy = ey; }
+      }
+      const d = Math.sqrt(best);
+      if (d < bev && d > 1e-6) {
+        // Normale zeigt von der Fase nach außen-oben (zur Kante hin)
+        nx += qx / d * k; ny += qy / d * k;
+        hs += d / bev;
       } else hs += 1;
     }
     if (!cov) continue;
@@ -119,37 +159,16 @@ vec3 env(vec3 R, float r) {
   c += vec3(0.8) * box(s, vec2(-0.1, 0.86), vec2(0.45, 0.05), r);
   return c;
 }
-void main() {
-  vec2 l = vP - uPad;
-  vec4 a = tA(l), b = tB(l);
-  // weit weg von jeder Ziffer: nichts zu tun (spart fast die ganze Rechenzeit)
-  if (a.a < 0.003 && b.b < 0.5) { gl_FragColor = vec4(0.0); return; }
-  // Seitenwand: die erste Lage des Ziffernkörpers entlang der Tiefe (Datum flacher), genau nachgemessen
-  float wa = 0.0, wk = 0.0, cmax = 0.0, kmax = 0.0, prev = 0.0;
-  if (a.a < 0.995 && b.b > 0.5) {
-    for (int i = 1; i <= 24; i++) {
-      float k = float(i) / 24.0;
-      vec2 q = l - uDepth * k;
-      float lim = mix(1.0, uDateDepth, step(0.5, tB(q).g));
-      float c = k <= lim ? tA(q).a : 0.0;
-      if (c > cmax) { cmax = c; kmax = k / lim; }
-      if (c > 0.5) {
-        float lo = prev, hi = k;
-        for (int j = 0; j < 4; j++) { float m = 0.5 * (lo + hi); if (tA(l - uDepth * m).a > 0.5) hi = m; else lo = m; }
-        wk = hi / lim; break;
-      }
-      prev = k;
-    }
-    wa = smoothstep(0.15, 0.6, cmax);
-    if (wk == 0.0) wk = kmax;
-  }
-  if (a.a < 0.003 && wa < 0.003) { gl_FragColor = vec4(0.0); return; }
+// Blickrichtung: Neigung plus etwas Perspektive über die Breite und die Zeilenhöhe (der Horizont läuft quer durch)
+vec3 viewDir(vec2 l, float v) { return normalize(vec3(-uTilt.x * 0.65 + (l.x / uLay.x - 0.5) * 0.3, -uTilt.y * 0.65 + (0.5 - v) * 0.95, 1.0)); }
+// Oberfläche an der Stelle l: Farbe mal Deckung, Deckung in .a
+vec4 surf(vec2 l, float v) {
+  vec4 a = tA(l);
+  if (a.a < 0.003) return vec4(0.0);
   vec3 n = vec3(a.r * 2.0 - 1.0, a.g * 2.0 - 1.0, 0.0);
   n.z = sqrt(max(0.04, 1.0 - dot(n.xy, n.xy)));
   n = normalize(n);
-  float v = b.r;
-  // Blickrichtung: Neigung plus etwas Perspektive über die Breite und die Zeilenhöhe (der Horizont läuft quer durch)
-  vec3 V = normalize(vec3(-uTilt.x * 0.65 + (l.x / uLay.x - 0.5) * 0.3, -uTilt.y * 0.65 + (0.5 - v) * 0.95, 1.0));
+  vec3 V = viewDir(l, v);
   vec3 R = reflect(-V, n);
   float br = 1.0 + (hash(vec2(floor(l.y), floor(l.x / 23.0))) - 0.5) * 0.06 * uBrush;
   vec3 col;
@@ -178,14 +197,46 @@ void main() {
     col += vec3(0.45) * smoothstep(0.03, 0.14, bev) * (1.0 - smoothstep(0.14, 0.34, bev));
     col += 0.2 * max(env(R, 0.25) - vec3(1.0), 0.0);
   }
+  return vec4(clamp(col, 0.0, 1.0) * a.a, a.a);
+}
+void main() {
+  vec2 l = vP - uPad;
+  vec4 a = tA(l), b = tB(l);
+  // weit weg von jeder Ziffer: nichts zu tun (spart fast die ganze Rechenzeit)
+  if (a.a < 0.003 && b.b < 0.5) { gl_FragColor = vec4(0.0); return; }
+  // Seitenwand: die erste Lage des Ziffernkörpers entlang der Tiefe (Datum flacher), genau nachgemessen
+  float wa = 0.0, wk = 0.0, cmax = 0.0, kmax = 0.0, prev = 0.0;
+  if (a.a < 0.995 && b.b > 0.5) {
+    for (int i = 1; i <= 24; i++) {
+      float k = float(i) / 24.0;
+      vec2 q = l - uDepth * k;
+      float lim = mix(1.0, uDateDepth, step(0.5, tB(q).g));
+      float c = k <= lim ? tA(q).a : 0.0;
+      if (c > cmax) { cmax = c; kmax = k / lim; }
+      if (c > 0.5) {
+        float lo = prev, hi = k;
+        for (int j = 0; j < 4; j++) { float m = 0.5 * (lo + hi); if (tA(l - uDepth * m).a > 0.5) hi = m; else lo = m; }
+        wk = hi / lim; break;
+      }
+      prev = k;
+    }
+    wa = smoothstep(0.15, 0.6, cmax);
+    if (wk == 0.0) wk = kmax;
+  }
+  float v = b.r;
+  // Oberfläche vierfach je Pixel gerechnet (die Normalenkarte hat doppelte Auflösung): Fasen, Gehrungen und Ränder
+  // werden sauber geglättet, statt eine gemittelte Normale zu spiegeln
+  vec4 f = 0.25 * (surf(l + vec2(-0.25, -0.25), v) + surf(l + vec2(0.25, -0.25), v) + surf(l + vec2(-0.25, 0.25), v) + surf(l + vec2(0.25, 0.25), v));
+  if (f.a < 0.003 && wa < 0.003) { gl_FragColor = vec4(0.0); return; }
   // Wand: senkrechte Fläche Richtung Tiefe, nach hinten dunkler
+  vec3 V = viewDir(l, v);
   vec2 wd = normalize(uDepth + vec2(1e-4, 1e-4));
   vec3 Rw = reflect(-V, normalize(vec3(wd, 0.45)));
   vec3 wc = uKind < 1.5 ? env(Rw, uRough + 0.25) * (uKind < 0.5 ? uF0 : vec3(0.22)) * 0.6 : mix(uSide0, uSide1, wk);
   wc *= 1.0 - 0.6 * wk;
-  col = clamp(col, 0.0, 1.0); wc = clamp(wc, 0.0, 1.0);
-  float A = a.a;
-  gl_FragColor = vec4(col * A + wc * wa * (1.0 - A), A + wa * (1.0 - A));
+  wc = clamp(wc, 0.0, 1.0);
+  float A = f.a;
+  gl_FragColor = vec4(f.rgb + wc * wa * (1.0 - A), A + wa * (1.0 - A));
 }`;
 
 function m3dInit() {
@@ -216,14 +267,15 @@ function m3dInit() {
   } catch (e) { M3D.ok = false; }
   return M3D.ok;
 }
-// Normalenkarte der ganzen Uhr hochladen (A: Normale, Höhe, Deckung; B: Höhe in der Zeile, Datum ja/nein)
-function m3dSetLayer(dataA, dataB, lw, lh, pad) {
+// Normalenkarte der ganzen Uhr hochladen (A: Normale, Höhe, Deckung; B: Höhe in der Zeile, Datum ja/nein). Die Karte
+// hat tw × th Pixel (doppelte Auflösung), die Uhr selbst lw × lh Bildschirmpixel.
+function m3dSetLayer(dataA, dataB, tw, th, lw, lh, pad) {
   if (!m3dInit()) return false;
   const gl = M3D.gl;
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, M3D.tA);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lw, lh, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(dataA.buffer, dataA.byteOffset, dataA.length));
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(dataA.buffer, dataA.byteOffset, dataA.length));
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, M3D.tB);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, lw, lh, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(dataB.buffer, dataB.byteOffset, dataB.length));
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(dataB.buffer, dataB.byteOffset, dataB.length));
   M3D.lw = lw; M3D.lh = lh; M3D.pad = pad;
   M3D.cv.width = lw + 2 * pad; M3D.cv.height = lh + 2 * pad;
   gl.viewport(0, 0, M3D.cv.width, M3D.cv.height);

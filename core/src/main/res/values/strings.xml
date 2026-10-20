@@ -63,7 +63,7 @@
     <string name="lapse_on">Zeitraffer an: 1 Stunde vergeht in 3 Sekunden (auch für den Hintergrund). „Neues Muster“ setzt die Zeit zurück.</string>
     <string name="lapse_off">Zeitraffer aus.</string>
     <string name="s_touch">Glitch unter dem Finger</string>
-    <string name="s_touch_flash">Bruchstücke leuchten beim Berühren</string>
+    <string name="s_touch_flash">Flächenglitch beim Berühren (ab 5 Rissen)</string>
     <string name="touch_note">Auf dem Startbildschirm. Ob es auch auf dem Sperrbildschirm geht, hängt vom Handy ab.</string>
     <string name="s_random">Neues Muster bei jedem Einschalten</string>
     <string name="s_mutate">Glitches verändern das Muster</string>

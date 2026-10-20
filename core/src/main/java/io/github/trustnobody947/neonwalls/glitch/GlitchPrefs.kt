@@ -20,7 +20,7 @@ object GlitchPrefs {
     const val GROW_BATT = "grow_batt"       // mehr Streifen bei sinkendem Akku: 0 aus, 1 an
     const val GROW_START = "grow_start"     // Beginn des aktuellen Durchgangs (ms)
     const val TOUCH_FX = "touch_fx"         // Glitch unter dem Finger: 0 aus, 1 an
-    const val TOUCH_FLASH = "touch_flash"   // Bruchstücke leuchten beim Berühren: 0 aus, 1 an
+    const val TOUCH_FLASH = "touch_flash"   // Flächenglitch (Bruchstücke leuchten beim Berühren): 0 aus, 1 an
     const val SHEAR = "shear"
     const val DARK = "dark"                 // schwarze Stellen zwischen den Rissen 0..10
     const val SEED = "seed"                 // Streifen
