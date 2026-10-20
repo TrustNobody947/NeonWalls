@@ -622,6 +622,15 @@ function resize() {
   E.resize(W, H, dpr);
 }
 
+// Effekte mit showOnUse: Nach dem Tippen auf einen Knopf verschwindet das Menü, damit man gleich das Bild sieht;
+// Antippen holt es zurück (Regler zeigen das Bild schon beim Schieben, siehe focus). Hat der Effekt das Menü schon selbst
+// ausgeblendet (z. B. zum Antippen einer Stelle), bleibt es dabei.
+let usedHint = false, lastToast = -1e9;
+const showPic = () => {
+  if (!E.showOnUse || sheet.hidden) return;
+  sheet.hidden = true;
+  if (!usedHint && performance.now() - lastToast > 200) { usedHint = true; toast('Antippen holt die Einstellungen zurück.', 2500); }
+};
 // Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
 const box = document.getElementById('controls'), ui = {};
 // Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
@@ -666,7 +675,7 @@ for (const c of E.controls) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
       if (o.font) b.style.fontFamily = o.font;
       if (o.weight) b.style.fontWeight = o.weight;
-      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); });
+      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); showPic(); });
       wrap.appendChild(b); btns.push(b);
     });
     ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
@@ -687,14 +696,14 @@ if (E.buttons) {
   const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
   for (const b of E.buttons) {
     const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
-    el.addEventListener('click', () => b.run());
+    el.addEventListener('click', () => { b.run(); if (!b.stay) showPic(); });
     row.insertBefore(el, fs);
   }
 }
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
-document.getElementById('newBtn').onclick = () => E.newPattern();
-document.getElementById('actBtn').onclick = () => E.action();
+document.getElementById('newBtn').onclick = () => { E.newPattern(); showPic(); };
+document.getElementById('actBtn').onclick = () => { E.action(); showPic(); };
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
 // Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
 // öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
@@ -748,6 +757,7 @@ const fsBtn = document.getElementById('fsBtn');
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 let toastTimer = 0;
 function toast(msg, ms) {
+  lastToast = performance.now();
   hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), ms || 4000);
 }

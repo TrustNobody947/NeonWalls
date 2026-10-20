@@ -22,7 +22,7 @@ object GlitchPrefs {
     const val TOUCH_FX = "touch_fx"         // Glitch unter dem Finger: 0 aus, 1 an
     const val TOUCH_FLASH = "touch_flash"   // Flächenglitch (Bruchstücke leuchten beim Berühren): 0 aus, 1 an
     const val SHEAR = "shear"
-    const val DARK = "dark"                 // schwarze Stellen zwischen den Rissen 0..10
+    const val DARK = "dark"                 // schwarze Stellen zwischen den Rissen 0..10 (vor allem: wie lange)
     const val SEED = "seed"                 // Streifen
     const val RANDOM_ON_WAKE = "random_on_wake"
     const val MUTATE = "mutate_on_glitch"

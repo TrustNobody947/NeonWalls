@@ -96,17 +96,23 @@ const per = (rate, dt) => 1 - Math.exp(-rate * dt);
 // ---------- Effekt ----------
 const E = (function () {
 // Broken Screen: flackernde Farbstreifen wie bei einem kaputten Display, dazu echte Glasrisse.
-// Das Handy ist an bis zu drei Stellen aufgeschlagen (zufällig an Ecke, Kante oder mitten im Glas, „Neues Muster“
-// würfelt neu, oder selbst angetippt: erst die Stelle, dann wohin der Riss laufen soll). Von dort laufen die Risse
-// sternförmig übers Bild, auf Wunsch laufen auch Risse waagerecht quer über den Bildschirm. Jeder Riss endet am Rand
-// oder an einem anderen Riss (bis zu 36). Manche haben einen Abzweig, an den großen hängen kleine Risse, dazu ein paar
-// feine Haarrisse (nicht mitgezählt), an den Aufschlägen ein kleines Splitternetz. Auf Wunsch werden es mit der Zeit
-// mehr Risse (1–24 Stunden, am Ende großer Glitch und von vorn), oder sie wechseln von selbst. Glitch-Ausbrüche dauern
-// 0,3 bis 0,8 Sekunden.
+// Das Handy ist an bis zu drei Stellen aufgeschlagen (zufällig direkt am Rand in einer Ecke oder an einer Kante,
+// selten mitten im Glas, „Neues Muster“ würfelt neu, oder selbst angetippt: erst die Stelle, dann wohin der Riss
+// laufen soll). Jeder Aufschlag sieht anders aus: schlicht, Stern, Spinnennetz oder Fächer, mit mehr oder weniger
+// kurzen Strahlen, Ringen und Splittern. Von dort laufen die Risse übers Bild, auf Wunsch laufen auch Risse waagerecht
+// quer über den Bildschirm. Jeder Riss endet am Rand oder an einem anderen Riss (bis zu 36). Manche haben einen
+// Abzweig, an den großen hängen kleine Risse, dazu ein paar feine Haarrisse (nicht mitgezählt). Auf Wunsch werden es
+// mit der Zeit mehr Risse (1–24 Stunden, am Ende großer Glitch und von vorn), oder sie wechseln von selbst.
+// Glitch-Ausbrüche dauern 0,3 bis 0,8 Sekunden.
 // Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
 // enden genau an der Risskante. Fällt ein Streifen in einem Stück aus, stirbt er an der Risskante (kurzes Flackern) und
-// bleibt dort 30 Sekunden bis 2 Minuten weg; genauso lange bleibt ab und zu ein ganzes Stück schwarz.
-// Der Riss selbst: feine dunkle Bruchkante mit dünnem Glanz daneben (Licht von oben).
+// bleibt dort 30 Sekunden bis 5 Minuten weg – sobald ein Riss da ist, fehlt bei 4 Streifen einer, bei 5 zwei, mit mehr
+// Streifen mehr. Ab und zu bleibt ein ganzes Stück schwarz, wie lange, stellt der Regler ein (ein paar Sekunden bis
+// etwa 20 Minuten); bei etwa jedem zweiten bleiben auf einer Seite ein paar Streifen stehen.
+// Nach dem Tippen auf einen Knopf verschwindet das Menü, damit man das Bild sieht (Antippen holt es zurück); beim
+// Schieben eines Reglers tritt es zurück.
+// Der Riss selbst: feine dunkle Bruchkante mit dünnem Glanz daneben (Licht von oben). Mal feiner und glatter, mal
+// etwas kräftiger, zackiger und heller glänzend – aber immer fein.
 // Auf Wunsch werden die Streifen mit der Zeit (1–24 Stunden) oder mit sinkendem Akku mehr; ist die Zeit um, gibt es
 // einen großen Glitch und es geht von vorn los. Unter dem Finger flackern die Streifen, dazu kurze Druckstreifen.
 // Flächenglitch (ab 5 Rissen): Das Bruchstück unter dem Finger flackert grau und blitzt dazwischen weiß wie ein
@@ -129,24 +135,24 @@ const controls = [
   { type: 'range', id: 'cracks', label: 'Anzahl Risse (von)', min: 0, max: 36, fmt: v => v == 0 ? 'keine' : String(v), focus: true },
   { type: 'range', id: 'cracksMax', label: 'Anzahl Risse bis', min: 0, max: 36, fmt: v => String(v), focus: true },
   { type: 'choice', id: 'crackGrow', label: 'Mehr Risse mit der Zeit', options: ['Aus', 'An'] },
-  { type: 'range', id: 'crackHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt },
+  { type: 'range', id: 'crackHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
   { type: 'info', id: 'crackInfo', text: () => crackInfo() },
   { type: 'choice', id: 'impacts', label: 'Aufschläge', options: ['1', '2', '3'] },
   { type: 'choice', id: 'impact', label: 'Aufschlagstelle', options: ['Zufällig', 'Selbst angetippt'] },
   { type: 'range', id: 'hshare', label: 'Waagerechte Risse quer übers Bild', min: 0, max: 100, step: 10, fmt: v => v + ' %', focus: true },
   { type: 'choice', id: 'splinter', label: 'Splitter am Aufschlag', options: ['Aus', 'Wenig', 'Viel'] },
   { type: 'choice', id: 'auto', label: 'Risse wechseln von selbst', options: ['Aus', 'Bei Glitches', 'Nach Stunden'] },
-  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: hoursFmt },
+  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: hoursFmt, focus: true },
   { type: 'range', id: 'shear', label: 'Versatz am Riss', min: 0, max: 10, fmt: lvl, focus: true },
-  { type: 'range', id: 'dark', label: 'Schwarze Stellen zwischen den Rissen', min: 0, max: 10, fmt: lvl, focus: true },
+  { type: 'range', id: 'dark', label: 'Schwarze Stellen zwischen den Rissen', min: 0, max: 10, fmt: v => darkFmt(v), focus: true },
   { type: 'range', id: 'calm', label: 'Grundflackern', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'burst', label: 'Glitch-Ausbrüche', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'countPos', label: 'Anzahl Streifen (von)', min: 0, max: 100, fmt: countFromPos, focus: true },
   { type: 'range', id: 'countMax', label: 'Anzahl Streifen bis', min: 0, max: 100, fmt: countFromPos, focus: true },
   { type: 'choice', id: 'growTime', label: 'Mehr Streifen mit der Zeit', options: ['Aus', 'An'] },
-  { type: 'range', id: 'growHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt },
+  { type: 'range', id: 'growHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
   { type: 'choice', id: 'growBatt', label: 'Mehr Streifen bei sinkendem Akku', options: ['Aus', 'An'] },
-  { type: 'range', id: 'battTest', label: 'Akku zum Ausprobieren (nur Vorschau)', min: 0, max: 100, fmt: v => v == 0 ? 'echter Akku' : v + ' %' },
+  { type: 'range', id: 'battTest', label: 'Akku zum Ausprobieren (nur Vorschau)', min: 0, max: 100, fmt: v => v == 0 ? 'echter Akku' : v + ' %', focus: true },
   { type: 'info', id: 'growInfo', text: growInfo },
   { type: 'choice', id: 'touchFx', label: 'Glitch unter dem Finger', options: ['Aus', 'An'] },
   { type: 'choice', id: 'touchFlash', label: 'Flächenglitch beim Berühren (ab 5 Rissen)', options: ['Aus', 'An'] },
@@ -156,10 +162,10 @@ const controls = [
   { type: 'info', id: 'bgNote', text: () => bgImg ? '' : 'Eigenes Bild: unten auf „Bild wählen“ tippen. Es liegt dann unter Streifen und Rissen.' },
   { type: 'choice', id: 'clockWhere', label: 'Uhr zeigen', options: ['Sperrbild', 'Start', 'Beides', 'Aus'] },
   { type: 'info', id: 'clockNote', text: () => settings.clockWhere < 2 ? 'In der Vorschau ist die Uhr immer zu sehen. Als Hintergrund erscheint sie nur ' + (settings.clockWhere === 0 ? 'auf dem Sperrbildschirm.' : 'auf dem Startbildschirm.') : '' },
-  { type: 'range', id: 'd3', label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl },
-  { type: 'range', id: 'cy', label: 'Höhe der Uhr (15 = wie Original)', min: 0, max: 100, fmt: v => v + ' %' },
-  { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl },
-  { type: 'range', id: 'size', label: 'Größe der Uhr (5 = wie Original)', min: 1, max: 10, fmt: v => String(v) },
+  { type: 'range', id: 'd3', label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl, focus: true },
+  { type: 'range', id: 'cy', label: 'Höhe der Uhr (15 = wie Original)', min: 0, max: 100, fmt: v => v + ' %', focus: true },
+  { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl, focus: true },
+  { type: 'range', id: 'size', label: 'Größe der Uhr (5 = wie Original)', min: 1, max: 10, fmt: v => String(v), focus: true },
   { type: 'choice', id: 'date', label: 'Datum', options: ['Wie Original', 'Deutsch', 'Aus'] },
   { type: 'grid', id: 'finish', label: 'Oberfläche der Uhr', options: [
     { label: 'Chrom', group: 'Metall' }, { label: 'Gold', group: 'Metall' }, { label: 'Stahlblau', group: 'Metall' },
@@ -800,7 +806,7 @@ function scheduleBurst(bur) {
 // vorhandenen Riss, wie bei echtem Glas. Kommen mit der Zeit Risse dazu, bleiben die alten also genau, wie sie sind.
 // Die Risse teilen das Display in Bruchstücke (die Flächen dieses Netzes); jedes Stück kennt seine Nachbarn.
 const CRACKS_MAX = 36;
-const SHEAR_K = 1.2 * 0.45;   // „Versatz am Riss“: Stärke je Stufe (55 % weniger als vorher)
+const SHEAR_K = 1.2 * 0.45 * 0.5;   // „Versatz am Riss“: Stärke je Stufe (noch einmal halb so stark: feiner einstellbar)
 let crackSeed = (Math.random() * 2147483647) | 0, CR = null, crackLayer = null, clockZones = {}, crackFlash = [], shownCracks = -1;
 function rng(seed) {
   let a = seed | 0;
@@ -877,13 +883,14 @@ function hitAny(ax, ay, bx, by, stop, ign, endPt) {
 }
 // Riss wachsen lassen: kurze, fast gerade Stücke mit kleinen Knicken, die Grundrichtung wandert langsam. Endet am
 // Bildrand, nach maxLen (0 = ohne) oder an einem Riss in stop. aim: Punkt, durch den er laufen soll (Uhr, Ziel).
-function grow(R, A, x, y, dir, maxLen, aim, stop, ign) {
+// wk: wie stark er von Stück zu Stück knickt (0,15 fein und glatt, bis 0,21 kräftiger und unruhiger).
+function grow(R, A, x, y, dir, maxLen, aim, stop, ign, wk) {
   const pts = [[x, y]];
   let base = dir, len = 0, aiming = !!aim, lastD = 1e9, hit = null;
   for (let guard = 0; guard < 400; guard++) {
     const L = 0.015 + R() * 0.045;
     base += (R() - 0.5) * 0.05;
-    const wob = (R() - 0.5) * 0.15;
+    const wob = (R() - 0.5) * (wk || 0.15);
     if (guard > 0) dir += wob + angDiff(base, dir) * 0.35;
     if (aiming) {
       const dA = Math.hypot(aim[0] - x, aim[1] - y);
@@ -935,8 +942,10 @@ function toEdge(pts, A) {
 // Anfang und am Ende laufen die Zacken weich aus (t0, t1: Länge), damit sich Risse am selben Punkt nicht kreuzen.
 // Mit A bleiben die Zacken im Bild (ein Riss, der flach auf den Rand zuläuft, darf ihn nicht vorher schon kreuzen).
 // s0: so lang bleibt der Anfang ganz gerade (Risse aus demselben Aufschlag kreuzen sich dort sonst leicht).
-function refine(R, pts, amp, t0, t1, A, s0) {
+// q: 0 = feine, ruhige Zacken; 1 = unruhiger mit öfter kleinen Sprüngen (wie die kräftigen Risse früher)
+function refine(R, pts, amp, t0, t1, A, s0, q) {
   const total = polyLen(pts), out = [pts[0]];
+  const qq = q || 0, keep = 0.78 - 0.2 * qq, nz = 1.1 + 0.8 * qq, jp = 0.02 + 0.025 * qq, ja = 3 + 0.8 * qq;
   let j = 0, acc = 0;
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
@@ -944,8 +953,8 @@ function refine(R, pts, amp, t0, t1, A, s0) {
     const n = Math.max(1, Math.round(l / 0.007));
     for (let k = 1; k < n; k++) {
       const f = k / n;
-      j = j * 0.78 + (R() - 0.5) * 1.1 * amp;
-      if (R() < 0.02) j += (R() - 0.5) * 3 * amp;   // selten ein kleiner Sprung
+      j = j * keep + (R() - 0.5) * nz * amp;
+      if (R() < jp) j += (R() - 0.5) * ja * amp;   // selten ein kleiner Sprung
       const s = acc + l * f;
       let tp = 1;
       if (t0 > 0) tp = Math.min(tp, (s - (s0 || 0)) / t0);
@@ -997,62 +1006,111 @@ function crackInfo() {
   return 'Jetzt ' + crackCount() + ' Risse · Neustart in ' + fmtDur(Math.max(0, settings.crackHours * 3600 - crackGrowT)) + (timeScale > 1 ? ' · Zeitraffer' : '');
 }
 
-// Aufschläge: Lage, Fächer der Risse (a0..a1), Stelle am Rand, bis zu der es durchreißt (S), Hauptrichtung (md)
+// Aufschlag direkt am Rand: in der Ecke (Seiten e1 und e2) oder an der Kante e1 (e2 < 0). Seiten: 0 links, 1 rechts,
+// 2 oben, 3 unten; at: Lage entlang der Kante; ins: Abstand zum Rand (winzig, ein kurzes Stück reißt bis an den Rand
+// durch: S). Die Risse laufen nur ins Bild hinein (Fächer a0..a1, nicht ganz bis an den Rand).
+function edgeImp(e1, e2, at, ins, A) {
+  if (e2 >= 0) {
+    const left = e1 === 0 || e2 === 0, top = e1 === 2 || e2 === 2;
+    const a0 = left ? (top ? 0 : -Math.PI / 2) : (top ? Math.PI / 2 : Math.PI);
+    return { P: [left ? ins : 1 - ins, top ? ins : A - ins], S: [left ? 0 : 1, top ? 0 : A], a0: a0 + 0.17, a1: a0 + Math.PI / 2 - 0.17, side: -1 };
+  }
+  const m = 0.24;
+  if (e1 === 0) return { P: [ins, at], S: [0, at], a0: -Math.PI / 2 + m, a1: Math.PI / 2 - m, side: 0 };
+  if (e1 === 1) return { P: [1 - ins, at], S: [1, at], a0: Math.PI / 2 + m, a1: 1.5 * Math.PI - m, side: 1 };
+  if (e1 === 2) return { P: [at, ins], S: [at, 0], a0: m, a1: Math.PI - m, side: 2 };
+  return { P: [at, A - ins], S: [at, A], a0: Math.PI + m, a1: 2 * Math.PI - m, side: 3 };
+}
+// Wie ein Aufschlag aussieht – jeder anders (eigener Zufall je Aufschlag, bleibt, wenn Risse dazukommen):
+//  schlicht: kaum Splitter, eher kräftige Risse;  Stern: Strahlen rundum, ein, zwei Ringe;
+//  Spinnennetz: viele kurze Strahlen und fast geschlossene Ringe, fein;  Fächer: Risse eng gebündelt in eine Richtung,
+//  lange Strahlen dazwischen.
+// p: wie oft; w: Anteil an den Rissen (im Verhältnis zu den anderen Aufschlägen); v: wie kräftig seine Risse sind
+// (0 fein und glatt, 1 kräftiger, zackiger, heller); fan: wie weit sich seine Risse auffächern (Anteil); rays, rayL:
+// kurze Strahlen (Zahl, Länge); rings, ringP: Ringe (Zahl, wie geschlossen); twigs, shards: kurze Sprünge und Splitter.
+const IMP_TYPES = [
+  { p: 0.2, w: [0.55, 0.9], v: [0.45, 1], fan: [0.6, 1], rays: [0, 2], rayL: [0.012, 0.03], rings: [0, 0], ringP: [0.3, 0.5], twigs: [1, 3], shards: [2, 5] },
+  { p: 0.35, w: [0.8, 1.25], v: [0, 0.8], fan: [0.85, 1], rays: [3, 6], rayL: [0.015, 0.05], rings: [1, 2], ringP: [0.5, 0.8], twigs: [2, 5], shards: [4, 8] },
+  { p: 0.25, w: [1.05, 1.6], v: [0, 0.5], fan: [0.85, 1], rays: [7, 12], rayL: [0.02, 0.06], rings: [2, 4], ringP: [0.75, 0.95], twigs: [4, 8], shards: [8, 14] },
+  { p: 0.2, w: [0.7, 1.15], v: [0.3, 1], fan: [0.35, 0.6], rays: [3, 6], rayL: [0.03, 0.1], rings: [0, 1], ringP: [0.3, 0.6], twigs: [2, 4], shards: [3, 6] },
+];
+// „Splitter am Aufschlag“ (sp): Aus = nur die Risse, Wenig = wie oben, Viel = mehr Strahlen, Ringe und Splitter
+function impactStyle(k, sp) {
+  const Rs = rng(crackSeed ^ Math.imul(0x632BE5AB, k + 21)), rs = (a, b) => a + Rs() * (b - a), ri = (a, b) => a + Math.floor(Rs() * (b - a + 1));
+  let u = Rs(), type = 0;
+  while (type < IMP_TYPES.length - 1 && u >= IMP_TYPES[type].p) { u -= IMP_TYPES[type].p; type++; }
+  const T = IMP_TYPES[type], size = rs(0.75, 1.35);
+  const s = { type, size, w: rs(T.w[0], T.w[1]), v: rs(T.v[0], T.v[1]), fan: rs(T.fan[0], T.fan[1]), fanC: Rs(), rot: Rs() * 2 * Math.PI,
+    rays: ri(T.rays[0], T.rays[1]), rayL: rs(T.rayL[0], T.rayL[1]) * size, ringP: rs(T.ringP[0], T.ringP[1]),
+    twigs: ri(T.twigs[0], T.twigs[1]), shards: ri(T.shards[0], T.shards[1]), boost: rs(0.75, 1.4), on: sp > 0 };
+  let nR = ri(T.rings[0], T.rings[1]);
+  const r0 = rs(0.011, 0.019) * size, step = rs(1.55, 2.05);
+  if (sp <= 0) { s.rays = 0; nR = 0; s.twigs = 0; s.shards = 0; }
+  else if (sp >= 2) { s.rays = Math.round(s.rays * 1.5) + 1; nR = Math.min(5, nR + 1); s.ringP = Math.min(0.97, s.ringP + 0.1); s.twigs *= 2; s.shards *= 2; }
+  s.radii = [];
+  for (let n = 0, rad = r0; n < nR && rad < 0.12; n++, rad *= step) s.radii.push(rad);
+  return s;
+}
+// Aufschläge: Lage, Fächer der Risse (a0..a1; f0..f1: der ganze mögliche Fächer), Stelle am Rand, bis zu der es
+// durchreißt (S), Hauptrichtung (md), Aussehen (st)
+const EDGE_NEAR = 0.07;   // so nah am Rand angetippt sitzt der Aufschlag direkt am Rand
 function makeImpacts(R, A, K) {
   const r = (a, b) => a + R() * (b - a), imps = [];
+  // Bereich der Uhr (mit Rand): dort landet kein Aufschlag mitten im Glas
+  const cb = clockOn() && settings.crack > 0 && layer ? [lx / W - 0.06, ly / W - 0.06, (lx + layer.width) / W + 0.06, (ly + layer.height) / W + 0.06] : null;
   const bands = [0, 1, 2];
   for (let i = 2; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [bands[i], bands[j]] = [bands[j], bands[i]]; }
   for (let k = 0; k < K; k++) {
     const man = settings.impact === 1 && settings.px[k] >= 0 && settings.tx[k] >= 0;
     let imp = null;
     if (man) {
-      // selbst angetippt: Aufschlag und Richtung vom Nutzer, der genaue Verlauf bleibt dem Zufall überlassen
+      // selbst angetippt: Aufschlag und Richtung vom Nutzer, der genaue Verlauf bleibt dem Zufall überlassen. Nah am
+      // Rand angetippt sitzt er direkt am Rand (nah an einer Ecke direkt in der Ecke), die Risse laufen ins Bild hinein.
       const Px = clamp(settings.px[k], 0.012, 0.988), Py = clamp(settings.py[k], 0.006, 0.994) * A;
       const Tx = settings.tx[k], Ty = settings.ty[k] * A, far = Math.hypot(Tx - Px, Ty - Py) > 0.03;
-      let md = far ? Math.atan2(Ty - Py, Tx - Px) : R() * 2 * Math.PI, a0, a1, S = null, back = false;
-      const ed = [[Px, 0], [1 - Px, 1], [Py, 2], [A - Py, 3]].sort((u, v) => u[0] - v[0])[0];
-      if (ed[0] < 0.07) {
-        // nah am Rand: von dort reißt es bis zum Rand durch, die Risse laufen nur ins Bild hinein
-        const e = ed[1];
-        if (e === 0) { S = [0, Py]; a0 = -Math.PI / 2; a1 = Math.PI / 2; }
-        else if (e === 1) { S = [1, Py]; a0 = Math.PI / 2; a1 = 1.5 * Math.PI; }
-        else if (e === 2) { S = [Px, 0]; a0 = 0; a1 = Math.PI; }
-        else { S = [Px, A]; a0 = Math.PI; a1 = 2 * Math.PI; }
-        a0 += 0.17; a1 -= 0.17;
-        const mid = (a0 + a1) / 2;
-        md = clamp(mid + angDiff(md, mid), a0, a1);
-      } else { a0 = md - Math.PI; a1 = md + Math.PI; back = true; }
-      imp = { P: [Px, Py], S, a0, a1, md, back, aim: far ? [Tx, Ty] : null, manual: true };
+      const md = far ? Math.atan2(Ty - Py, Tx - Px) : R() * 2 * Math.PI;
+      const ds = [[Px, 0], [1 - Px, 1], [Py, 2], [A - Py, 3]].sort((u, v) => u[0] - v[0]);
+      if (ds[0][0] < EDGE_NEAR) {
+        const e1 = ds[0][1], e2 = ds[1][0] < EDGE_NEAR && (ds[1][1] >> 1) !== (e1 >> 1) ? ds[1][1] : -1;
+        imp = edgeImp(e1, e2, e1 < 2 ? Py : Px, 0.005, A);
+        const mid = (imp.a0 + imp.a1) / 2;
+        imp.md = clamp(mid + angDiff(md, mid), imp.a0, imp.a1); imp.back = false;
+      } else imp = { P: [Px, Py], S: null, a0: md - Math.PI, a1: md + Math.PI, md, back: true, side: -1 };
+      imp.aim = far ? [Tx, Ty] : null; imp.manual = true;
     } else {
-      // zufällig, gut verteilt: Ecke, Kante oder mitten im Glas; mehrere Aufschläge in verschiedenen Höhen
+      // zufällig, gut verteilt: direkt am Rand in einer Ecke oder an einer Kante, selten mitten im Glas; mehrere
+      // Aufschläge in verschiedenen Höhen
       for (let tr = 0; tr < 24; tr++) {
         const band = K === 1 ? (R() < 0.6 ? 2 : Math.floor(R() * 2)) : bands[k];
-        const ty = R(), ins = r(0.025, 0.05), y = (band + r(0.1, 0.9)) / 3 * A;
+        const ty = R(), ins = r(0.002, 0.008), y = (band + r(0.1, 0.9)) / 3 * A;
         let c;
-        if (ty < 0.3) {
+        if (ty < 0.35) {
           // Ecke: oben oder unten passend zum Drittel, in der Mitte egal
           const bottom = band === 2 ? true : band === 0 ? false : R() < 0.5, left = R() < 0.5;
-          c = { P: [left ? ins : 1 - ins, bottom ? A - ins : ins], S: [left ? 0 : 1, bottom ? A : 0] };
-          [c.a0, c.a1] = left && bottom ? [-Math.PI / 2, 0] : !left && bottom ? [Math.PI, 1.5 * Math.PI] : left ? [0, Math.PI / 2] : [Math.PI / 2, Math.PI];
-        } else if (ty < 0.65) {
+          c = edgeImp(left ? 0 : 1, bottom ? 3 : 2, 0, ins, A);
+        } else if (ty < 0.85) {
           // Kante: meist links oder rechts, ganz oben/unten auch an der oberen/unteren Kante
           const e = R();
-          if (band !== 1 && e < 0.25) {
-            const x = r(0.15, 0.85);
-            c = band === 2 ? { P: [x, A - ins], S: [x, A], a0: Math.PI, a1: 2 * Math.PI } : { P: [x, ins], S: [x, 0], a0: 0, a1: Math.PI };
-          } else if (e < 0.62) c = { P: [ins, y], S: [0, y], a0: -Math.PI / 2, a1: Math.PI / 2 };
-          else c = { P: [1 - ins, y], S: [1, y], a0: Math.PI / 2, a1: 1.5 * Math.PI };
+          if (band !== 1 && e < 0.25) c = edgeImp(band === 2 ? 3 : 2, -1, r(0.08, 0.92), ins, A);
+          else c = edgeImp(e < 0.62 ? 0 : 1, -1, y, ins, A);
         } else {
           // mitten im Glas: Risse in alle Richtungen
-          c = { P: [r(0.2, 0.8), clamp(y, 0.12 * A, 0.88 * A)], S: null, a0: 0, a1: 2 * Math.PI, full: true };
+          c = { P: [r(0.2, 0.8), clamp(y, 0.12 * A, 0.88 * A)], S: null, a0: 0, a1: 2 * Math.PI, side: -1 };
         }
-        if (!c.full) { c.a0 += 0.17; c.a1 -= 0.17; }
-        c.md = (c.a0 + c.a1) / 2; c.back = !!c.full; c.aim = null; c.manual = false;
+        c.md = (c.a0 + c.a1) / 2; c.back = !c.S; c.aim = null; c.manual = false;
         imp = c;
-        if (imps.every(o => Math.hypot(o.P[0] - c.P[0], o.P[1] - c.P[1]) > 0.38)) break;
+        const onClock = !c.S && cb && c.P[0] > cb[0] && c.P[0] < cb[2] && c.P[1] > cb[1] && c.P[1] < cb[3];
+        if (!onClock && imps.every(o => Math.hypot(o.P[0] - c.P[0], o.P[1] - c.P[1]) > 0.38)) break;
       }
     }
     imp.full = imp.a1 - imp.a0 >= 2 * Math.PI - 1e-6;
+    imp.st = impactStyle(k, settings.splinter | 0);
+    imp.f0 = imp.a0; imp.f1 = imp.a1;
+    // Fächer: die Risse laufen gebündelt in einen Teil des möglichen Fächers
+    if (!imp.manual && !imp.full && imp.st.fan < 1) {
+      const span = imp.a1 - imp.a0, w = span * imp.st.fan, c0 = imp.a0 + w / 2 + imp.st.fanC * (span - w);
+      imp.a0 = c0 - w / 2; imp.a1 = c0 + w / 2; imp.md = c0;
+    }
     imp.chosen = []; imp.started = false; imp.k = k;
     imps.push(imp);
   }
@@ -1117,6 +1175,13 @@ function makeCracks() {
   if (!clockAim) clockDue = -1;
   const bands = [0, 1, 2];
   for (let i = 2; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [bands[i], bands[j]] = [bands[j], bands[i]]; }
+  // welcher Aufschlag den nächsten Riss bekommt: nach seinem Anteil (jeder Aufschlag anders), feste Reihenfolge
+  const seq = [], cw = imps.map(() => 0), tw = imps.reduce((q, m) => q + m.st.w, 0);
+  for (let i = 0; i < CRACKS_MAX; i++) {
+    let b = 0;
+    imps.forEach((m, j) => { cw[j] += m.st.w; if (cw[j] > cw[b]) b = j; });
+    cw[b] -= tw; seq.push(b);
+  }
 
   // Netz: Knoten (Ecken, Enden am Rand, Aufschläge, Stellen, an denen ein Riss an einem anderen endet) und Risse dazwischen
   const nodes = [[0, 0], [1, 0], [1, A], [0, A]], border = [0, 1, 2, 3], divs = [];
@@ -1135,9 +1200,11 @@ function makeCracks() {
     host.splits.push({ pos: h.pos, node: id });
     return id;
   };
-  // Riss fertig machen: Zacken, an einem dabei gekreuzten Riss kappen, Knoten setzen, eintragen
+  // Riss fertig machen: Zacken, an einem dabei gekreuzten Riss kappen, Knoten setzen, eintragen. extra.v: wie kräftig
+  // (0 fein und glatt, 1 kräftiger und zackiger)
   const finish = (coarse, n0, hit, kind, amp, ign, extra) => {
-    let pts = refine(R, coarse, amp, ign ? 0.02 : 0.006, hit ? 0.012 : 0.004, A, ign ? 0.008 : 0);
+    const v = extra && extra.v || 0;
+    let pts = refine(R, coarse, amp * (1 + 0.3 * v), ign ? 0.02 : 0.006, hit ? 0.012 : 0.004, A, ign ? 0.008 : 0, v);
     pts[0] = nodes[n0].slice();
     const endPt = pts[pts.length - 1];
     let cr = null;
@@ -1167,31 +1234,35 @@ function makeCracks() {
   };
   const startImpact = imp => {
     imp.started = true;
-    // liegt der Aufschlag genau auf einem schon vorhandenen Riss: ein Stück daneben setzen
+    // liegt der Aufschlag genau auf einem schon vorhandenen Riss: ein Stück daneben setzen (an der Kante entlang)
+    const P0 = imp.P.slice();
     for (let tr = 0; tr < 6 && distToCracks(imp.P[0], imp.P[1]) < 0.008; tr++) {
-      imp.P = [clamp(imp.P[0] + (tr % 2 ? -1 : 1) * 0.012, 0.01, 0.99), clamp(imp.P[1] + 0.009, 0.01, A - 0.01)];
+      const s = (tr % 2 ? -1 : 1) * 0.014 * (1 + (tr >> 1));
+      if (imp.side === 0 || imp.side === 1) { imp.P = [P0[0], clamp(P0[1] + s, 0.02, A - 0.02)]; imp.S = [imp.S[0], imp.P[1]]; }
+      else if (imp.side >= 2) { imp.P = [clamp(P0[0] + s, 0.02, 0.98), P0[1]]; imp.S = [imp.P[0], imp.S[1]]; }
+      else imp.P = [clamp(imp.P[0] + (tr % 2 ? -1 : 1) * 0.012, 0.003, 0.997), clamp(imp.P[1] + 0.009, 0.003, A - 0.003)];
     }
     imp.node = addNode(imp.P[0], imp.P[1]);
     // am Rand: der Aufschlag reißt bis an den Rand durch
-    if (imp.S) finish([imp.P.slice(), imp.S.slice()], imp.node, null, 'stub', 0.0007, imp, { imp: imp.k });
+    if (imp.S) finish([imp.P.slice(), imp.S.slice()], imp.node, null, 'stub', 0.0007, imp, { imp: imp.k, v: imp.st.v });
   };
   // Läuft der Riss durch die Uhr (dicht am Zielpunkt in den Ziffern vorbei)?
   const reaches = (pts, aim) => { for (let i = 1; i < pts.length; i++) if (segDist(aim[0], aim[1], pts[i - 1], pts[i]) < 0.04) return true; return false; };
-  // Riss vom Aufschlag aus. need: muss durch diese Stelle laufen (Uhr), sonst wird er nicht gesetzt (false)
-  const spoke = (imp, dir, aim, kind, need) => {
+  // Riss vom Aufschlag aus. need: muss durch diese Stelle laufen (Uhr), sonst wird er nicht gesetzt (false). v: wie kräftig
+  const spoke = (imp, dir, aim, kind, need, v) => {
     let best = null;
     for (let tr = 0; tr < 6; tr++) {
-      const g = grow(R, A, imp.P[0], imp.P[1], dir + (tr ? r(-0.06, 0.06) : 0), 0, aim, divs, imp);
+      const g = grow(R, A, imp.P[0], imp.P[1], dir + (tr ? r(-0.06, 0.06) : 0), 0, aim, divs, imp, 0.15 + 0.06 * v);
       const len = polyLen(g.pts);
       if (!best || len > best.len) best = { g, len };
       if (len > 0.08 || best.g.hit === null) break;
     }
     if (need && !reaches(best.g.pts, need)) return false;
-    finish(best.g.hit ? best.g.pts : toEdge(best.g.pts, A), imp.node, best.g.hit, kind, 0.0010, imp, { imp: imp.k, dir });
+    finish(best.g.hit ? best.g.pts : toEdge(best.g.pts, A), imp.node, best.g.hit, kind, 0.0010, imp, { imp: imp.k, dir, v });
     return true;
   };
   // Riss waagerecht quer übers Bild; mit aim auf Höhe der Uhr durch die Ziffern (false, wenn er nicht hinkommt)
-  const horizontal = (j, aim) => {
+  const horizontal = (j, aim, v) => {
     let best = null;
     for (let tr = 0; tr < 6; tr++) {
       if (aim && tr >= 2) break;
@@ -1201,7 +1272,7 @@ function makeCracks() {
       if (aim) y = clamp(aim[1] + r(-0.03, 0.03), 0.02, A - 0.02);
       const x0 = left ? 0 : 1;
       if (border.some(id => Math.hypot(nodes[id][0] - x0, nodes[id][1] - y) < 0.03)) continue;
-      const g = grow(R, A, x0, y, dir, 0, aim, divs, null);
+      const g = grow(R, A, x0, y, dir, 0, aim, divs, null, 0.15 + 0.06 * v);
       if (aim && !reaches(g.pts, aim)) continue;
       // gleich am Anfang an einem Riss hängen geblieben: andere Höhe nehmen
       const len = polyLen(g.pts);
@@ -1210,14 +1281,14 @@ function makeCracks() {
     }
     if (!best) return false;
     const n0 = borderNode(best.x0, best.y);
-    finish(best.g.hit ? best.g.pts : toEdge(best.g.pts, A), n0, best.g.hit, 'h', 0.0009, null, { dir: best.x0 ? Math.PI : 0 });
+    finish(best.g.hit ? best.g.pts : toEdge(best.g.pts, A), n0, best.g.hit, 'h', 0.0009, null, { dir: best.x0 ? Math.PI : 0, v });
     return true;
   };
   // Riss durch die Uhr, wenn er weder vom Aufschlag noch von der Seite hinkommt: Er geht von einem Riss oder vom Rand
   // aus, und zwar von einer Stelle, von der aus kein anderer Riss im Weg liegt (die nächste Stelle des Netzes, oder
   // links, rechts, oben am Rand, wenn der Weg frei ist), läuft mitten durch die Ziffern und weiter, bis er auf einen
   // Riss oder den Rand trifft.
-  const clockCrack = aim => {
+  const clockCrack = (aim, v) => {
     const cand = [];
     let near = null;
     divs.forEach((d, ci) => {
@@ -1239,43 +1310,47 @@ function makeCracks() {
     for (const c of cand) { s -= c.w; if (s <= 0) { st = c; break; } }
     // geht er von einem Riss ab, zählt dieser dicht am Startpunkt nicht als Ende
     const ign = st.ci >= 0 ? { node: -2, P: [st.x, st.y], host: divs[st.ci] } : null;
-    const g = grow(R, A, st.x, st.y, Math.atan2(aim[1] - st.y, aim[0] - st.x), 0, aim, divs, ign);
+    const g = grow(R, A, st.x, st.y, Math.atan2(aim[1] - st.y, aim[0] - st.x), 0, aim, divs, ign, 0.15 + 0.06 * v);
     if (polyLen(g.pts) < 0.01) return;
     const n0 = st.ci >= 0 ? hostNode(st) : borderNode(st.x, st.y);
-    finish(g.hit ? g.pts : toEdge(g.pts, A), n0, g.hit, 'c', 0.0009, ign, null);
+    finish(g.hit ? g.pts : toEdge(g.pts, A), n0, g.hit, 'c', 0.0009, ign, { v });
   };
 
   let si = 0, hj = 0;
   for (let i = 0; i < N; i++) {
+    // wie kräftig dieser Riss ist (eigener Zufall je Riss): vom Aufschlag nach dessen Art, sein erster etwas kräftiger;
+    // waagerechte meist fein
+    const Rv = rng(crackSeed ^ Math.imul(0x165667B1, i + 5)), v1 = Rv(), v2 = Rv(), vh = Math.pow(v1, 1.6) * 0.9;
     // Uhr schon von einem anderen Riss getroffen: braucht keinen eigenen mehr
     if (clockDue >= 0 && i >= clockDue && distToCracks(clockAim[0], clockAim[1]) < 0.025) clockDue = -1;
     const aimC = clockDue >= 0 && i >= clockDue ? clockAim : null;
     if (plan[i] === 'h') {
-      if (aimC) { if (!horizontal(hj++, aimC)) clockCrack(aimC); clockDue = -1; }
-      else horizontal(hj++, null);
+      if (aimC) { if (!horizontal(hj++, aimC, vh)) clockCrack(aimC, vh); clockDue = -1; }
+      else horizontal(hj++, null, vh);
       continue;
     }
-    const imp = imps[si % K]; si++;
+    const imp = imps[seq[si]]; si++;
+    const v = clamp(imp.st.v + (v2 - 0.5) * 0.5 + (imp.chosen.length ? 0 : 0.15), 0, 1);
     if (!imp.started) startImpact(imp);
     if (imp.manual && imp.chosen.length === 0) {
       // selbst angetippt: der erste Riss läuft genau in die gewählte Richtung (die Uhr kommt dann beim nächsten dran)
       imp.chosen.push(imp.md);
-      spoke(imp, imp.md, imp.aim, 'spoke');
+      spoke(imp, imp.md, imp.aim, 'spoke', null, v);
     } else if (aimC) {
       clockDue = -1;
       const ta = Math.atan2(aimC[1] - imp.P[1], aimC[0] - imp.P[0]);
       const inFan = imp.full || Math.abs(angDiff(ta, imp.md)) <= (imp.a1 - imp.a0) / 2 + 0.17;
-      if (inFan && spoke(imp, ta, aimC, 'spoke', aimC)) imp.chosen.push(ta);
-      else { clockCrack(aimC); continue; }
+      if (inFan && spoke(imp, ta, aimC, 'spoke', aimC, v)) imp.chosen.push(ta);
+      else { clockCrack(aimC, vh); continue; }
     } else {
       const dir = nextDir(R, imp);
       imp.chosen.push(dir);
-      spoke(imp, dir, null, 'spoke');
+      spoke(imp, dir, null, 'spoke', null, v);
     }
     // mitten im Glas: der erste Riss reißt auch nach hinten durch (sonst hinge er lose im Glas und teilte nichts)
     if (imp.back && !imp.backDone && imp.chosen.length) {
       imp.backDone = true; imp.backDir = imp.chosen[0] + Math.PI + r(-0.35, 0.35);
-      spoke(imp, imp.backDir, null, 'back');
+      spoke(imp, imp.backDir, null, 'back', null, v * 0.85);
     }
   }
   // Aufschläge, an denen noch kein Riss losläuft, bekommen trotzdem ihren Punkt (für Splitter und Glanz)
@@ -1286,36 +1361,39 @@ function makeCracks() {
     g.pathC = new Path2D(); g.pathD = new Path2D();
     g.poly.forEach((p, k) => { if (k) { g.pathC.lineTo(p[0] * Wc, p[1] * Wc); g.pathD.lineTo(p[0] * W, p[1] * W); } else { g.pathC.moveTo(p[0] * Wc, p[1] * Wc); g.pathD.moveTo(p[0] * W, p[1] * W); } });
     g.pathC.closePath(); g.pathD.closePath();
-    g.dead = 0; g.dv = false;
+    g.dead = 0; g.dv = false; g.keep = null;
   }
+  seedDead(regions, false);
 
   // Abzweige je Riss (eigener Zufall je Riss, damit sie bleiben, wenn Risse dazukommen): enden am Rand, nach einer
   // Weile oder an einem anderen Riss
-  const branches = [];
+  // Abzweige und kleine Risse sind etwas feiner als ihr Riss (bv, tv: wie kräftig, je Eintrag)
+  const branches = [], bv = [];
   divs.forEach((d, i) => {
     if (d.kind === 'stub') return;
-    const Rb = rng(crackSeed ^ Math.imul(0x9E3779B1, i + 1)), rb = (a, b) => a + Rb() * (b - a);
+    const Rb = rng(crackSeed ^ Math.imul(0x9E3779B1, i + 1)), rb = (a, b) => a + Rb() * (b - a), v = (d.v || 0) * 0.7;
     const nB = Rb() < 0.5 ? (Rb() < 0.25 ? 2 : 1) : 0, total = polyLen(d.pts);
     for (let k = 0; k < nB; k++) {
       const at = pointAtLen(d.pts, total * rb(0.25, 0.8));
       const bd = at[2] + (Rb() < 0.5 ? -1 : 1) * rb(0.3, 0.65);
       const stop = divs.filter(o => o !== d).concat(branches.map(p => ({ pts: p })));
-      branches.push(refine(Rb, grow(Rb, A, at[0], at[1], bd, rb(0.1, 0.45), null, stop, null).pts, 0.0009, 0.01, 0));
+      branches.push(refine(Rb, grow(Rb, A, at[0], at[1], bd, rb(0.1, 0.45), null, stop, null, 0.15 + 0.06 * v).pts, 0.0009 * (1 + 0.3 * v), 0.01, 0, undefined, 0, v));
+      bv.push(v);
     }
   });
 
   // Kleine Risse, die an den großen hängen (eigener Zufall je Riss): kurze Ästchen schräg ab, ab und zu noch einmal
   // gegabelt; wo ein Riss am Rand endet, splittert er oft kurz davor in ein, zwei kleine Risse auf
-  const twigs = [];
+  const twigs = [], tv = [];
   divs.forEach((d, i) => {
     if (d.kind === 'stub') return;
-    const Rt = rng(crackSeed ^ Math.imul(0x2545F491, i + 3)), rt = (a, b) => a + Rt() * (b - a);
+    const Rt = rng(crackSeed ^ Math.imul(0x2545F491, i + 3)), rt = (a, b) => a + Rt() * (b - a), v = (d.v || 0) * 0.5;
     const total = polyLen(d.pts);
     if (total < 0.05) return;
     const stop = divs.filter(o => o !== d).concat(branches.map(p => ({ pts: p })));
     const twig = (x, y, dir, len) => {
-      const g = grow(Rt, A, x, y, dir, len, null, stop, null);
-      if (g.pts.length > 1 && polyLen(g.pts) > 0.004) twigs.push(refine(Rt, g.pts, 0.0005, 0.003, 0));
+      const g = grow(Rt, A, x, y, dir, len, null, stop, null, 0.15 + 0.06 * v);
+      if (g.pts.length > 1 && polyLen(g.pts) > 0.004) { twigs.push(refine(Rt, g.pts, 0.0005 * (1 + 0.3 * v), 0.003, 0, undefined, 0, v)); tv.push(v); }
       return g.pts;
     };
     const n = Math.min(5, Math.floor(total * rt(0.8, 2.2) + Rt()));
@@ -1359,58 +1437,96 @@ function makeCracks() {
     }
   });
 
-  // Splitternetz je Aufschlag: Querrisse in Bögen zwischen benachbarten Rissen, kurze Sprünge, kleine Glassplitter
-  const web = [], shards = [], sp = settings.splinter;
-  if (sp > 0) imps.forEach((imp, k) => {
-    const Rw = rng(crackSeed ^ Math.imul(0x85EBCA6B, k + 7)), rw = (a, b) => a + Rw() * (b - a);
-    const Px = imp.P[0], Py = imp.P[1];
-    const fan = divs.filter(d => d.imp === k && (d.kind === 'spoke' || d.kind === 'back')).sort((a, b) => angDiff(a.dir, imp.md) - angDiff(b.dir, imp.md));
-    const radii = sp === 1 ? [rw(0.014, 0.022), rw(0.032, 0.05)] : [rw(0.01, 0.016), rw(0.024, 0.034), rw(0.042, 0.06), rw(0.07, 0.1)];
-    const pairs = [];
-    for (let i = 0; i + 1 < fan.length; i++) pairs.push([fan[i], fan[i + 1]]);
-    if (imp.full && fan.length > 2) pairs.push([fan[fan.length - 1], fan[0]]);
-    for (const rad of radii) for (const [fa, fb] of pairs) {
-      if (Rw() > (sp === 1 ? 0.7 : 0.88) || Math.abs(angDiff(fb.dir, fa.dir)) > 1.6) continue;
-      if (polyLen(fa.pts) < rad * 1.3 || polyLen(fb.pts) < rad * 1.3) continue;
-      const pa = pointAtLen(fa.pts, rad * rw(0.85, 1.15)), pb = pointAtLen(fb.pts, rad * rw(0.85, 1.15));
-      const mx = (pa[0] + pb[0]) / 2, my = (pa[1] + pb[1]) / 2, ox = mx - Px, oy = my - Py, ol = Math.hypot(ox, oy) || 1, bulge = rad * rw(0.02, 0.15);
-      web.push(refine(Rw, [[pa[0], pa[1]], [mx + ox / ol * bulge, my + oy / ol * bulge], [pb[0], pb[1]]], 0.0007, 0, 0));
+  // Splitternetz je Aufschlag, nach seiner Art (impactStyle): kurze Strahlen vom Aufschlag aus (nicht mitgezählt, sie
+  // teilen nichts und enden an anderen Rissen oder im Glas), Ringe in Bögen zwischen benachbarten Strahlen und Rissen,
+  // kurze Sprünge und kleine Glassplitter dicht am Aufschlag. Jeder Teil hat seinen eigenen Zufall, damit er bleibt,
+  // wenn Risse dazukommen (nur wo ein neuer Riss genau auf einem Strahl liegt, ersetzt er ihn).
+  const rays = [], rv = [], web = [], wv = [], shards = [];
+  const smallStop = divs.concat(branches.map(p => ({ pts: p })), twigs.map(p => ({ pts: p })), hairs.map(p => ({ pts: p })));
+  imps.forEach((imp, k) => {
+    const st = imp.st, Px = imp.P[0], Py = imp.P[1];
+    if (!st.on) return;
+    const tag = imp.started ? imp.node : 'i' + k, ign = { node: tag, P: imp.P };
+    const own = divs.filter(d => d.imp === k && (d.kind === 'spoke' || d.kind === 'back'));
+    const radial = own.map(d => ({ pts: d.pts, dir: d.dir }));
+    // Strahlen: über den ganzen Fächer verteilt (beim Fächer gebündelt wie seine Risse), mindestens etwa 7° auseinander
+    const f0 = st.type === 3 ? imp.a0 : imp.f0, f1 = st.type === 3 ? imp.a1 : imp.f1, stop = smallStop.slice();
+    const nR = Math.min(st.rays, Math.floor((imp.full ? 2 * Math.PI : f1 - f0) / 0.12));
+    for (let j = 0; j < nR; j++) {
+      const Rr = rng(crackSeed ^ Math.imul(0xC2B2AE35, k * 64 + j + 31)), rr = (a, b) => a + Rr() * (b - a);
+      const d = imp.full ? st.rot + (j + 0.5 + rr(-0.25, 0.25)) / nR * 2 * Math.PI : f0 + (j + 0.5 + rr(-0.25, 0.25)) / nR * (f1 - f0);
+      const len = st.rayL * rr(0.55, 1.5);
+      if (own.some(o => Math.abs(angDiff(o.dir, d)) < 0.07)) continue;
+      const g = grow(Rr, A, Px, Py, d, len, null, stop, ign, 0.12);
+      if (polyLen(g.pts) < 0.006) continue;
+      let pts = refine(Rr, g.pts, 0.0005, 0.012, 0.003, A, 0.006, st.v * 0.5);
+      // mit den Zacken doch einen anderen Riss gekreuzt: dort enden lassen
+      for (let i = 1; i < pts.length; i++) {
+        const h = hitAny(pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1], stop, ign, null);
+        if (h) { pts = pts.slice(0, i); pts.push([h.x, h.y]); break; }
+      }
+      if (polyLen(pts) < 0.006) continue;
+      rays.push(pts); rv.push(st.v * 0.5);
+      stop.push({ pts, n0: tag });
+      radial.push({ pts, dir: d });
     }
-    const nT = (sp === 1 ? 2 + Math.floor(Rw() * 3) : 6 + Math.floor(Rw() * 5)) + (imp.started ? 0 : 3);
-    for (let q = 0; q < nT; q++) {
-      const ang = rw(imp.a0 - 0.17, imp.a1 + 0.17), d0 = rw(0.004, sp === 1 ? 0.03 : 0.05);
-      const x0 = Px + Math.cos(ang) * d0, y0 = Py + Math.sin(ang) * d0;
+    // Ringe: Bögen zwischen benachbarten Strahlen und Rissen (ob ein Bogen da ist, hängt nur an seinen beiden Enden)
+    radial.sort((a, b) => angDiff(a.dir, imp.md) - angDiff(b.dir, imp.md));
+    const pairs = [];
+    for (let i = 0; i + 1 < radial.length; i++) pairs.push([radial[i], radial[i + 1]]);
+    if (imp.full && radial.length > 2) pairs.push([radial[radial.length - 1], radial[0]]);
+    st.radii.forEach((rad, n) => {
+      for (const [fa, fb] of pairs) {
+        const gap = Math.abs(angDiff(fb.dir, fa.dir));
+        if (gap > 1.6 || gap < 0.04) continue;
+        const h = hash01(fa.dir * 3.7 + n * 1.31, fb.dir * 5.3 + k * 2.17, crackSeed);
+        if (h >= st.ringP) continue;
+        if (polyLen(fa.pts) < rad * 1.2 || polyLen(fb.pts) < rad * 1.2) continue;
+        const Rw = rng(crackSeed ^ Math.floor(h * 2147483647)), rw = (a, b) => a + Rw() * (b - a);
+        const pa = pointAtLen(fa.pts, rad * rw(0.85, 1.12)), pb = pointAtLen(fb.pts, rad * rw(0.85, 1.12));
+        const mx = (pa[0] + pb[0]) / 2, my = (pa[1] + pb[1]) / 2, ox = mx - Px, oy = my - Py, ol = Math.hypot(ox, oy) || 1, bulge = rad * rw(-0.03, 0.14);
+        web.push(refine(Rw, [[pa[0], pa[1]], [mx + ox / ol * bulge, my + oy / ol * bulge], [pb[0], pb[1]]], 0.0006, 0, 0)); wv.push(st.v * 0.3);
+      }
+    });
+    // kurze Sprünge dicht am Aufschlag
+    const Rq = rng(crackSeed ^ Math.imul(0x85EBCA6B, k + 7)), rq = (a, b) => a + Rq() * (b - a);
+    for (let q = 0; q < st.twigs; q++) {
+      const ang = imp.full ? Rq() * 2 * Math.PI : rq(imp.f0 - 0.1, imp.f1 + 0.1), d0 = rq(0.003, 0.028) * st.size;
+      const x0 = Px + Math.cos(ang) * d0, y0 = Py + Math.sin(ang) * d0, dir = ang + rq(-0.9, 0.9), len = rq(0.005, 0.022) * st.size;
       if (x0 <= 0 || x0 >= 1 || y0 <= 0 || y0 >= A) continue;
-      web.push(refine(Rw, grow(Rw, A, x0, y0, ang + rw(-0.9, 0.9), rw(0.006, 0.025), null, null, null).pts, 0.0006, 0, 0));
+      web.push(refine(Rq, grow(Rq, A, x0, y0, dir, len, null, null, null).pts, 0.0005, 0, 0)); wv.push(0);
     }
     // kleine Glassplitter: Dreiecke mit hellen Kanten, dicht am Aufschlag
-    const nS = sp === 1 ? 5 + Math.floor(Rw() * 4) : 14 + Math.floor(Rw() * 8);
-    for (let q = 0; q < nS; q++) {
-      const ang = rw(imp.a0 - 0.17, imp.a1 + 0.17), d0 = rw(0, sp === 1 ? 0.018 : 0.03) * (0.4 + Rw());
-      const cx0 = Px + Math.cos(ang) * d0, cy0 = Py + Math.sin(ang) * d0, s0 = rw(0.0025, 0.007), rot = Rw() * 6.3;
-      const tri = [0, 1, 2].map(z => { const a = rot + z * 2.1 + rw(-0.5, 0.5), rr = s0 * rw(0.6, 1.2); return [cx0 + Math.cos(a) * rr, cy0 + Math.sin(a) * rr]; });
-      if (tri.every(p => p[0] > 0 && p[0] < 1 && p[1] > 0 && p[1] < A)) shards.push({ tri, a: rw(0.05, 0.16), e: rw(0.25, 0.6) });
+    const Rp = rng(crackSeed ^ Math.imul(0x27D4EB2F, k + 41)), rp = (a, b) => a + Rp() * (b - a);
+    for (let q = 0; q < st.shards; q++) {
+      const ang = imp.full ? Rp() * 2 * Math.PI : rp(imp.f0 - 0.17, imp.f1 + 0.17), d0 = rp(0, 0.02) * st.size * (0.4 + Rp());
+      const cx0 = Px + Math.cos(ang) * d0, cy0 = Py + Math.sin(ang) * d0, s0 = rp(0.0025, 0.007) * Math.sqrt(st.size), rot = Rp() * 6.3;
+      const tri = [0, 1, 2].map(z => { const a = rot + z * 2.1 + rp(-0.5, 0.5), rr = s0 * rp(0.6, 1.2); return [cx0 + Math.cos(a) * rr, cy0 + Math.sin(a) * rr]; });
+      const a = rp(0.05, 0.16), e = rp(0.25, 0.6);
+      if (tri.every(p => p[0] > 0 && p[0] < 1 && p[1] > 0 && p[1] < A)) shards.push({ tri, a, e });
     }
   });
 
-  // Zeichenliste: dunkle Bruchkante (Breite w) mit Glanz, der entlang des Risses weich stärker und schwächer wird
+  // Zeichenliste: dunkle Bruchkante (Breite w) mit Glanz, der entlang des Risses weich stärker und schwächer wird;
+  // v: wie kräftig (0 fein, glatt und zart glänzend; 1 etwas breiter, zackiger, heller glänzend – aber immer fein)
   const RL = rng(crackSeed ^ 0x27D4EB2F), list = [];
-  const add = (pts, w, kind, base) => {
+  const add = (pts, w, kind, base, v) => {
     const cl = [0];
     for (let i = 1; i < pts.length; i++) cl.push(cl[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
     // Seite zum Licht (oben) einmal je Riss festlegen, damit der Glanz nicht hin und her springt
     const e = pts[pts.length - 1], dx = e[0] - pts[0][0], dy = e[1] - pts[0][1], l = Math.hypot(dx, dy) || 1;
     let nx = -dy / l, ny = dx / l;
     if (ny > 0 || (Math.abs(ny) < 0.25 && nx > 0)) { nx = -nx; ny = -ny; }
-    list.push({ pts, cl, w, kind, base, g: glint(RL), nx, ny });
+    list.push({ pts, cl, w, kind, base, g: glint(RL), nx, ny, v: v || 0 });
   };
   const quer = k => k === 'h' || k === 'c';
-  for (const d of divs) add(d.pts, d.kind === 'stub' ? 1.2 : quer(d.kind) ? 0.9 : 1, quer(d.kind) ? 'h' : 'spoke', 0.5 + RL() * 0.25);
-  for (const b of branches) add(b, 0.8, 'branch', 0.4 + RL() * 0.25);
-  for (const w of web) add(w, 0.65, 'web', 0.55 + RL() * 0.35);
-  for (const t of twigs) add(t, 0.55, 'twig', 0.45 + RL() * 0.3);
-  for (const h of hairs) add(h, 0.42, 'hair', 0.35 + RL() * 0.3);
-  CR = { imps: imps.map(i => i.P), A, divs, branches, twigs, hairs, web, shards, regions, list, clockAim, clockIdx };
+  for (const d of divs) add(d.pts, d.kind === 'stub' ? 1.2 : quer(d.kind) ? 0.9 : 1, quer(d.kind) ? 'h' : 'spoke', 0.5 + RL() * 0.25, d.v);
+  branches.forEach((b, i) => add(b, 0.8, 'branch', 0.4 + RL() * 0.25, bv[i]));
+  rays.forEach((p, i) => add(p, 0.72, 'ray', 0.5 + RL() * 0.3, rv[i]));
+  web.forEach((p, i) => add(p, 0.6, 'web', 0.55 + RL() * 0.35, wv[i]));
+  twigs.forEach((t, i) => add(t, 0.55, 'twig', 0.45 + RL() * 0.3, tv[i]));
+  for (const h of hairs) add(h, 0.42, 'hair', 0.35 + RL() * 0.3, 0);
+  CR = { imps: imps.map(i => [i.P[0], i.P[1], i.st.boost]), styles: imps.map(i => i.st.type), A, divs, branches, twigs, hairs, rays, web, shards, regions, list, clockAim, clockIdx };
   updateClockPieces();
   renderCracks();
   buildBg();
@@ -1516,10 +1632,10 @@ function renderCracks() {
   crackLayer = mk(W, H);
   const g = crackLayer.getContext('2d');
   g.lineCap = 'round'; g.lineJoin = 'round';
-  // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht
-  const boost = (x, y) => { let m = 0; for (const p of CR.imps) m = Math.max(m, Math.exp(-Math.hypot(x - p[0], y - p[1]) / 0.05)); return 1 + 1.3 * m; };
-  // 1) dunkle Bruchkante: fein, am Aufschlag etwas breiter, zum Ende hin schmaler (in Stücken gezeichnet); Haarrisse
-  //    nur ein Hauch
+  // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht (je Aufschlag verschieden stark)
+  const boost = (x, y) => { let m = 0; for (const p of CR.imps) m = Math.max(m, p[2] * Math.exp(-Math.hypot(x - p[0], y - p[1]) / 0.05)); return 1 + 1.3 * m; };
+  // 1) dunkle Bruchkante: fein, am Aufschlag etwas breiter, zum Ende hin schmaler (in Stücken gezeichnet); kräftige
+  //    Risse (v) etwas breiter; Haarrisse nur ein Hauch
   for (const c of CR.list) {
     const total = c.cl[c.cl.length - 1] || 1, tip = c.kind === 'twig' || c.kind === 'hair';
     g.strokeStyle = c.kind === 'hair' ? 'rgba(0,0,0,0.7)' : '#000';
@@ -1527,8 +1643,8 @@ function renderCracks() {
     while (i0 < c.pts.length - 1) {
       let i1 = i0 + 1;
       while (i1 < c.pts.length - 1 && c.cl[i1] - c.cl[i0] < 0.04) i1++;
-      const f = c.kind === 'spoke' ? 1.35 - 0.6 * Math.min(1, c.cl[i0] / Math.max(0.3, total)) : tip ? 1.15 - 0.75 * c.cl[i0] / total : 1;
-      g.lineWidth = Math.max(1, 0.85 * dpr * c.w * f);
+      const f = c.kind === 'spoke' ? 1.35 - 0.6 * Math.min(1, c.cl[i0] / Math.max(0.3, total)) : c.kind === 'ray' ? 1.2 - 0.8 * c.cl[i0] / total : tip ? 1.15 - 0.75 * c.cl[i0] / total : 1;
+      g.lineWidth = Math.max(1, (0.85 + 0.27 * c.v) * dpr * c.w * f);
       g.beginPath();
       for (let k = i0; k <= i1; k++) { const p = c.pts[k]; if (k === i0) g.moveTo(p[0] * W, p[1] * W); else g.lineTo(p[0] * W, p[1] * W); }
       g.stroke();
@@ -1538,8 +1654,8 @@ function renderCracks() {
   // 2) Glanz: sehr dünne helle Linie dicht an der Kante, auf der Seite zum Licht. Die Helligkeit schwankt weich;
   //    gleiche Helligkeit wird zu einem Linienzug zusammengefasst (sonst überlappen sich die Stücke zu Perlen).
   const shine = (c, side, amt) => {
-    const o = dpr * (0.38 + 0.32 * c.w) * side;
-    g.lineWidth = Math.max(1, 0.4 * dpr * (0.75 + 0.35 * c.w));
+    const o = dpr * (0.38 + 0.14 * c.v + (0.32 + 0.1 * c.v) * c.w) * side, al = 0.82 + 0.1 * c.v;
+    g.lineWidth = Math.max(1, (0.4 + 0.12 * c.v) * dpr * (0.75 + 0.35 * c.w));
     let cur = -1, open = false;
     for (let i = 1; i < c.pts.length; i++) {
       const a = c.pts[i - 1], b = c.pts[i], sm = (c.cl[i - 1] + c.cl[i]) / 2;
@@ -1549,7 +1665,7 @@ function renderCracks() {
         if (open) { g.stroke(); open = false; }
         cur = lv;
         if (lv > 0) {
-          g.strokeStyle = 'rgba(235,242,255,' + (lv / 14 * 0.82).toFixed(3) + ')';
+          g.strokeStyle = 'rgba(235,242,255,' + (lv / 14 * al).toFixed(3) + ')';
           g.beginPath(); g.moveTo(a[0] * W + c.nx * o, a[1] * W + c.ny * o); open = true;
         }
       }
@@ -1560,7 +1676,7 @@ function renderCracks() {
   for (const c of CR.list) {
     // kleine Risse und Haarrisse laufen zur Spitze hin aus
     const tot = c.cl[c.cl.length - 1] || 1;
-    shine(c, 1, c.kind === 'twig' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.7) : c.kind === 'hair' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.5) : () => 1);
+    shine(c, 1, c.kind === 'twig' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.7) : c.kind === 'ray' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.6) : c.kind === 'hair' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.5) : () => 1);
     // breite Risse am Aufschlag: auch die andere Kante fängt etwas Licht
     if (c.kind === 'spoke') shine(c, -1, s => 0.6 * Math.max(0, 1 - s / 0.18));
   }
@@ -1625,28 +1741,74 @@ function updatePresses(dt) {
 }
 
 // ---------- Schwarze Bruchstücke ----------
-// Ab und zu fällt ein ganzes Bruchstück aus und bleibt 30 Sekunden bis 2 Minuten schwarz (beim Ausgehen flackert es,
-// es stirbt; beim Angehen kurz). Wie viele: nach „Schwarze Stellen zwischen den Rissen“ und der Zahl der Streifen, etwa
-// 1–7 % der Stücke (bei „stark“ doppelt so viele). Bei Glitch-Ausbrüchen fallen Stücke auch kurz aus. Höchstens jedes
-// vierte Stück, nie zwei nebeneinander.
+// Ab und zu fällt ein ganzes Bruchstück aus und bleibt schwarz (beim Ausgehen flackert es, es stirbt; beim Angehen
+// kurz). Der Regler „Schwarze Stellen zwischen den Rissen“ legt vor allem fest, wie lange: links nur ein paar Sekunden,
+// in der Mitte um eine Minute, ganz rechts sehr lange (um 20 Minuten); jedes Mal anders (halb bis doppelt so lange).
+// Mit dem Regler werden es auch etwas mehr Stücke (etwa 4 bis 18 %, mit vielen Streifen etwas mehr). Bei etwa jedem
+// zweiten bleiben auf einer Seite ein paar Streifen stehen (am linken oder rechten Rand des Stücks, 15–40 % seiner
+// Breite: dort läuft das Display noch). Bei Glitch-Ausbrüchen fallen Stücke auch kurz aus (dann ganz). Höchstens jedes
+// vierte Stück, nie zwei nebeneinander. Beim Bauen der Risse sind gleich so viele schwarz wie sonst im Schnitt, beim
+// Verstellen des Reglers mindestens eins – damit man es sofort sieht.
+const darkMid = lv => 4 * Math.pow(300, (lv - 1) / 9);   // typische Dauer in Sekunden (Stufe 1: 4 s, 5: 50 s, 10: 20 min)
+const darkLen = lv => darkMid(lv) * Math.pow(4, Math.random()) / 2;
+const darkFrac = lv => (0.04 + 0.14 * (lv - 1) / 9) * (0.75 + 0.5 * clamp((baseN - 12) / 110, 0, 1));
+function darkFmt(v) {
+  if (v == 0) return 'aus';
+  const s = darkMid(v);
+  return 'ca. ' + (s < 59.5 ? Math.round(s) + ' s' : s < 600 ? String(Math.round(s / 30) / 2).replace('.', ',') + ' Min.' : Math.round(s / 60) + ' Min.');
+}
+function killRegion(g, len) {
+  g.dead = len; g.deadT = len;
+  g.keep = len > 5 && Math.random() < 0.5 ? keepBand(g) : null;
+}
 function updateDead(dt) {
   if (!CR) return;
-  const regs = CR.regions, many = clamp((baseN - 12) / 110, 0, 1), dk = settings.dark / 5;
+  const regs = CR.regions, lv = settings.dark;
   const maxDead = Math.max(1, Math.floor(regs.length / 4));
   let nd = 0;
-  for (const g of regs) if (g.dead > 0) { g.dead -= dt; if (g.dead > 0) nd++; }
-  const h = clamp(dk * (0.012 + 0.09 * many), 0, 0.3), rate = h / ((1 - h) * 75);
-  if (regs.length >= 3 && dk > 0) for (const g of regs) {
-    if (g.dead > 0 || nd >= maxDead) continue;
-    const sb = curBursting && (burstZone === 'all' || burstZone === g.zone);
-    let len = 0;
-    if (Math.random() < P(rate)) len = rnd(30, 120);
-    else if (sb && Math.random() < P(dk * 0.03 * burstPow)) len = rnd(0.3, 1.5);
-    if (len && !g.nb.some(j => regs[j].dead > 0)) { g.dead = len; g.deadT = len; nd++; }
+  for (const g of regs) if (g.dead > 0) { g.dead -= dt; if (g.dead > 0) nd++; else g.keep = null; }
+  if (regs.length >= 3 && lv > 0) {
+    const h = darkFrac(lv), rate = h / ((1 - h) * darkMid(lv) * 1.082);
+    for (const g of regs) {
+      if (g.dead > 0 || nd >= maxDead) continue;
+      const sb = curBursting && (burstZone === 'all' || burstZone === g.zone);
+      let len = 0;
+      if (Math.random() < P(rate)) len = darkLen(lv);
+      else if (sb && Math.random() < P(lv / 5 * 0.03 * burstPow)) len = rnd(0.3, 1.5);
+      if (len && !g.nb.some(j => regs[j].dead > 0)) { killRegion(g, len); nd++; }
+    }
   }
   // sichtbar aus? beim Aus- und Angehen kurz flackern
   for (const g of regs) g.dv = g.dead > 0 && !((g.deadT - g.dead < (g.deadT > 5 ? 0.35 : 0.16) || g.dead < 0.14) && Math.random() < 0.5);
 }
+// Schwarze Stücke neu verteilen: so viele, wie es sonst im Schnitt sind (mit zufälliger Restzeit); one: mindestens eins,
+// das gerade erst ausgeht (beim Verstellen des Reglers)
+function seedDead(regs, one) {
+  const lv = settings.dark;
+  for (const g of regs) { g.dead = 0; g.dv = false; g.keep = null; }
+  if (lv <= 0 || regs.length < 3) return;
+  const maxDead = Math.max(1, Math.floor(regs.length / 4)), h = darkFrac(lv), order = regs.map((g, i) => i);
+  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  let nd = 0;
+  for (const i of order) {
+    const g = regs[i];
+    if (nd >= maxDead || g.nb.some(j => regs[j].dead > 0)) continue;
+    const first = one && nd === 0;
+    if (!first && Math.random() >= h) continue;
+    killRegion(g, darkLen(lv));
+    if (!first) g.dead *= Math.random();
+    nd++;
+  }
+}
+// Seite eines ausgefallenen Stücks, auf der die Streifen stehen bleiben (x0..x1 als Anteil der Breite)
+function keepBand(g) {
+  const f = (g.x1 - g.x0) * rnd(0.15, 0.4);
+  return Math.random() < 0.5 ? { x0: -1, x1: g.x0 + f } : { x0: g.x1 - f, x1: 2 };
+}
+// Stück ganz aus (true) oder Streifen bei x (CSS-Pixel) in einem ausgefallenen Stück, der nicht stehen bleibt
+const deadAt = (g, xc) => g.dv && (!g.keep || xc / Wc < g.keep.x0 || xc / Wc > g.keep.x1);
+// der ausgefallene Teil eines Stücks in Gerätepixeln (ganz oder ohne die Seite, die stehen bleibt): [x0, x1]
+const deadSpan = g => !g.keep ? [-1e6, 1e6] : g.keep.x0 < 0 ? [g.keep.x1 * W, 1e6] : [-1e6, g.keep.x0 * W];
 
 // ---------- Flächenglitch: Bruchstücke leuchten beim Berühren ----------
 // Erst ab 5 Rissen und nur unter dem Finger: Von den Stücken unter der Fingerkuppe nimmt es das kleinste. Kleine
@@ -1704,10 +1866,12 @@ function drawFlash(ctx, white) {
   if (!CR) return;
   for (const f of flashRegs) {
     const g = CR.regions[f.i];
-    if (!g || f.a <= 0.01 || g.dv || (f.st === 2) !== white) continue;
+    if (!g || f.a <= 0.01 || (g.dv && !g.keep) || (f.st === 2) !== white) continue;
     const c = white ? [255, 255, 255] : f.c || [220, 225, 232];
     ctx.fillStyle = 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + f.a.toFixed(3) + ')';
-    ctx.fill(g.pathD);
+    // ausgefallenes Stück: nur die Seite, auf der das Display noch läuft
+    if (g.dv) { ctx.save(); ctx.beginPath(); ctx.rect(g.keep.x0 * W, 0, (g.keep.x1 - g.keep.x0) * W, H); ctx.clip(); ctx.fill(g.pathD); ctx.restore(); }
+    else ctx.fill(g.pathD);
   }
 }
 
@@ -1834,7 +1998,7 @@ function paintLine(L, x, y0, y1, alpha, col) {
 const WHOLE = [{ zone: 'all', s: 0, x0: -1, x1: 2, pathC: null, whole: true }];
 // Was in diesem Bild gezeichnet wird: je Bruchstück eine Liste {L, x, a, c, spans, fl}. fl: Streifen glitcht gerade
 // (Farbe, Breite und Verschiebung des Glitches, damit die Uhr an genau dieser Stelle mitglitcht).
-let drawList = [];
+let drawList = [], stripeGone = 0, stripeWant = 0;
 function stripeStates(dt, calm, bursting) {
   // 1) Zustand je Streifen
   const vis = [];
@@ -1875,29 +2039,35 @@ function stripeStates(dt, calm, bursting) {
   }
   // 2) je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke
   // Fällt ein Streifen in einem Bruchstück aus, stirbt er dort an der Risskante (flackert kurz) und bleibt 30 Sekunden
-  // bis 2 Minuten weg, dann kommt er flackernd wieder. Wie viele Teilstücke gerade fehlen: etwa 5 bis 18 %, je nach
-  // Glitch-Ausbrüchen und Zahl der Streifen. Bei Ausbrüchen fallen Teilstücke auch kurz aus.
-  const many = clamp((baseN - 12) / 110, 0, 1);
-  const hid = clamp(0.16 * (curG / 0.343) * (0.5 + many), 0, 0.35), longRate = hid / ((1 - hid) * 75);
+  // bis 5 Minuten weg (jedes Mal anders: viele kürzer, manche richtig lang), dann kommt er flackernd wieder. Wie viele
+  // gerade fehlen: sobald ein Riss da ist, bei 4 Streifen einer, bei 5 zwei, danach etwa für jeden zweiten Streifen
+  // einer mehr (mit „Glitch-Ausbrüche“ etwas mehr oder weniger, höchstens 30 % der Teilstücke). Fehlt einer zu wenig,
+  // stirbt nach ein paar Sekunden der nächste. Bei Ausbrüchen fallen Teilstücke auch kurz aus.
+  const want = multi ? clamp(Math.round(0.5 * (baseN - 2) * clamp(curG / 0.343, 0, 1.6)), 0, 999) : 0;
+  let gone = 0, segs = 0;
+  const cand = [];
   drawList = regs.map((g, ri) => {
     const out = [];
-    // ganz ausgefallenes Bruchstück: bleibt schwarz
-    if (g.dv) return out;
+    // ausgefallenes Bruchstück: bleibt schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+    if (g.dv && !g.keep) return out;
     const dx = Math.round(g.s * settings.shear * SHEAR_K * dpr * jit()) / dpr;
     const lo = g.x0 * Wc - 6, hi = g.x1 * Wc + 6;
     const sb = curBursting && multi && (burstZone === 'all' || burstZone === g.zone);
     for (const v of vis) {
       const L = v.L;
       let x = v.x + dx;
-      if (x < lo || x > hi) continue;
-      const z = L.zones[ri] || (L.zones[ri] = { flash: 0, col: null, off: 0, die: 0, wake: 0 });
+      if (x < lo || x > hi || (g.dv && deadAt(g, x))) continue;
+      const z = L.zones[ri] || (L.zones[ri] = { flash: 0, col: null, off: 0, die: 0, wake: 0, rest: 0, len: segLen(g, L, v.x + dx) });
       if (multi) {
-        if (z.off > 0) { z.off -= curDt; if (z.off > 0) continue; z.wake = z.long ? rnd(0.12, 0.3) : 0; }
-        else if (!(z.die > 0)) {
-          if (sb && Math.random() < 0.035 * burstPow) { z.off = rnd(0.2, 1.2); z.long = false; continue; }
-          if (Math.random() < P(longRate)) z.die = rnd(0.15, 0.45);
-        }
-        if (z.die > 0) { z.die -= curDt; if (z.die <= 0) { z.die = 0; z.off = rnd(30, 120); z.long = true; continue; } }
+        if (z.len > 4) segs++;
+        if (z.rest > 0) z.rest -= curDt;
+        if (z.off > 0) {
+          z.off -= curDt;
+          if (z.off > 0) { if (z.long) gone++; continue; }
+          z.wake = z.long ? rnd(0.12, 0.3) : 0; z.rest = z.long ? rnd(10, 30) : 0;
+        } else if (!(z.die > 0) && sb && Math.random() < 0.035 * burstPow) { z.off = rnd(0.2, 1.2); z.long = false; continue; }
+        if (z.die > 0) { gone++; z.die -= curDt; if (z.die <= 0) { z.die = 0; z.off = 30 * Math.pow(10, Math.random()); z.long = true; continue; } }
+        else if (z.len > 4 && !(z.wake > 0) && !(z.rest > 0)) cand.push(z);
         if (z.wake > 0) z.wake -= curDt;
         if (z.flash > 0) z.flash -= curDt;
         else if (Math.random() < (sb ? 0.3 * burstPow : P(0.18 * curG))) {
@@ -1924,15 +2094,38 @@ function stripeStates(dt, calm, bursting) {
     }
     return out;
   });
+  // fehlen zu wenige: der nächste Streifen stirbt an einer Risskante (fehlt einer, im Schnitt nach 2 Sekunden). Lange
+  // Teilstücke sind eher dran als kleine Ecken, damit man den Ausfall auch sieht.
+  const lim = Math.min(want, Math.round(segs * 0.3));
+  if (gone < lim && cand.length && Math.random() < P(0.5 * (lim - gone))) {
+    let s = Math.random() * cand.reduce((q, z) => q + z.len, 0);
+    for (const z of cand) { s -= z.len; if (s <= 0 || z === cand[cand.length - 1]) { z.die = rnd(0.15, 0.45); break; } }
+  }
+  stripeGone = gone; stripeWant = lim;
+}
+// Wie lang ist der Streifen (bei x, CSS-Pixel, leicht schräg wie in paintLine) in diesem Bruchstück? (0 = gar nicht)
+function segLen(g, L, x) {
+  if (!g.poly) return Hc;
+  const k = L.tilt * Wc / Hc, x0 = x - 0.5 * L.tilt * Wc, P0 = g.poly, n = P0.length, ys = [];
+  let py = P0[n - 1][1] * Wc, pf = P0[n - 1][0] * Wc - (x0 + k * py);
+  for (let i = 0; i < n; i++) {
+    const qy = P0[i][1] * Wc, qf = P0[i][0] * Wc - (x0 + k * qy);
+    if ((pf >= 0) !== (qf >= 0)) ys.push(py + (qy - py) * (pf / (pf - qf)));
+    py = qy; pf = qf;
+  }
+  ys.sort((a, b) => a - b);
+  let len = 0;
+  for (let i = 0; i + 1 < ys.length; i += 2) len += ys[i + 1] - ys[i];
+  return len;
 }
 // je Bruchstück ausschneiden und die Streifen zeichnen
 function drawStripes(bursting) {
   const regs = CR ? CR.regions : WHOLE;
   regs.forEach((g, ri) => {
-    // ausgefallenes Bruchstück: bleibt ganz schwarz
-    if (g.dv) return;
+    // ausgefallenes Bruchstück: bleibt schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+    if (g.dv && !g.keep) return;
     const list = drawList[ri];
-    const pl = pressLines.filter(q => q.ri === ri || !CR);
+    const pl = pressLines.filter(q => (q.ri === ri || !CR) && !(g.dv && deadAt(g, q.L.x * Wc)));
     if ((!list || !list.length) && !pl.length) return;
     if (g.pathC) { cx.save(); cx.clip(g.pathC); }
     if (list) for (const d of list) for (const sp of d.spans) paintLine(d.L, d.x, sp[0], sp[1], Math.max(0, Math.min(1, d.a * sp[2])), d.c);
@@ -2076,7 +2269,8 @@ function clockZone() {
   const c = (ly + layer.height / 2) / H;
   return c < 1 / 3 ? 'top' : c > 2 / 3 ? 'bottom' : 'mid';
 }
-function drawClockPiece(ctx, g, key, calm, bands) {
+// keep: in einem ausgefallenen Stück nur die Seite, auf der das Display noch läuft
+function drawClockPiece(ctx, g, key, calm, bands, keep) {
   const lw = CL.width, lh = CL.height;
   const z = clockZones[key] || (clockZones[key] = { off: 0, flash: 0, col: null, fl: 1, flT: 0, split: 0, sx: 0, slice: 0 });
   const sb = curBursting && (burstZone === 'all' || burstZone === (g ? g.zone : clockZone()));
@@ -2088,9 +2282,11 @@ function drawClockPiece(ctx, g, key, calm, bands) {
   if (!(z.flT > 0)) { z.flT = rnd(0.03, 0.09); z.fl = 1 - calm * rnd(0, 0.11); } else z.flT -= curDt;
   ctx.save();
   if (g) ctx.clip(g.pathD);
-  // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“ (halb so stark wie früher)
+  if (keep) { ctx.beginPath(); ctx.rect(keep.x0 * W, 0, (keep.x1 - keep.x0) * W, H); ctx.clip(); }
+  // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“ (noch einmal halb so stark:
+  // feiner einstellbar)
   const k = g ? settings.crack : 0;
-  const X = CLX + (g ? Math.round(g.s * k * 0.45 * dpr * jit()) : 0), Y = CLY + (g ? Math.round(Math.abs(g.s) * k * 0.06 * dpr) : 0);
+  const X = CLX + (g ? Math.round(g.s * k * 0.225 * dpr * jit()) : 0), Y = CLY + (g ? Math.round(Math.abs(g.s) * k * 0.03 * dpr) : 0);
   // Bänder glitchender Streifen über der Uhr: dort wird die Uhr gleich verrutscht gezeichnet, also hier aussparen
   const bs = [];
   for (const b of bands) {
@@ -2144,8 +2340,8 @@ function glitchBands(ri) {
 }
 function drawClock(ctx, calm) {
   if (!CL) return;
-  // liegt die Uhr ganz in ausgefallenen Bruchstücken, bleibt sie mit ihnen schwarz
-  if (CR && CR.regions.some(g => g.clock) && CR.regions.every(g => !g.clock || g.dv)) return;
+  // liegt die Uhr ganz in ausgefallenen Bruchstücken, bleibt sie mit ihnen schwarz (bis auf eine Seite, die noch läuft)
+  if (CR && CR.regions.some(g => g.clock) && CR.regions.every(g => !g.clock || (g.dv && !g.keep))) return;
   // Bereich der Uhr samt Platz für versetzte Bruchstücke und verrutschte Zeilen (für die Streifen darüber)
   const M = 30 * dpr;
   CV = [(CLX - M) / dpr, (CLY - M) / dpr, (CLX + CL.width + M) / dpr, (CLY + CL.height + M) / dpr];
@@ -2157,8 +2353,8 @@ function drawClock(ctx, calm) {
   }
   ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   const pieces = CR && settings.crack > 0 ? CR.regions.filter(g => g.clock) : [];
-  if (pieces.length < 2) { drawClockPiece(ctx, null, 'ganz', calm, glitchBands(-1)); return; }
-  for (const g of pieces) { if (g.dv) continue; const i = CR.regions.indexOf(g); drawClockPiece(ctx, g, i, calm, glitchBands(i)); }
+  if (pieces.length < 2) { const g0 = pieces[0]; drawClockPiece(ctx, null, 'ganz', calm, glitchBands(-1), g0 && g0.dv ? g0.keep : null); return; }
+  for (const g of pieces) { if (g.dv && !g.keep) continue; const i = CR.regions.indexOf(g); drawClockPiece(ctx, g, i, calm, glitchBands(i), g.dv ? g.keep : null); }
 }
 
 // ---------- Aufschlag antippen, Risse von selbst wechseln ----------
@@ -2185,7 +2381,9 @@ return {
   maxDpr: 4,
   settings, controls,
   actionLabel: 'Glitch jetzt',
-  buttons: [{ label: 'Aufschlag antippen', run: startTap }, { label: 'Bild wählen', run: pickImage }, { label: 'Bild entfernen', run: clearBg }, { label: 'Zeitraffer', run: toggleFast }],
+  // nach dem Tippen auf Knöpfe das Bild zeigen (Antippen holt die Einstellungen zurück)
+  showOnUse: true,
+  buttons: [{ label: 'Aufschlag antippen', run: startTap }, { label: 'Bild wählen', run: pickImage, stay: true }, { label: 'Bild entfernen', run: clearBg }, { label: 'Zeitraffer', run: toggleFast }],
   bindUI(a) { api = a; },
   // Antippen im Auswahlmodus: je Aufschlag erst die Stelle, dann die Richtung des Risses
   tap(x, y) {
@@ -2233,8 +2431,8 @@ return {
     if (id === 'cracks' || id === 'cracksMax' || id === 'crackGrow' || id === 'crackHours' || id === 'hshare' || id === 'splinter' ||
         id === 'clockWhere' || id === 'crack' || id === 'size' || id === 'date') makeCracks();
     if (id === 'shear' || id === 'bgDim') buildBg();
-    // „Schwarze Stellen“ aus: ausgefallene Stücke gleich wieder an
-    if (id === 'dark' && settings.dark === 0 && CR) for (const g of CR.regions) { g.dead = 0; g.dv = false; }
+    // „Schwarze Stellen“ verstellt: gleich neu verteilen (aus: alle wieder an; sonst sofort eins, das ausgeht)
+    if (id === 'dark' && CR) seedDead(CR.regions, true);
     // „Selbst angetippt“ ohne angetippte Stellen: gleich antippen lassen
     const tapped = () => { for (let k = 0; k < nImpacts(); k++) if (!(settings.px[k] >= 0 && settings.tx[k] >= 0)) return false; return true; };
     if (id === 'impact') { if (settings.impact === 1 && !tapped()) startTap(); else { tapStep = 0; newCracks(); } }
@@ -2250,8 +2448,16 @@ return {
     let segs = 0, gone = 0;
     for (const L of lines) for (const z of L.zones) if (z) { segs++; if (z.off > 0 && z.long) gone++; }
     return { presses: presses.length, pressLines: pressLines.length, lines: lines.length, m3d: m3dOK, regions: CR ? CR.regions.length : 0,
-      divs: CR ? CR.divs.length : 0, hairs: CR ? CR.hairs.length : 0, dead: CR ? CR.regions.filter(g => g.dead > 0).length : 0,
+      divs: CR ? CR.divs.length : 0, hairs: CR ? CR.hairs.length : 0, rays: CR ? CR.rays.length : 0, dead: CR ? CR.regions.filter(g => g.dead > 0).length : 0,
+      keep: CR ? CR.regions.filter(g => g.dead > 0 && g.keep).length : 0, styles: CR ? CR.styles : [], want: stripeWant, goneNow: stripeGone,
       flash: flashRegs.map(f => f.i + ':' + f.st), segs, gone };
+  },
+  // Entwicklung: Stück i für sec Sekunden ausfallen lassen (side: 0 ganz, -1 links bleibt, 1 rechts bleibt; f: Anteil)
+  deadHold(i, side, sec, f) {
+    const g = CR && CR.regions[i]; if (!g) return;
+    g.dead = g.deadT = sec || 60; g.dv = true;
+    const w = (g.x1 - g.x0) * (f || 0.3);
+    g.keep = !side ? null : side < 0 ? { x0: -1, x1: g.x0 + w } : { x0: g.x1 - w, x1: 2 };
   },
   // Entwicklung: feste Neigung (null = wieder Sensor/automatisch), Zeit vorspulen
   setTilt(x, y) { if (x == null) { sens = null; sensorAt = -1e9; } else { sens = [x * 22, -y * 22]; rest = [0, 0]; sensorAt = t + 1e9; tilt = [x, y]; } },
@@ -2308,8 +2514,15 @@ return {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
     if (bgLayer) ctx.drawImage(bgLayer, 0, 0);
     else { ctx.fillStyle = bursting && Math.random() < 0.3 ? 'rgba(0,30,10,.5)' : 'rgba(0,12,4,.6)'; ctx.fillRect(0, 0, W, H); }
-    // ausgefallene Bruchstücke: schwarz
-    if (CR) { ctx.fillStyle = '#000'; for (const g of CR.regions) if (g.dv) ctx.fill(g.pathD); }
+    // ausgefallene Bruchstücke: schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+    if (CR) {
+      ctx.fillStyle = '#000';
+      for (const g of CR.regions) if (g.dv) {
+        if (!g.keep) { ctx.fill(g.pathD); continue; }
+        const s = deadSpan(g);
+        ctx.save(); ctx.beginPath(); ctx.rect(s[0], 0, s[1] - s[0], H); ctx.clip(); ctx.fill(g.pathD); ctx.restore();
+      }
+    }
     stripeStates(dt, calm, bursting);
     // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
     CV = null;
@@ -2365,6 +2578,15 @@ function resize() {
   E.resize(W, H, dpr);
 }
 
+// Effekte mit showOnUse: Nach dem Tippen auf einen Knopf verschwindet das Menü, damit man gleich das Bild sieht;
+// Antippen holt es zurück (Regler zeigen das Bild schon beim Schieben, siehe focus). Hat der Effekt das Menü schon selbst
+// ausgeblendet (z. B. zum Antippen einer Stelle), bleibt es dabei.
+let usedHint = false, lastToast = -1e9;
+const showPic = () => {
+  if (!E.showOnUse || sheet.hidden) return;
+  sheet.hidden = true;
+  if (!usedHint && performance.now() - lastToast > 200) { usedHint = true; toast('Antippen holt die Einstellungen zurück.', 2500); }
+};
 // Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
 const box = document.getElementById('controls'), ui = {};
 // Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
@@ -2409,7 +2631,7 @@ for (const c of E.controls) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
       if (o.font) b.style.fontFamily = o.font;
       if (o.weight) b.style.fontWeight = o.weight;
-      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); });
+      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); showPic(); });
       wrap.appendChild(b); btns.push(b);
     });
     ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
@@ -2430,14 +2652,14 @@ if (E.buttons) {
   const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
   for (const b of E.buttons) {
     const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
-    el.addEventListener('click', () => b.run());
+    el.addEventListener('click', () => { b.run(); if (!b.stay) showPic(); });
     row.insertBefore(el, fs);
   }
 }
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
-document.getElementById('newBtn').onclick = () => E.newPattern();
-document.getElementById('actBtn').onclick = () => E.action();
+document.getElementById('newBtn').onclick = () => { E.newPattern(); showPic(); };
+document.getElementById('actBtn').onclick = () => { E.action(); showPic(); };
 document.getElementById('closeBtn').onclick = () => { sheet.hidden = true; };
 // Berührung: Effekte mit E.touch bekommen Finger-Positionen (Gerätepixel). Kurzes Tippen ohne Bewegen
 // öffnet weiterhin die Einstellungen, Wischen oder langes Halten nicht.
@@ -2491,6 +2713,7 @@ const fsBtn = document.getElementById('fsBtn');
 const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 let toastTimer = 0;
 function toast(msg, ms) {
+  lastToast = performance.now();
   hint.textContent = msg; hint.classList.add('msg'); hint.classList.remove('gone');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => hint.classList.add('gone'), ms || 4000);
 }

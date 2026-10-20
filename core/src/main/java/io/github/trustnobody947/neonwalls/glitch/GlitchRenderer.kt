@@ -25,6 +25,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.round
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -32,9 +33,12 @@ import kotlin.math.sin
  * Die Risse ([Cracks], bis zu 36 und ein paar Haarrisse) laufen von bis zu drei Aufschlagstellen (und auf Wunsch
  * waagerecht) quer übers Bild und teilen das Display in Bruchstücke: Die Streifen werden genau entlang der Risse
  * ausgeschnitten, jedes Stück ist etwas versetzt und flackert für sich. Fällt ein Streifen in einem Stück aus, stirbt er
- * an der Risskante (kurzes Flackern) und bleibt 30 Sekunden bis 2 Minuten weg; genauso lange bleibt ab und zu ein ganzes
- * Stück schwarz. Auf Wunsch werden es mit der Zeit mehr Risse (jeder neue springt mit kurzem Aufblitzen ins Glas).
- * Die Risse selbst: feine dunkle Bruchkante mit dünnem, weich schwankendem Glanz, am Aufschlag Splitter.
+ * an der Risskante (kurzes Flackern) und bleibt 30 Sekunden bis 5 Minuten weg – sobald ein Riss da ist, fehlt bei 4
+ * Streifen einer, bei 5 zwei, mit mehr Streifen mehr. Ab und zu bleibt ein ganzes Stück schwarz, wie lange, stellt der
+ * Regler ein (ein paar Sekunden bis etwa 20 Minuten); bei etwa jedem zweiten bleiben auf einer Seite Streifen stehen.
+ * Auf Wunsch werden es mit der Zeit mehr Risse (jeder neue springt mit kurzem Aufblitzen ins Glas).
+ * Die Risse selbst: feine dunkle Bruchkante mit dünnem, weich schwankendem Glanz, mal feiner, mal etwas kräftiger;
+ * jeder Aufschlag sieht anders aus (Strahlen, Ringe, Splitter).
  * Die Streifen stehen in fester Reihenfolge und können mit der Zeit oder mit sinkendem Akku mehr werden; unter dem
  * Finger flackern sie, dazu kurze Druckstreifen. Flächenglitch (ab 5 Rissen): Das kleinste Bruchstück unter dem Finger
  * flackert grau und blitzt dazwischen weiß wie ein Stroboskop (große Stücke selten, ganz große nie).
@@ -79,8 +83,16 @@ class GlitchRenderer(private val density: Float) {
     var touchFx = true
     /** Flächenglitch: Bruchstücke leuchten beim Berühren auf (grau flackernd, weiße Blitze), ab [FGE_MIN] Rissen. */
     var touchFlash = true
-    /** Schwarze Stellen zwischen den Rissen 0..10 (ganze Bruchstücke fallen ab und zu aus). */
+    /**
+     * Schwarze Stellen zwischen den Rissen 0..10 (ganze Bruchstücke fallen ab und zu aus): vor allem, wie lange ein Stück
+     * schwarz bleibt ([darkMid]). Verstellt: gleich neu verteilen (aus: alle wieder an; sonst sofort eins, das ausgeht).
+     */
     var dark = 5
+        set(v) {
+            if (field == v) return
+            field = v
+            seedDead(true)
+        }
 
     /** Metall-Uhr in 3D (null = Gerät kann es nicht, dann die bisherige Uhr). */
     var metal: Clock3D? = null
@@ -156,6 +168,14 @@ class GlitchRenderer(private val density: Float) {
     private var regDead = floatArrayOf(0f)
     private var regDeadT = floatArrayOf(0f)
     private var regDv = booleanArrayOf(false)
+    // ausgefallenes Stück, in dem auf einer Seite Streifen stehen bleiben: dort läuft das Display noch (x von, bis in
+    // Pixeln; NaN = ganz schwarz)
+    private var regKeep0 = floatArrayOf(Float.NaN)
+    private var regKeep1 = floatArrayOf(Float.NaN)
+
+    private fun hasKeep(i: Int) = !regKeep0[i].isNaN()
+    /** Liegt x (Pixel) in einem ausgefallenen Stück im schwarzen Teil (nicht auf der Seite, die noch läuft)? */
+    private fun deadAt(i: Int, x: Float) = regDv[i] && (!hasKeep(i) || x < regKeep0[i] || x > regKeep1[i])
 
     private val rnd = Random()
     private fun r(a: Float, b: Float) = a + rnd.nextFloat() * (b - a)
@@ -192,8 +212,10 @@ class GlitchRenderer(private val density: Float) {
         /** stirbt gerade an der Risskante (flackert, dann lange aus) bzw. kommt flackernd wieder */
         var die = 0f
         var wake = 0f
-        /** der laufende Ausfall ist ein langer (30 s bis 2 min), kein kurzer beim Glitch-Ausbruch */
+        /** der laufende Ausfall ist ein langer (30 s bis 5 min), kein kurzer beim Glitch-Ausbruch */
         var long = false
+        /** gerade erst wiedergekommen: fällt so lange nicht gleich wieder aus */
+        var rest = 0f
         var bw = 0f
         var bdx = 0f
         var drawn = false
@@ -204,10 +226,11 @@ class GlitchRenderer(private val density: Float) {
         var flCol = 0
         var flW = 0f
         var flDx = 0f
-        // Abschnitte des Streifens innerhalb des Bruchstücks (y von, y bis, …), gilt für die Lage ivX
+        // Abschnitte des Streifens innerhalb des Bruchstücks (y von, y bis, …) und ihre Länge, gilt für die Lage ivX
         var iv = FloatArray(4)
         var ivN = 0
         var ivX = Float.NaN
+        var len = 0f
     }
 
     class Line(val x: Float, val tilt: Float, val w: Float, var col: Int, val base: Float, val dotted: Boolean) {
@@ -411,6 +434,7 @@ class GlitchRenderer(private val density: Float) {
             regClock = booleanArrayOf(false); regDx = floatArrayOf(0f)
             regNb = arrayOf(IntArray(0)); regFrac = floatArrayOf(1f)
             regDead = floatArrayOf(0f); regDeadT = floatArrayOf(0f); regDv = booleanArrayOf(false)
+            regKeep0 = floatArrayOf(Float.NaN); regKeep1 = floatArrayOf(Float.NaN)
         } else {
             val rs = set.regions
             nR = rs.size
@@ -443,6 +467,9 @@ class GlitchRenderer(private val density: Float) {
             regDead = FloatArray(nR)
             regDeadT = FloatArray(nR)
             regDv = BooleanArray(nR)
+            regKeep0 = FloatArray(nR) { Float.NaN }
+            regKeep1 = FloatArray(nR) { Float.NaN }
+            seedDead(false)
             crackBmp = renderCracks(set)
             if (flash) {
                 for (i in before until set.divs.size) {
@@ -509,15 +536,15 @@ class GlitchRenderer(private val density: Float) {
             style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
         }
         val path = Path()
-        // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht
+        // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht (je Aufschlag verschieden stark)
         fun boost(x: Double, y: Double): Double {
             var m = 0.0
-            for (p in set.imps) m = max(m, exp(-Math.hypot(x - p[0], y - p[1]) / 0.05))
+            for (p in set.imps) m = max(m, p[2] * exp(-Math.hypot(x - p[0], y - p[1]) / 0.05))
             return 1 + 1.3 * m
         }
 
-        // 1) dunkle Bruchkante: fein, am Aufschlag etwas breiter, zum Ende hin schmaler (in Stücken gezeichnet);
-        //    Haarrisse nur ein Hauch
+        // 1) dunkle Bruchkante: fein, am Aufschlag etwas breiter, zum Ende hin schmaler (in Stücken gezeichnet); kräftige
+        //    Risse (v) etwas breiter; Haarrisse nur ein Hauch
         for (cl in set.lines) {
             val n = cl.cl.size
             val total = max(1e-9, cl.cl[n - 1])
@@ -528,11 +555,12 @@ class GlitchRenderer(private val density: Float) {
                 while (i1 < n - 1 && cl.cl[i1] - cl.cl[i0] < 0.04) i1++
                 val f = when (cl.kind) {
                     CrackSet.SPOKE -> 1.35 - 0.6 * min(1.0, cl.cl[i0] / max(0.3, total))
-                    // kleine Risse und Haarrisse laufen zur Spitze hin aus
+                    // Strahlen am Aufschlag, kleine Risse und Haarrisse laufen zur Spitze hin aus
+                    CrackSet.RAY -> 1.2 - 0.8 * cl.cl[i0] / total
                     CrackSet.TWIG, CrackSet.HAIR -> 1.15 - 0.75 * cl.cl[i0] / total
                     else -> 1.0
                 }
-                dark.strokeWidth = max(1f, (0.85 * density * cl.w * f).toFloat())
+                dark.strokeWidth = max(1f, ((0.85 + 0.27 * cl.v) * density * cl.w * f).toFloat())
                 path.reset()
                 path.moveTo((cl.pts[2 * i0] * s).toFloat(), (cl.pts[2 * i0 + 1] * s).toFloat())
                 for (k in i0 + 1..i1) path.lineTo((cl.pts[2 * k] * s).toFloat(), (cl.pts[2 * k + 1] * s).toFloat())
@@ -543,10 +571,11 @@ class GlitchRenderer(private val density: Float) {
         // 2) Glanz: sehr dünne helle Linie dicht an der Kante, auf der Seite zum Licht. Gleiche Helligkeit wird zu einem
         //    Linienzug zusammengefasst (sonst überlappen sich die Stücke zu Perlen).
         fun shineLine(cl: CrackSet.Line, side: Int, amt: (Double) -> Double) {
-            val o = density * (0.38 + 0.32 * cl.w) * side
+            val o = density * (0.38 + 0.14 * cl.v + (0.32 + 0.1 * cl.v) * cl.w) * side
             val ox = (cl.nx * o).toFloat()
             val oy = (cl.ny * o).toFloat()
-            shine.strokeWidth = max(1f, (0.4 * density * (0.75 + 0.35 * cl.w)).toFloat())
+            val al = (0.82 + 0.1 * cl.v).toFloat()
+            shine.strokeWidth = max(1f, ((0.4 + 0.12 * cl.v) * density * (0.75 + 0.35 * cl.w)).toFloat())
             var cur = -1
             var open = false
             val n = cl.cl.size
@@ -560,7 +589,7 @@ class GlitchRenderer(private val density: Float) {
                     if (open) { c.drawPath(path, shine); open = false }
                     cur = lv
                     if (lv > 0) {
-                        shine.color = Color.argb((lv / 14f * 0.82f * 255f).toInt(), 235, 242, 255)
+                        shine.color = Color.argb((lv / 14f * al * 255f).toInt().coerceIn(0, 255), 235, 242, 255)
                         path.reset()
                         path.moveTo((ax * s).toFloat() + ox, (ay * s).toFloat() + oy)
                         open = true
@@ -575,6 +604,7 @@ class GlitchRenderer(private val density: Float) {
             val tot = max(1e-9, cl.cl[cl.cl.size - 1])
             when (cl.kind) {
                 CrackSet.TWIG -> shineLine(cl, 1) { sv -> max(0.0, 1 - sv / tot).pow(0.7) }
+                CrackSet.RAY -> shineLine(cl, 1) { sv -> max(0.0, 1 - sv / tot).pow(0.6) }
                 CrackSet.HAIR -> shineLine(cl, 1) { sv -> max(0.0, 1 - sv / tot).pow(0.5) }
                 else -> shineLine(cl, 1) { 1.0 }
             }
@@ -902,15 +932,18 @@ class GlitchRenderer(private val density: Float) {
             l.vis = true
         }
         // je Bruchstück: Versatz, Ausfälle und Farbblitze der Teilstücke. Fällt ein Streifen in einem Bruchstück aus,
-        // stirbt er dort an der Risskante (flackert kurz) und bleibt 30 Sekunden bis 2 Minuten weg, dann kommt er flackernd
-        // wieder. Wie viele Teilstücke gerade fehlen: etwa 5 bis 18 %, je nach Glitch-Ausbrüchen und Zahl der Streifen.
-        // Bei Ausbrüchen fallen Teilstücke auch kurz aus.
-        val many = ((shownCount - 12) / 110f).coerceIn(0f, 1f)
-        val hid = (0.16f * (g / 0.343f) * (0.5f + many)).coerceIn(0f, 0.35f)
-        val longRate = hid / ((1f - hid) * 75f)
+        // stirbt er dort an der Risskante (flackert kurz) und bleibt 30 Sekunden bis 5 Minuten weg (jedes Mal anders: viele
+        // kürzer, manche richtig lang), dann kommt er flackernd wieder. Wie viele gerade fehlen: sobald ein Riss da ist, bei
+        // 4 Streifen einer, bei 5 zwei, danach etwa für jeden zweiten Streifen einer mehr (mit „Glitch-Ausbrüche“ etwas
+        // mehr oder weniger, höchstens 30 % der Teilstücke). Fehlt einer zu wenig, stirbt nach ein paar Sekunden der
+        // nächste. Bei Ausbrüchen fallen Teilstücke auch kurz aus.
+        val want = if (multi) (0.5f * (shownCount - 2) * (g / 0.343f).coerceIn(0f, 1.6f)).roundToInt().coerceAtLeast(0) else 0
+        var gone = 0
+        var segs = 0
+        cand.clear()
         for (ri in 0 until nR) {
-            // ganz ausgefallenes Bruchstück: bleibt schwarz
-            if (regDv[ri]) {
+            // ausgefallenes Bruchstück: bleibt schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+            if (regDv[ri] && !hasKeep(ri)) {
                 for (l in lines) {
                     val z = l.zones[ri]
                     z.drawn = false
@@ -923,35 +956,47 @@ class GlitchRenderer(private val density: Float) {
             val sb = burstT > 0f && multi && (burstZone == ZONE_ALL || burstZone == regZone[ri])
             val lo = regX0[ri] - 6f * density
             val hi = regX1[ri] + 6f * density
+            val poly = regPoly[ri]
             for (l in lines) {
                 val z = l.zones[ri]
                 z.drawn = false
                 z.fl = false
                 if (!l.vis) continue
                 var x = l.cx + dx
-                if (x < lo || x > hi) continue
+                if (x < lo || x > hi || (regDv[ri] && deadAt(ri, x))) continue
                 if (multi) {
+                    // hat der Streifen in diesem Stück überhaupt ein Teilstück (und wie lang)?
+                    if (poly != null && z.ivX != x) {
+                        z.x = x
+                        stripeIntervals(z, l, poly)
+                    }
+                    if (poly == null) z.len = h
+                    val seg = z.len > 4f * density
+                    if (seg) segs++
+                    if (z.rest > 0f) z.rest -= dt
                     if (z.off > 0f) {
                         z.off -= dt
-                        if (z.off > 0f) continue
-                        z.wake = if (z.long) r(0.12f, 0.3f) else 0f
-                    } else if (z.die <= 0f) {
-                        if (sb && chance(0.035f * burstPow)) {
-                            z.off = r(0.2f, 1.2f)
-                            z.long = false
+                        if (z.off > 0f) {
+                            if (z.long) gone++
                             continue
                         }
-                        if (chance(p(longRate))) z.die = r(0.15f, 0.45f)
+                        z.wake = if (z.long) r(0.12f, 0.3f) else 0f
+                        z.rest = if (z.long) r(10f, 30f) else 0f
+                    } else if (z.die <= 0f && sb && chance(0.035f * burstPow)) {
+                        z.off = r(0.2f, 1.2f)
+                        z.long = false
+                        continue
                     }
                     if (z.die > 0f) {
+                        gone++
                         z.die -= dt
                         if (z.die <= 0f) {
                             z.die = 0f
-                            z.off = r(30f, 120f)
+                            z.off = 30f * 10f.pow(rnd.nextFloat())
                             z.long = true
                             continue
                         }
-                    }
+                    } else if (seg && z.wake <= 0f && z.rest <= 0f) cand.add(z)
                     if (z.wake > 0f) z.wake -= dt
                     if (z.flash > 0f) z.flash -= dt
                     else if (chance(if (sb) 0.3f * burstPow else p(0.18f * g))) {
@@ -994,7 +1039,25 @@ class GlitchRenderer(private val density: Float) {
                 z.x = x
             }
         }
+        // fehlen zu wenige: der nächste Streifen stirbt an einer Risskante (fehlt einer, im Schnitt nach 2 Sekunden). Lange
+        // Teilstücke sind eher dran als kleine Ecken, damit man den Ausfall auch sieht.
+        val lim = min(want, (segs * 0.3f).roundToInt())
+        if (gone < lim && cand.isNotEmpty() && chance(p(0.5f * (lim - gone)))) {
+            var sum = 0f
+            for (z in cand) sum += z.len
+            var s = rnd.nextFloat() * sum
+            for ((i, z) in cand.withIndex()) {
+                s -= z.len
+                if (s <= 0f || i == cand.size - 1) {
+                    z.die = r(0.15f, 0.45f)
+                    break
+                }
+            }
+        }
     }
+
+    /** Teilstücke, die gerade ausfallen könnten (für [stripeStates]) */
+    private val cand = ArrayList<Zone>()
 
     private var cross = FloatArray(16)
 
@@ -1032,13 +1095,17 @@ class GlitchRenderer(private val density: Float) {
         if (z.iv.size < n) z.iv = FloatArray(n)
         System.arraycopy(cross, 0, z.iv, 0, n)
         z.ivN = n
+        var len = 0f
+        var q = 0
+        while (q + 1 < n) { len += cross[q + 1] - cross[q]; q += 2 }
+        z.len = len
     }
 
     /** Streifen zeichnen: in jedem Bruchstück nur bis genau an den Riss. */
     private fun drawStripes(c: Canvas, bursting: Boolean) {
         for (ri in 0 until nR) {
-            // ausgefallenes Bruchstück: bleibt ganz schwarz
-            if (regDv[ri]) continue
+            // ausgefallenes Bruchstück: bleibt schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+            if (regDv[ri] && !hasKeep(ri)) continue
             val poly = regPoly[ri]
             for (l in lines) {
                 val z = l.zones[ri]
@@ -1058,8 +1125,9 @@ class GlitchRenderer(private val density: Float) {
             // Druckstreifen unter dem Finger, nur in diesem Bruchstück
             for (q in pressLines) {
                 if (cs != null && q.ri != ri) continue
-                val col = if (chance(0.2f)) pickCol() else q.col
                 val x = q.line.x * w
+                if (deadAt(ri, x)) continue
+                val col = if (chance(0.2f)) pickCol() else q.col
                 if (poly != null) {
                     val z = q.zone
                     z.x = x
@@ -1154,8 +1222,8 @@ class GlitchRenderer(private val density: Float) {
         for (i in 0 until nR) {
             if (!regClock[i]) continue
             val path = regPath[i] ?: continue
-            val lx = ck.x + round(regS[i] * k * 0.45f * density)
-            val ly = ck.y + round(abs(regS[i]) * k * 0.06f * density)
+            val lx = ck.x + round(regS[i] * k * CLOCK_DX * density)
+            val ly = ck.y + round(abs(regS[i]) * k * CLOCK_DY * density)
             val bx0 = floor(max(regX0[i], lx)).toInt()
             val by0 = floor(max(regY0[i], ly)).toInt()
             val bx1 = ceil(min(regX1[i], lx + layer.width)).toInt()
@@ -1176,15 +1244,41 @@ class GlitchRenderer(private val density: Float) {
         }
     }
 
-    /** Liegt die Uhr ganz in ausgefallenen Bruchstücken? Dann bleibt sie mit ihnen schwarz. */
+    /**
+     * Liegt die Uhr ganz in ausgefallenen Bruchstücken? Dann bleibt sie mit ihnen schwarz (außer eins davon läuft auf
+     * einer Seite noch).
+     */
     private fun clockAllDead(): Boolean {
         if (cs == null) return false
         var any = false
         for (i in 0 until nR) if (regClock[i]) {
-            if (!regDv[i]) return false
+            if (!regDv[i] || hasKeep(i)) return false
             any = true
         }
         return any
+    }
+
+    private val deadOut = Path()
+    private val deadPart = Path()
+
+    /**
+     * Ausgefallene Stücke im Bereich der Uhr, in denen auf einer Seite Streifen stehen bleiben: ihren schwarzen Teil
+     * ausschneiden (dort keine Uhr, auf der Seite, die noch läuft, schon).
+     */
+    private fun clipDeadKeep(c: Canvas) {
+        var any = false
+        deadOut.reset()
+        for (i in 0 until nR) {
+            if (!regClock[i] || !regDv[i] || !hasKeep(i)) continue
+            val path = regPath[i] ?: continue
+            deadPart.reset()
+            if (regKeep0[i] < 0f) deadPart.addRect(regKeep1[i], 0f, w, h, Path.Direction.CW)
+            else deadPart.addRect(0f, 0f, regKeep0[i], h, Path.Direction.CW)
+            deadPart.op(path, Path.Op.INTERSECT)
+            deadOut.addPath(deadPart)
+            any = true
+        }
+        if (any) c.clipOutPath(deadOut)
     }
 
     private fun drawClock(c: Canvas) {
@@ -1193,17 +1287,23 @@ class GlitchRenderer(private val density: Float) {
         val layer = ck.layer ?: return
         if (clockAlpha <= 0.01f) return
         if (clockAllDead()) return
+        val sc = c.save()
+        if (cs != null) clipDeadKeep(c)
         val m = metal
         // Shader nur auf der Grafikkarte (ohne sie die Uhr wie bisher)
-        if (m != null && c.isHardwareAccelerated && draw3D(c, ck, layer, m)) return
+        if (m != null && c.isHardwareAccelerated && draw3D(c, ck, layer, m)) {
+            c.restoreToCount(sc)
+            return
+        }
         setClockArea(ck.x, ck.y, ck.x + layer.width, ck.y + layer.height)
         var pieces = 0
         if (cs != null && clockCrack > 0) for (i in 0 until nR) if (regClock[i]) pieces++
         if (pieces < 2) drawClockPiece(c, ck, layer, -1)
         else {
             cutClockPieces(ck, layer)
-            for (i in 0 until nR) if (regClock[i] && !regDv[i]) drawClockPiece(c, ck, layer, i)
+            for (i in 0 until nR) if (regClock[i] && (!regDv[i] || hasKeep(i))) drawClockPiece(c, ck, layer, i)
         }
+        c.restoreToCount(sc)
     }
 
     /** Ein Stück der Uhr ohne 3D (ri = −1: die ganze Uhr). */
@@ -1217,8 +1317,8 @@ class GlitchRenderer(private val density: Float) {
         // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
         val k = if (ri >= 0) clockCrack else 0
         val jx = if (ri >= 0) jit() else 1f
-        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * 0.45f * density * jx) else 0f)
-        val y = ck.y + (if (ri >= 0) round(abs(regS[ri]) * k * 0.06f * density) else 0f)
+        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * CLOCK_DX * density * jx) else 0f)
+        val y = ck.y + (if (ri >= 0) round(abs(regS[ri]) * k * CLOCK_DY * density) else 0f)
         val a = (z.fl * clockAlpha * 255f).toInt().coerceIn(0, 255)
         // ruhiges Bild: das fertig ausgeschnittene Stück; nur bei Effekten wird beim Zeichnen ausgeschnitten
         val piece = if (ri >= 0 && jx == 1f && z.split <= 0f && z.slice <= 0f) pieceBmp.getOrNull(ri) else null
@@ -1388,16 +1488,16 @@ class GlitchRenderer(private val density: Float) {
         }
         for (k in 0 until n) {
             val ri = if (nPieces == 0) -1 else pieceRegion[k]
-            // ausgefallenes Bruchstück: dieses Stück der Uhr bleibt schwarz
-            if (ri >= 0 && regDv[ri]) continue
+            // ausgefallenes Bruchstück: dieses Stück der Uhr bleibt schwarz (bis auf die Seite, die noch läuft)
+            if (ri >= 0 && regDv[ri] && !hasKeep(ri)) continue
             val z = czones[if (ri < 0) nR else ri]
             val zone = if (ri < 0) clockZoneOf(ck, layer.height) else regZone[ri]
             if (!stepClockZone(z, zone)) continue
             pVisible[k] = true
             val kc = if (ri >= 0) clockCrack else 0
             val jx = if (ri >= 0) jit() else 1f
-            pDx[k] = if (ri >= 0) round(regS[ri] * kc * 0.45f * density * jx) else 0f
-            pDy[k] = if (ri >= 0) round(abs(regS[ri]) * kc * 0.06f * density) else 0f
+            pDx[k] = if (ri >= 0) round(regS[ri] * kc * CLOCK_DX * density * jx) else 0f
+            pDy[k] = if (ri >= 0) round(abs(regS[ri]) * kc * CLOCK_DY * density) else 0f
             pOff[2 * k] = pDx[k]
             pOff[2 * k + 1] = pDy[k]
             // kurze Effekte (Farbkanäle, verrutschte Zeilen) zeichnet die ruhige Ebene; der Shader spart das Stück aus
@@ -1561,8 +1661,16 @@ class GlitchRenderer(private val density: Float) {
         val bg = bgLayer
         if (bg != null) c.drawBitmap(bg, 0f, 0f, null)
         else c.drawColor(if (bursting && chance(0.3f)) Color.rgb(0, 15, 5) else Color.rgb(0, 7, 2))
-        // ausgefallene Bruchstücke: schwarz
-        if (cs != null) for (i in 0 until nR) if (regDv[i]) regPath[i]?.let { c.drawPath(it, deadPaint) }
+        // ausgefallene Bruchstücke: schwarz (bis auf die Seite, auf der Streifen stehen bleiben)
+        if (cs != null) for (i in 0 until nR) if (regDv[i]) regPath[i]?.let {
+            if (!hasKeep(i)) c.drawPath(it, deadPaint)
+            else {
+                c.save()
+                if (regKeep0[i] < 0f) c.clipRect(regKeep1[i], 0f, w, h) else c.clipRect(0f, 0f, regKeep0[i], h)
+                c.drawPath(it, deadPaint)
+                c.restore()
+            }
+        }
         stripeStates(bursting)
         // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
         drawClock(c)
@@ -1596,46 +1704,97 @@ class GlitchRenderer(private val density: Float) {
     }
 
     // ---------- Schwarze Bruchstücke ----------
-    // Ab und zu fällt ein ganzes Bruchstück aus und bleibt 30 Sekunden bis 2 Minuten schwarz (beim Ausgehen flackert es, es
-    // stirbt; beim Angehen kurz). Wie viele: nach „Schwarze Stellen zwischen den Rissen“ und der Zahl der Streifen, etwa
-    // 1–7 % der Stücke (bei „stark“ doppelt so viele). Bei Glitch-Ausbrüchen fallen Stücke auch kurz aus. Höchstens jedes
-    // vierte Stück, nie zwei nebeneinander.
+    // Ab und zu fällt ein ganzes Bruchstück aus und bleibt schwarz (beim Ausgehen flackert es, es stirbt; beim Angehen
+    // kurz). Der Regler „Schwarze Stellen zwischen den Rissen“ legt vor allem fest, wie lange: links nur ein paar Sekunden,
+    // in der Mitte um eine Minute, ganz rechts sehr lange (um 20 Minuten); jedes Mal anders (halb bis doppelt so lange).
+    // Mit dem Regler werden es auch etwas mehr Stücke (etwa 4 bis 18 %, mit vielen Streifen etwas mehr). Bei etwa jedem
+    // zweiten bleiben auf einer Seite ein paar Streifen stehen (am linken oder rechten Rand des Stücks, 15–40 % seiner
+    // Breite: dort läuft das Display noch). Bei Glitch-Ausbrüchen fallen Stücke auch kurz aus (dann ganz). Höchstens jedes
+    // vierte Stück, nie zwei nebeneinander. Beim Bauen der Risse sind gleich so viele schwarz wie sonst im Schnitt, beim
+    // Verstellen des Reglers mindestens eins – damit man es sofort sieht.
 
     private val deadPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; color = Color.BLACK }
 
+    /** halb bis doppelt so lange wie [darkMid] (im Schnitt 1,08-mal) */
+    private fun darkLen(lv: Int) = darkMid(lv) * 4f.pow(rnd.nextFloat()) / 2f
+
+    /** Anteil der Stücke, die im Schnitt schwarz sind */
+    private fun darkFrac(lv: Int) = (0.04f + 0.14f * (lv - 1) / 9f) * (0.75f + 0.5f * ((shownCount - 12) / 110f).coerceIn(0f, 1f))
+
+    private fun killRegion(i: Int, len: Float) {
+        regDead[i] = len
+        regDeadT[i] = len
+        if (len > 5f && chance(0.5f)) {
+            // auf einer Seite bleiben ein paar Streifen stehen
+            val f = (regX1[i] - regX0[i]) * r(0.15f, 0.4f)
+            if (chance(0.5f)) { regKeep0[i] = -1e6f; regKeep1[i] = regX0[i] + f }
+            else { regKeep0[i] = regX1[i] - f; regKeep1[i] = 1e6f }
+        } else {
+            regKeep0[i] = Float.NaN
+            regKeep1[i] = Float.NaN
+        }
+    }
+
     private fun updateDead() {
         if (cs == null) return
-        val many = ((shownCount - 12) / 110f).coerceIn(0f, 1f)
-        val dk = dark / 5f
-        if (dk <= 0f) {
-            // „Schwarze Stellen“ aus: ausgefallene Stücke gleich wieder an
-            for (i in 0 until nR) { regDead[i] = 0f; regDv[i] = false }
-            return
-        }
+        val lv = dark
         val maxDead = max(1, nR / 4)
         var nd = 0
         for (i in 0 until nR) if (regDead[i] > 0f) {
             regDead[i] -= dt
-            if (regDead[i] > 0f) nd++
+            if (regDead[i] > 0f) nd++ else { regKeep0[i] = Float.NaN; regKeep1[i] = Float.NaN }
         }
-        val hd = (dk * (0.012f + 0.09f * many)).coerceIn(0f, 0.3f)
-        val rate = hd / ((1f - hd) * 75f)
-        if (nR >= 3) for (i in 0 until nR) {
-            if (regDead[i] > 0f || nd >= maxDead) continue
-            val sb = burstT > 0f && (burstZone == ZONE_ALL || burstZone == regZone[i])
-            var len = 0f
-            if (chance(p(rate))) len = r(30f, 120f)
-            else if (sb && chance(p(dk * 0.03f * burstPow))) len = r(0.3f, 1.5f)
-            if (len > 0f && regNb[i].none { it < nR && regDead[it] > 0f }) {
-                regDead[i] = len
-                regDeadT[i] = len
-                nd++
+        if (nR >= 3 && lv > 0) {
+            val hd = darkFrac(lv)
+            val rate = hd / ((1f - hd) * darkMid(lv) * 1.082f)
+            for (i in 0 until nR) {
+                if (regDead[i] > 0f || nd >= maxDead) continue
+                val sb = burstT > 0f && (burstZone == ZONE_ALL || burstZone == regZone[i])
+                var len = 0f
+                if (chance(p(rate))) len = darkLen(lv)
+                else if (sb && chance(p(lv / 5f * 0.03f * burstPow))) len = r(0.3f, 1.5f)
+                if (len > 0f && regNb[i].none { it < nR && regDead[it] > 0f }) {
+                    killRegion(i, len)
+                    nd++
+                }
             }
         }
         // sichtbar aus? beim Aus- und Angehen kurz flackern
         for (i in 0 until nR) {
             val dying = regDeadT[i] - regDead[i] < (if (regDeadT[i] > 5f) 0.35f else 0.16f)
             regDv[i] = regDead[i] > 0f && !((dying || regDead[i] < 0.14f) && chance(0.5f))
+        }
+    }
+
+    /**
+     * Schwarze Stücke neu verteilen: so viele, wie es sonst im Schnitt sind (mit zufälliger Restzeit); one: mindestens
+     * eins, das gerade erst ausgeht (beim Verstellen des Reglers).
+     */
+    private fun seedDead(one: Boolean) {
+        if (cs == null || regDead.size != nR) return
+        for (i in 0 until nR) {
+            regDead[i] = 0f
+            regDv[i] = false
+            regKeep0[i] = Float.NaN
+            regKeep1[i] = Float.NaN
+        }
+        val lv = dark
+        if (lv <= 0 || nR < 3) return
+        val maxDead = max(1, nR / 4)
+        val hd = darkFrac(lv)
+        val order = IntArray(nR) { it }
+        for (i in nR - 1 downTo 1) {
+            val j = rnd.nextInt(i + 1)
+            val t0 = order[i]; order[i] = order[j]; order[j] = t0
+        }
+        var nd = 0
+        for (i in order) {
+            if (nd >= maxDead || regNb[i].any { it < nR && regDead[it] > 0f }) continue
+            val first = one && nd == 0
+            if (!first && rnd.nextFloat() >= hd) continue
+            killRegion(i, darkLen(lv))
+            if (!first) regDead[i] *= rnd.nextFloat()
+            nd++
         }
     }
 
@@ -1738,11 +1897,17 @@ class GlitchRenderer(private val density: Float) {
     private fun drawFlash(c: Canvas, white: Boolean) {
         if (cs == null) return
         for (f in regFlash) {
-            if (f.i >= nR || f.a <= 0.01f || regDv[f.i] || (f.st == 2) != white) continue
+            if (f.i >= nR || f.a <= 0.01f || (regDv[f.i] && !hasKeep(f.i)) || (f.st == 2) != white) continue
             val path = regPath[f.i] ?: continue
             val col = if (white) Color.WHITE else f.col
             flashPaint.color = Color.argb((f.a * 255f).toInt().coerceIn(0, 255), Color.red(col), Color.green(col), Color.blue(col))
-            c.drawPath(path, flashPaint)
+            if (regDv[f.i]) {
+                // ausgefallenes Stück: nur die Seite, auf der das Display noch läuft
+                c.save()
+                c.clipRect(max(regKeep0[f.i], 0f), 0f, min(regKeep1[f.i], w), h)
+                c.drawPath(path, flashPaint)
+                c.restore()
+            } else c.drawPath(path, flashPaint)
         }
     }
 
@@ -1857,8 +2022,18 @@ class GlitchRenderer(private val density: Float) {
         const val ZONE_MID = 2
         const val ZONE_BOTTOM = 3
 
-        /** „Versatz am Riss“: Stärke je Stufe (55 % weniger als in der ersten Version) */
-        private const val SHEAR_K = 1.2f * 0.45f
+        /** „Versatz am Riss“: Stärke je Stufe (noch einmal halb so stark: feiner einstellbar) */
+        private const val SHEAR_K = 1.2f * 0.45f * 0.5f
+
+        /** „Riss durch die Uhr“: Versatz der Uhr-Stücke je Stufe zur Seite und nach unten (noch einmal halb so stark) */
+        private const val CLOCK_DX = 0.225f
+        private const val CLOCK_DY = 0.03f
+
+        /**
+         * „Schwarze Stellen zwischen den Rissen“ (1–10): typische Dauer, die ein Stück schwarz bleibt, in Sekunden –
+         * Stufe 1 etwa 4 s, Stufe 5 etwa 50 s, Stufe 10 etwa 20 Minuten (jedes Mal halb bis doppelt so lange).
+         */
+        fun darkMid(lv: Int): Float = 4f * 300f.pow((lv - 1) / 9f)
 
         /** Flächenglitch erst ab so vielen Rissen */
         const val FGE_MIN = 5

@@ -55,6 +55,32 @@ class GlitchSettings(
 
     private fun s(id: Int) = act.getString(id)
 
+    private var usedHint = false
+
+    /**
+     * Nach dem Tippen auf einen Knopf das Bild zeigen, damit man die Änderung sieht (Antippen holt die Einstellungen
+     * zurück); beim ersten Mal mit kurzem Hinweis. hint = false: ohne Hinweis (der Knopf zeigt schon selbst eine Meldung).
+     */
+    private fun show(hint: Boolean = true) {
+        if (tapStep != 0) return
+        showPanel(false)
+        if (hint && !usedHint) {
+            usedHint = true
+            showHint(s(R.string.show_hint), 2500)
+        }
+    }
+
+    /** „Schwarze Stellen“: statt der Stufe die typische Dauer (aus, ca. 4 s … ca. 20 Min.) */
+    private fun darkLabel(v: Int): String {
+        if (v <= 0) return s(R.string.l_off)
+        val sec = GlitchRenderer.darkMid(v)
+        return when {
+            sec < 59.5f -> act.getString(R.string.dark_s, sec.roundToInt())
+            sec < 600f -> act.getString(R.string.dark_m, ((sec / 30f).roundToInt() / 2f).toString().replace('.', ',').removeSuffix(",0"))
+            else -> act.getString(R.string.dark_m, (sec / 60f).roundToInt().toString())
+        }
+    }
+
     /** Neue Einstellungen an die Vorschau geben (der Hintergrund liest sie selbst aus den gespeicherten Werten). */
     fun reapply() {
         GlitchPrefs.applyTo(act, view.renderer)
@@ -92,8 +118,9 @@ class GlitchSettings(
             // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
             GlitchPrefs.setCrackGrow(act, idx == 1)
             reapply()
+            show()
         }
-        ui.addSlider(s(R.string.s_grow_hours), p, GlitchPrefs.CRACK_HOURS, 6, 1, 24, 1, this::hours, re)
+        ui.addFocusSlider(s(R.string.s_grow_hours), p, GlitchPrefs.CRACK_HOURS, 6, 1, 24, 1, this::hours, re)
         crackInfo = ui.addInfo()
         // Aufschläge: wie viele, zufällig oder selbst angetippt
         ui.addChoice(s(R.string.s_impacts), p, GlitchPrefs.IMPACTS, 0, listOf("1", "2", "3")) {
@@ -102,6 +129,7 @@ class GlitchSettings(
             else {
                 cancelTap()
                 reapply()
+                show()
             }
         }
         setImpactChoice = ui.addChoice(s(R.string.s_impact), p, GlitchPrefs.IMPACT, 0,
@@ -111,16 +139,18 @@ class GlitchSettings(
                 cancelTap()
                 GlitchPrefs.newCracks(act)
                 reapply()
+                show()
             }
         }
         ui.addFocusSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 10, { "$it %" }, re)
         ui.addChoice(s(R.string.s_splinter), p, GlitchPrefs.SPLINTER, 1,
-            listOf(s(R.string.spl_0), s(R.string.spl_1), s(R.string.spl_2))) { reapply() }
+            listOf(s(R.string.spl_0), s(R.string.spl_1), s(R.string.spl_2))) { reapply(); show() }
         ui.addChoice(s(R.string.s_auto), p, GlitchPrefs.AUTO, 0,
-            listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2))) { restartAutoClock() }
-        ui.addSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, { restartAutoClock() })
+            listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2))) { restartAutoClock(); show() }
+        ui.addFocusSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, { restartAutoClock() })
         ui.addFocusSlider(s(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ui::level, re)
-        ui.addFocusSlider(s(R.string.s_dark), p, GlitchPrefs.DARK, 5, 0, 10, 1, ui::level, re)
+        // „Schwarze Stellen“: der Regler stellt vor allem ein, wie lange ein Stück schwarz bleibt (die Anzeige sagt es)
+        ui.addFocusSlider(s(R.string.s_dark), p, GlitchPrefs.DARK, 5, 0, 10, 1, this::darkLabel, re)
 
         // Streifen und Glitches
         ui.addFocusSlider(s(R.string.s_calm), p, GlitchPrefs.CALM, 4, 0, 10, 1, ui::level, re)
@@ -133,40 +163,43 @@ class GlitchSettings(
             // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
             GlitchPrefs.setGrowTime(act, idx == 1)
             reapply()
+            show()
         }
-        ui.addSlider(s(R.string.s_grow_hours), p, GlitchPrefs.GROW_HOURS, 6, 1, 24, 1, this::hours, re)
-        ui.addChoice(s(R.string.s_grow_batt), p, GlitchPrefs.GROW_BATT, 0, offOn) { reapply() }
+        ui.addFocusSlider(s(R.string.s_grow_hours), p, GlitchPrefs.GROW_HOURS, 6, 1, 24, 1, this::hours, re)
+        ui.addChoice(s(R.string.s_grow_batt), p, GlitchPrefs.GROW_BATT, 0, offOn) { reapply(); show() }
         ui.addNote(s(R.string.grow_note))
         info = ui.addInfo()
-        lapseBtn = ui.addButtonRow(s(R.string.b_lapse) to { toggleLapse() }).firstOrNull()
-        ui.addChoice(s(R.string.s_touch), p, GlitchPrefs.TOUCH_FX, 1, offOn) { reapply() }
-        ui.addChoice(s(R.string.s_touch_flash), p, GlitchPrefs.TOUCH_FLASH, 1, offOn) { reapply() }
+        lapseBtn = ui.addButtonRow(s(R.string.b_lapse) to { toggleLapse(); show(false) }).firstOrNull()
+        ui.addChoice(s(R.string.s_touch), p, GlitchPrefs.TOUCH_FX, 1, offOn) { reapply(); show() }
+        ui.addChoice(s(R.string.s_touch_flash), p, GlitchPrefs.TOUCH_FLASH, 1, offOn) { reapply(); show() }
         ui.addNote(s(R.string.touch_note))
-        ui.addSwitch(s(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, false, re)
-        ui.addSwitch(s(R.string.s_mutate), p, GlitchPrefs.MUTATE, false, re)
+        ui.addSwitch(s(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, false) { reapply(); show() }
+        ui.addSwitch(s(R.string.s_mutate), p, GlitchPrefs.MUTATE, false) { reapply(); show() }
 
         // Eigenes Bild
         ui.addTitle(s(R.string.bg_title), null, ui.dpi(22))
         bgNote = ui.addNote("")
         ui.addButtonRow(
             s(R.string.b_bg_pick) to { pickImage() },
-            s(R.string.b_bg_clear) to { clearImage() }
+            s(R.string.b_bg_clear) to { clearImage(); show(false) }
         )
         ui.addFocusSlider(s(R.string.s_bg_dim), p, GlitchPrefs.BG_DIM, 40, 0, 90, 5, { "$it %" }, re)
         updateBgNote()
 
-        addClockSection(act, ui, ClockPrefs.ON_GLITCH, true, view.renderer.metal != null, re)
+        addClockSection(act, ui, ClockPrefs.ON_GLITCH, true, view.renderer.metal != null, re) { show() }
 
         ui.addButtonRow(
             s(R.string.b_new) to {
                 GlitchPrefs.newPattern(act)
                 reapply()
+                show()
             },
             s(R.string.b_glitch) to {
                 if (view.renderer.triggerBurst() && p.getInt(GlitchPrefs.AUTO, 0) == 1) {
                     GlitchPrefs.newCracks(act)
                     reapply()
                 }
+                show()
             }
         )
         ui.addButtonRow(
@@ -426,9 +459,16 @@ class GlitchSettings(
         /**
          * Uhr-Einstellungen (für alle Hintergründe gleich; wo die Uhr erscheint, gilt je Hintergrund).
          * broken: Broken Screen (Riss durch die Uhr, 3D); has3d: Metall-Uhr in 3D läuft auf diesem Handy.
+         * onUse: nach dem Tippen auf einen Knopf (z. B. das Bild zeigen); damit treten auch beim Schieben der Regler die
+         * Einstellungen zurück.
          */
-        fun addClockSection(act: Activity, ui: Sheet, onKey: String, broken: Boolean, has3d: Boolean, reapply: () -> Unit) {
+        fun addClockSection(act: Activity, ui: Sheet, onKey: String, broken: Boolean, has3d: Boolean, reapply: () -> Unit,
+                            onUse: (() -> Unit)? = null) {
             val cp = ClockPrefs.prefs(act)
+            val focus = onUse != null
+            fun slider(label: String, key: String, def: Int, min: Int, max: Int, fmt: (Int) -> String) =
+                if (focus) ui.addFocusSlider(label, cp, key, def, min, max, 1, fmt, reapply)
+                else ui.addSlider(label, cp, key, def, min, max, 1, fmt, reapply)
             fun s(id: Int) = act.getString(id)
             ui.addTitle(s(R.string.c_title), s(R.string.c_note), ui.dpi(22))
             var note: TextView? = null
@@ -447,26 +487,29 @@ class GlitchSettings(
                 listOf(s(R.string.mode_lock), s(R.string.mode_home), s(R.string.mode_both), s(R.string.off)), 4) { m ->
                 showNote(m)
                 reapply()
+                onUse?.invoke()
             }
             note = ui.addNote("")
             showNote(mode)
             if (broken) {
-                if (has3d) ui.addSlider(s(R.string.c_3d), cp, ClockPrefs.D3, 5, 0, 10, 1, ui::level, reapply)
+                if (has3d) slider(s(R.string.c_3d), ClockPrefs.D3, 5, 0, 10, ui::level)
                 else ui.addNote(s(R.string.c_3d_none))
             }
             // Höhe: die Uhr wandert gleich mit, der Riss durch die Uhr wird erst beim Loslassen neu gelegt
-            ui.addSlider(s(R.string.c_cy), cp, ClockPrefs.CY, ClockPrefs.cy(cp), 0, 100, 1, { "$it %" }, reapply) {
+            val cyRelease = {
                 cp.edit().putInt(ClockPrefs.CY_AIM, ClockPrefs.cy(cp)).apply()
                 reapply()
             }
-            if (broken) ui.addSlider(s(R.string.c_crack), cp, ClockPrefs.CRACK, 5, 0, 10, 1, ui::level, reapply)
-            ui.addSlider(s(R.string.c_size), cp, ClockPrefs.SIZE, 5, 1, 10, 1, { it.toString() }, reapply)
+            if (focus) ui.addFocusSlider(s(R.string.c_cy), cp, ClockPrefs.CY, ClockPrefs.cy(cp), 0, 100, 1, { "$it %" }, reapply, cyRelease)
+            else ui.addSlider(s(R.string.c_cy), cp, ClockPrefs.CY, ClockPrefs.cy(cp), 0, 100, 1, { "$it %" }, reapply, cyRelease)
+            if (broken) slider(s(R.string.c_crack), ClockPrefs.CRACK, 5, 0, 10, ui::level)
+            slider(s(R.string.c_size), ClockPrefs.SIZE, 5, 1, 10) { it.toString() }
             ui.addChoice(s(R.string.c_date), cp, ClockPrefs.DATE, 0,
-                listOf(s(R.string.c_date_orig), s(R.string.c_date_de), s(R.string.off))) { reapply() }
+                listOf(s(R.string.c_date_orig), s(R.string.c_date_de), s(R.string.off))) { reapply(); onUse?.invoke() }
             ui.addChoice(s(R.string.c_finish), cp, ClockPrefs.FINISH, ClockFace.WHITE, listOf(
                 s(R.string.f_chrome), s(R.string.f_gold), s(R.string.f_steel),
                 s(R.string.f_rose), s(R.string.f_black), s(R.string.f_copper),
-                s(R.string.f_neon), s(R.string.f_white))) { reapply() }
+                s(R.string.f_neon), s(R.string.f_white))) { reapply(); onUse?.invoke() }
         }
     }
 }

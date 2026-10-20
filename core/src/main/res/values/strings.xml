@@ -43,6 +43,9 @@
     <string name="hours_n">%d Stunden</string>
     <string name="s_shear">Versatz am Riss</string>
     <string name="s_dark">Schwarze Stellen zwischen den Rissen</string>
+    <string name="dark_s">ca. %d s</string>
+    <string name="dark_m">ca. %s Min.</string>
+    <string name="show_hint">Antippen holt die Einstellungen zurück.</string>
     <string name="s_calm">Grundflackern</string>
     <string name="s_burst">Glitch-Ausbrüche</string>
     <string name="s_count">Anzahl Streifen (von)</string>

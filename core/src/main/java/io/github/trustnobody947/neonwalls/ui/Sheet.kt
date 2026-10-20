@@ -84,6 +84,11 @@ class Sheet(private val act: Activity, val panel: LinearLayout, val accent: Int)
                        fmt: (Int) -> String, onChange: () -> Unit): SeekBar =
         slider(label, prefs, key, def, min, max, step, fmt, onChange, null, true)
 
+    /** Wie oben; onRelease wird beim Loslassen aufgerufen. */
+    fun addFocusSlider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
+                       fmt: (Int) -> String, onChange: () -> Unit, onRelease: () -> Unit): SeekBar =
+        slider(label, prefs, key, def, min, max, step, fmt, onChange, onRelease, true)
+
     private fun slider(label: String, prefs: SharedPreferences, key: String, def: Int, min: Int, max: Int, step: Int,
                        fmt: (Int) -> String, onChange: () -> Unit, onRelease: (() -> Unit)?, focus: Boolean = false): SeekBar {
         val value = prefs.getInt(key, def).coerceIn(min, max)
