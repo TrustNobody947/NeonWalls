@@ -11,6 +11,7 @@ import android.os.Build
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import io.github.trustnobody947.neonwalls.ui.HoldPeek
 import io.github.trustnobody947.neonwalls.uhr.Clock3D
 import io.github.trustnobody947.neonwalls.uhr.TiltSensor
 import kotlin.math.abs
@@ -18,12 +19,15 @@ import kotlin.math.abs
 /**
  * Live-Vorschau in den Einstellungen. Finger auf der Vorschau lassen die Streifen darunter glitchen; kurzes Antippen
  * gilt als Klick (Einstellungen ein/aus bzw. „Aufschlag antippen“, dafür merkt sie sich die angetippte Stelle).
+ * Finger gedrückt halten meldet [onHold] (die Einstellungen verschwinden, solange er liegt).
  * Solange sie zu sehen ist, laufen Neigungssensor (3D-Uhr) und Akkustand.
  */
 class GlitchView(ctx: Context) : View(ctx) {
     val renderer = GlitchRenderer(resources.displayMetrics.density)
     /** Nach jedem Bild (für Statuszeile und Zeitraffer der Einstellungen). */
     var onFrame: (() -> Unit)? = null
+    /** Finger liegt lange still (true) und ist wieder weg (false) */
+    var onHold: ((Boolean) -> Unit)? = null
     private var last = 0L
     var lastX = 0f
         private set
@@ -39,6 +43,13 @@ class GlitchView(ctx: Context) : View(ctx) {
     private var multi = false
     private var active = false
     private var battOn = false
+    private var held = false
+    private val holdStart = Runnable {
+        if (!moved && !multi) {
+            held = true
+            onHold?.invoke(true)
+        }
+    }
 
     private val battery = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -100,6 +111,7 @@ class GlitchView(ctx: Context) : View(ctx) {
             last = 0L
         } else {
             tilt.stop()
+            endHold()
             if (battOn) {
                 battOn = false
                 try {
@@ -108,6 +120,14 @@ class GlitchView(ctx: Context) : View(ctx) {
                 }
             }
             renderer.touchEnd()
+        }
+    }
+
+    private fun endHold() {
+        removeCallbacks(holdStart)
+        if (held) {
+            held = false
+            onHold?.invoke(false)
         }
     }
 
@@ -124,16 +144,23 @@ class GlitchView(ctx: Context) : View(ctx) {
                 downT = event.eventTime
                 moved = false
                 multi = false
+                held = false
                 lastX = event.x
                 lastY = event.y
+                removeCallbacks(holdStart)
+                postDelayed(holdStart, HoldPeek.HOLD_MS)
                 feed(event)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 multi = true
+                if (!held) removeCallbacks(holdStart)
                 feed(event)
             }
             MotionEvent.ACTION_MOVE -> {
-                if (abs(event.x - downX) > slop || abs(event.y - downY) > slop) moved = true
+                if (abs(event.x - downX) > slop || abs(event.y - downY) > slop) {
+                    moved = true
+                    if (!held) removeCallbacks(holdStart)
+                }
                 feed(event)
             }
             MotionEvent.ACTION_POINTER_UP -> {
@@ -145,9 +172,14 @@ class GlitchView(ctx: Context) : View(ctx) {
                 lastX = event.x
                 lastY = event.y
                 // nur kurzes Antippen ist ein Klick; Finger liegen lassen oder wischen zeigt nur den Glitch
-                if (!moved && !multi && event.eventTime - downT < 500L) performClick()
+                val wasHeld = held
+                endHold()
+                if (!wasHeld && !moved && !multi && event.eventTime - downT < 500L) performClick()
             }
-            MotionEvent.ACTION_CANCEL -> renderer.touchEnd()
+            MotionEvent.ACTION_CANCEL -> {
+                endHold()
+                renderer.touchEnd()
+            }
         }
         return true
     }

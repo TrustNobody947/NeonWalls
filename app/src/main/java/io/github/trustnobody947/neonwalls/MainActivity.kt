@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -32,13 +33,15 @@ import io.github.trustnobody947.neonwalls.pegel.PegelAudio
 import io.github.trustnobody947.neonwalls.pegel.PegelPrefs
 import io.github.trustnobody947.neonwalls.pegel.PegelView
 import io.github.trustnobody947.neonwalls.pegel.PegelWallpaperService
+import io.github.trustnobody947.neonwalls.ui.HoldPeek
 import io.github.trustnobody947.neonwalls.ui.Sheet
 import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 import io.github.trustnobody947.neonwalls.core.R as CoreR
 
 /**
  * Startbildschirm: oben die Auswahl der Hintergründe, dahinter die Live-Vorschau, unten die Einstellungen.
- * Antippen der Vorschau blendet die Einstellungen ein oder aus (dann echtes Vollbild).
+ * Antippen der Vorschau blendet die Einstellungen ein oder aus (dann echtes Vollbild). Finger gedrückt halten auf einer
+ * freien Stelle der Einstellungen (bei Broken Screen auch auf der Vorschau) blendet sie aus, solange er liegt.
  */
 class MainActivity : Activity() {
 
@@ -47,6 +50,7 @@ class MainActivity : Activity() {
     private lateinit var panel: LinearLayout
     private lateinit var ui: Sheet
     private lateinit var hint: TextView
+    private lateinit var peek: HoldPeek
     private var preview: View? = null
     private var glitchView: GlitchView? = null
     private var glitchUi: GlitchSettings? = null
@@ -85,7 +89,11 @@ class MainActivity : Activity() {
                 val maxH = (resources.displayMetrics.heightPixels * 0.66f).toInt()
                 super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(maxH, View.MeasureSpec.AT_MOST))
             }
+
+            // Finger gedrückt halten auf einer freien Stelle: Einstellungen weg, solange er liegt
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean = peek.dispatch(this, ev) { super.dispatchTouchEvent(it) }
         }
+        peek = HoldPeek(sheet)
         sheet.background = GradientDrawable().apply {
             setColor(Color.argb(232, 12, 14, 18))
             cornerRadii = floatArrayOf(dp(18f), dp(18f), dp(18f), dp(18f), 0f, 0f, 0f, 0f)
@@ -121,6 +129,7 @@ class MainActivity : Activity() {
     }
 
     override fun onPause() {
+        peek.reset()
         pegelView?.audio?.stop()
         handler.removeCallbacks(statusTick)
         super.onPause()
@@ -142,7 +151,10 @@ class MainActivity : Activity() {
         glitchUi = null
         pegelView = null
         val v: View = if (tab == 0) {
-            GlitchView(this).also { glitchView = it }
+            GlitchView(this).also {
+                glitchView = it
+                it.onHold = { on -> peek.hold(on) }
+            }
         } else {
             PegelView(this).also {
                 PegelPrefs.applyTo(this, it.renderer)
@@ -289,6 +301,7 @@ class MainActivity : Activity() {
 
     /** Einstellungen zeigen, oder ausblenden und Status-/Navigationsleiste verstecken (Vollbild). */
     private fun showPanel(show: Boolean) {
+        peek.reset()
         sheet.visibility = if (show) View.VISIBLE else View.GONE
         setFullscreen(!show)
     }

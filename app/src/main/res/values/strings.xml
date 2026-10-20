@@ -4,7 +4,7 @@
     <string name="app_name">Neon Walls</string>
     <string name="wp_glitch_name">Broken Screen</string>
     <string name="wp_glitch_desc">Flackernde Farbstreifen wie bei einem kaputten Display, hinter echten Glasrissen vom Aufschlag, mit zufälligen Glitch-Ausbrüchen.</string>
-    <string name="hint_tap">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
+    <string name="hint_tap">Vorschau antippen blendet die Einstellungen ein oder aus. Finger auf einer freien Stelle gedrückt halten zeigt das ganze Bild, solange er liegt.</string>
     <string name="wp_pegel_name">Pegelanzeige</string>
     <string name="wp_pegel_desc">LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy oder auf das Mikrofon, sonst läuft ein Demo-Beat.</string>
     <string name="p_source">Quelle</string>

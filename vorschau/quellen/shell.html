@@ -26,7 +26,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .sheet{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:420px;margin:0 auto;
   max-height:calc(100% - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto;
   background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:14px;padding:16px;
-  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px)}
+  font:14px/1.4 var(--font);display:grid;gap:14px;backdrop-filter:blur(8px);box-sizing:border-box}
 .sheet h2{margin:0;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
 .sheet .sub{margin:-6px 0 0;color:var(--muted);font-size:13px}
 #controls{display:grid;gap:14px}
@@ -53,10 +53,15 @@ button{flex:1 1 auto;font:600 14px var(--font);color:var(--fg);background:rgba(2
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);color:#000;border-color:transparent}
 /* Beim Schieben mancher Regler tritt das Menü zurück: nur der Regler bleibt sichtbar, das Bild dahinter ist frei */
-.sheet{transition:background-color .15s,border-color .15s}
+.sheet{transition:background-color .15s,border-color .15s,opacity .12s}
 .sheet.focus{background:transparent;border-color:transparent;backdrop-filter:none;-webkit-backdrop-filter:none}
 .sheet.focus h2,.sheet.focus .sub,.sheet.focus .btns,.sheet.focus .row:not(.active){visibility:hidden}
 .sheet.focus .row.active{background:rgba(12,14,18,.82);border-radius:10px;padding:8px 10px;margin:-8px -10px}
+/* Finger gedrückt halten: Das Menü verschwindet, solange der Finger liegt – man sieht das ganze Bild */
+.sheet{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.sheet input[type=text]{-webkit-user-select:text;user-select:text}
+.sheet.peek{opacity:0;visibility:hidden;transition:opacity .12s,visibility 0s linear .12s}
+.sheet .tip{margin:-4px 0 0;color:var(--muted);font-size:12px;text-align:center}
 </style>
 
 <canvas id="c" aria-label="__ARIA__"></canvas>
@@ -72,6 +77,7 @@ button.primary{background:var(--accent);color:#000;border-color:transparent}
     <button id="fsBtn" type="button">Vollbild</button>
     <button id="closeBtn" type="button">Schließen</button>
   </div>
+  <p class="tip">Finger gedrückt halten blendet das Menü aus, solange er liegt.</p>
 </div>
 
 <script>
@@ -198,7 +204,30 @@ if (E.touch) {
   cv.addEventListener('pointerup', up);
   cv.addEventListener('pointercancel', up);
 }
+// Finger gedrückt halten (ohne zu schieben), während die Einstellungen offen sind: Das Menü verschwindet, solange der
+// Finger liegt, und kommt beim Loslassen zurück. Geht auf freien Stellen des Menüs (nicht auf Knöpfen und Reglern) und
+// auf dem Bild.
+const PEEK_MS = 400;
+let peekTimer = 0, peeking = false, peekX = 0, peekY = 0, peekEnd = -1e9;
+function peekStart(e) {
+  if (sheet.hidden || !e.isPrimary || e.button > 0) return;
+  clearTimeout(peekTimer); peekX = e.clientX; peekY = e.clientY;
+  peekTimer = setTimeout(() => { if (!sheet.hidden) { peeking = true; sheet.classList.add('peek'); } }, PEEK_MS);
+}
+function peekStop() {
+  clearTimeout(peekTimer);
+  if (peeking) { peeking = false; sheet.classList.remove('peek'); peekEnd = performance.now(); }
+}
+sheet.addEventListener('pointerdown', e => { if (!e.target.closest('button, input, select, textarea, a')) peekStart(e); });
+cv.addEventListener('pointerdown', peekStart);
+addEventListener('pointermove', e => { if (!peeking && e.isPrimary && Math.hypot(e.clientX - peekX, e.clientY - peekY) > 10) clearTimeout(peekTimer); });
+for (const ev of ['pointerup', 'pointercancel', 'blur']) addEventListener(ev, peekStop);
+// solange das Menü weg ist: nicht scrollen, kein Kontextmenü; der Klick beim Loslassen löst nichts aus
+sheet.addEventListener('touchmove', e => { if (peeking && e.cancelable) e.preventDefault(); }, { passive: false });
+addEventListener('contextmenu', e => { if (peeking || performance.now() - peekEnd < 600) e.preventDefault(); });
+sheet.addEventListener('click', e => { if (performance.now() - peekEnd < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 cv.addEventListener('click', e => {
+  if (performance.now() - peekEnd < 400) { dragged = false; return; }
   if (dragged) { dragged = false; return; }
   // Effekte können ein Antippen für sich nutzen (z. B. Aufschlagstelle wählen)
   if (E.tap && E.tap(e.clientX * dpr, e.clientY * dpr)) return;

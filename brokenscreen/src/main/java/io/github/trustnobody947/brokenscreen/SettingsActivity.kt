@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -21,12 +22,14 @@ import android.widget.Toast
 import io.github.trustnobody947.neonwalls.glitch.GlitchSettings
 import io.github.trustnobody947.neonwalls.glitch.GlitchView
 import io.github.trustnobody947.neonwalls.glitch.GlitchWallpaperService
+import io.github.trustnobody947.neonwalls.ui.HoldPeek
 import io.github.trustnobody947.neonwalls.ui.Sheet
 import io.github.trustnobody947.neonwalls.core.R as CoreR
 
 /**
  * Broken Screen als eigene App: hinten die Live-Vorschau, unten die Einstellungen (gleich wie in Neon Walls).
  * Antippen der Vorschau blendet die Einstellungen ein oder aus; beim Wählen der Aufschlagstelle zählt das Antippen dafür.
+ * Finger gedrückt halten (auf der Vorschau oder einer freien Stelle der Einstellungen) blendet sie aus, solange er liegt.
  */
 class SettingsActivity : Activity() {
 
@@ -35,6 +38,7 @@ class SettingsActivity : Activity() {
     private lateinit var panel: LinearLayout
     private lateinit var view: GlitchView
     private lateinit var settings: GlitchSettings
+    private lateinit var peek: HoldPeek
 
     private val accent = Color.rgb(25, 230, 25)
 
@@ -56,7 +60,11 @@ class SettingsActivity : Activity() {
                 val maxH = (resources.displayMetrics.heightPixels * 0.66f).toInt()
                 super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(maxH, View.MeasureSpec.AT_MOST))
             }
+
+            // Finger gedrückt halten auf einer freien Stelle: Einstellungen weg, solange er liegt
+            override fun dispatchTouchEvent(ev: MotionEvent): Boolean = peek.dispatch(this, ev) { super.dispatchTouchEvent(it) }
         }
+        peek = HoldPeek(sheet)
         sheet.background = GradientDrawable().apply {
             setColor(Color.argb(232, 12, 14, 18))
             cornerRadii = floatArrayOf(dp(18f), dp(18f), dp(18f), dp(18f), 0f, 0f, 0f, 0f)
@@ -86,7 +94,14 @@ class SettingsActivity : Activity() {
         view.setOnClickListener {
             if (!settings.handleTap()) showPanel(sheet.visibility != View.VISIBLE)
         }
+        view.onHold = { peek.hold(it) }
         setContentView(root)
+    }
+
+    override fun onPause() {
+        // falls ein Finger gerade die Einstellungen ausgeblendet hat: wieder zeigen
+        peek.reset()
+        super.onPause()
     }
 
     /** Ergebnis der Bildauswahl (eigenes Hintergrundbild). */
@@ -98,6 +113,7 @@ class SettingsActivity : Activity() {
 
     /** Einstellungen zeigen, oder ausblenden und Status-/Navigationsleiste verstecken (Vollbild). */
     private fun showPanel(show: Boolean) {
+        peek.reset()
         sheet.visibility = if (show) View.VISIBLE else View.GONE
         setFullscreen(!show)
     }

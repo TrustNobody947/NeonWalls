@@ -18,7 +18,7 @@
 
     <!-- Broken Screen -->
     <string name="bs_name">Broken Screen</string>
-    <string name="bs_hint">Vorschau antippen, um die Einstellungen ein- oder auszublenden</string>
+    <string name="bs_hint">Vorschau antippen blendet die Einstellungen ein oder aus. Finger gedrückt halten zeigt das ganze Bild, solange er liegt.</string>
     <string name="s_cracks">Anzahl Risse (von)</string>
     <string name="s_cracks_max">Anzahl Risse bis</string>
     <string name="s_crack_grow">Mehr Risse mit der Zeit</string>

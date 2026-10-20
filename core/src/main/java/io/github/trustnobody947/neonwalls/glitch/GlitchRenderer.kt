@@ -499,7 +499,11 @@ class GlitchRenderer(private val density: Float) {
             while (i0 < n - 1) {
                 var i1 = i0 + 1
                 while (i1 < n - 1 && cl.cl[i1] - cl.cl[i0] < 0.04) i1++
-                val f = if (cl.kind == CrackSet.SPOKE) 1.35 - 0.6 * min(1.0, cl.cl[i0] / max(0.3, total)) else 1.0
+                val f = when (cl.kind) {
+                    CrackSet.SPOKE -> 1.35 - 0.6 * min(1.0, cl.cl[i0] / max(0.3, total))
+                    CrackSet.TWIG -> 1.15 - 0.75 * cl.cl[i0] / total   // kleine Risse laufen zur Spitze hin aus
+                    else -> 1.0
+                }
                 dark.strokeWidth = max(1f, (1.25 * density * cl.w * f).toFloat())
                 path.reset()
                 path.moveTo((cl.pts[2 * i0] * s).toFloat(), (cl.pts[2 * i0 + 1] * s).toFloat())
@@ -539,7 +543,11 @@ class GlitchRenderer(private val density: Float) {
             if (open) c.drawPath(path, shine)
         }
         for (cl in set.lines) {
-            shineLine(cl, 1) { 1.0 }
+            if (cl.kind == CrackSet.TWIG) {
+                // kleine Risse: der Glanz läuft zur Spitze hin aus
+                val tot = max(1e-9, cl.cl[cl.cl.size - 1])
+                shineLine(cl, 1) { sv -> max(0.0, 1 - sv / tot).pow(0.7) }
+            } else shineLine(cl, 1) { 1.0 }
             // breite Risse am Aufschlag: auch die andere Kante fängt etwas Licht
             if (cl.kind == CrackSet.SPOKE) shineLine(cl, -1) { sv -> 0.6 * max(0.0, 1 - sv / 0.18) }
         }
@@ -562,9 +570,12 @@ class GlitchRenderer(private val density: Float) {
 
     // ---------- Glitch-Ausbrüche ----------
 
-    /** Ausbruch auslösen (zone = −1: zufälliger Bereich). Gibt true zurück, wenn er das ganze Bild betrifft. */
+    /**
+     * Ausbruch auslösen (zone = −1: zufälliger Bereich): dauert zufällig 0,6 bis 1,6 Sekunden.
+     * Gibt true zurück, wenn er das ganze Bild betrifft.
+     */
     fun triggerBurst(zone: Int = -1): Boolean {
-        burstT = if (chance(0.2f)) r(1.2f, 2.4f) else r(0.15f, 1.1f)
+        burstT = r(0.6f, 1.6f)
         burstPow = r(0.5f, 1.5f)
         val q = rnd.nextFloat()
         burstZone = if (zone >= 0) zone else when {
@@ -582,9 +593,12 @@ class GlitchRenderer(private val density: Float) {
         burstT = r(0.25f, 0.6f)
     }
 
-    /** Meist lange Pausen, ab und zu ein schneller Nachschlag. Regler links = sehr selten. */
+    /**
+     * Meist lange Pausen, ab und zu ein schneller Nachschlag – mit genug Pause, dass es zwei kurze bleiben und kein langer
+     * wird. Regler links = sehr selten.
+     */
     private fun scheduleBurst(bur: Float): Float {
-        if (chance(0.18f * bur)) return r(0.3f, 1.6f)
+        if (chance(0.18f * bur)) return r(0.8f, 2.2f)
         val p = if (chance(0.3f)) r(25f, 60f) else r(8f, 25f)
         return p * (0.5f + (1f - bur).pow(2) * 4f)
     }
@@ -594,7 +608,8 @@ class GlitchRenderer(private val density: Float) {
     // ---------- Finger auf dem Glas ----------
 
     private class Touch(var x: Float, var y: Float, var up: Float)
-    private class Press(val x: Float, val ri: Int, val k: Float)
+    /** Finger: Lage, Bruchstück darunter, Stärke (klingt nach dem Loslassen ab), liegt noch (down) */
+    private class Press(val x: Float, val ri: Int, val k: Float, val down: Boolean)
     private class PressLine(val line: Line, val ri: Int, var life: Float, val col: Int) {
         val zone = Zone()
     }
@@ -646,9 +661,10 @@ class GlitchRenderer(private val density: Float) {
 
     private fun updatePresses() {
         presses.clear()
-        if (!touchFx) {
+        // Finger zählen, wenn „Glitch unter dem Finger“ oder „Bruchstücke leuchten beim Berühren“ an ist (jedes auch allein)
+        if (!touchFx) pressLines.clear()
+        if (!touchFx && !touchFlash) {
             touches.clear()
-            pressLines.clear()
             return
         }
         val it = touches.values.iterator()
@@ -657,9 +673,9 @@ class GlitchRenderer(private val density: Float) {
             val age = if (p.up >= 0f) t - p.up else 0f
             if (age > 0.3f) { it.remove(); continue }
             val ri = regionAt(p.x, p.y)
-            presses.add(Press(p.x, ri, 1f - age / 0.3f))
+            presses.add(Press(p.x, ri, 1f - age / 0.3f, p.up < 0f))
             // Druckstreifen: unter dem Finger tauchen kurz neue Linien auf
-            if (p.up < 0f && chance(p(14f)) && pressLines.size < 24) {
+            if (touchFx && p.up < 0f && chance(p(14f)) && pressLines.size < 24) {
                 val l = makeLine(rnd, ((p.x + gauss() * 9f * density) / w).coerceIn(0.002f, 0.998f))
                 pressLines.add(PressLine(l, ri, r(0.08f, 0.45f), if (chance(0.5f)) pickCol() else l.col))
             }
@@ -882,7 +898,7 @@ class GlitchRenderer(private val density: Float) {
                     if (chance(0.3f)) cc = pickCol()
                 }
                 // Finger auf diesem Bruchstück, genau über dem Streifen
-                for (pr in presses) {
+                if (touchFx) for (pr in presses) {
                     if ((multi && pr.ri != ri) || abs(x - pr.x) > (16f + l.w * 4f) * density) continue
                     a = if (chance(0.5f)) r(0.9f, 1.6f) else r(0.05f, 0.5f)
                     if (chance(0.4f)) cc = pickCol()
@@ -1056,8 +1072,8 @@ class GlitchRenderer(private val density: Float) {
         for (i in 0 until nR) {
             if (!regClock[i]) continue
             val path = regPath[i] ?: continue
-            val lx = ck.x + round(regS[i] * k * 0.9f * density)
-            val ly = ck.y + round(abs(regS[i]) * k * 0.12f * density)
+            val lx = ck.x + round(regS[i] * k * 0.45f * density)
+            val ly = ck.y + round(abs(regS[i]) * k * 0.06f * density)
             val bx0 = floor(max(regX0[i], lx)).toInt()
             val by0 = floor(max(regY0[i], ly)).toInt()
             val bx1 = ceil(min(regX1[i], lx + layer.width)).toInt()
@@ -1119,8 +1135,8 @@ class GlitchRenderer(private val density: Float) {
         // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“
         val k = if (ri >= 0) clockCrack else 0
         val jx = if (ri >= 0) jit() else 1f
-        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * 0.9f * density * jx) else 0f)
-        val y = ck.y + (if (ri >= 0) round(abs(regS[ri]) * k * 0.12f * density) else 0f)
+        val x = ck.x + (if (ri >= 0) round(regS[ri] * k * 0.45f * density * jx) else 0f)
+        val y = ck.y + (if (ri >= 0) round(abs(regS[ri]) * k * 0.06f * density) else 0f)
         val a = (z.fl * clockAlpha * 255f).toInt().coerceIn(0, 255)
         // ruhiges Bild: das fertig ausgeschnittene Stück; nur bei Effekten wird beim Zeichnen ausgeschnitten
         val piece = if (ri >= 0 && jx == 1f && z.split <= 0f && z.slice <= 0f) pieceBmp.getOrNull(ri) else null
@@ -1298,8 +1314,8 @@ class GlitchRenderer(private val density: Float) {
             pVisible[k] = true
             val kc = if (ri >= 0) clockCrack else 0
             val jx = if (ri >= 0) jit() else 1f
-            pDx[k] = if (ri >= 0) round(regS[ri] * kc * 0.9f * density * jx) else 0f
-            pDy[k] = if (ri >= 0) round(abs(regS[ri]) * kc * 0.12f * density) else 0f
+            pDx[k] = if (ri >= 0) round(regS[ri] * kc * 0.45f * density * jx) else 0f
+            pDy[k] = if (ri >= 0) round(abs(regS[ri]) * kc * 0.06f * density) else 0f
             pOff[2 * k] = pDx[k]
             pOff[2 * k + 1] = pDy[k]
             // kurze Effekte (Farbkanäle, verrutschte Zeilen) zeichnet die ruhige Ebene; der Shader spart das Stück aus
@@ -1405,7 +1421,7 @@ class GlitchRenderer(private val density: Float) {
         if (growTime && !pendingRestart && growStart > 0L && now - growStart >= growHours * 3_600_000L) {
             pendingRestart = true
             triggerBurst(ZONE_ALL)
-            burstT = r(1.4f, 2.2f)
+            burstT = r(1.2f, 1.6f)
             burstPow = 1.5f
             onBigBurst?.invoke()
         }
@@ -1420,7 +1436,7 @@ class GlitchRenderer(private val density: Float) {
         if (crackGrow && crackTo > crackFrom && !crackPending && crackStart > 0L && now - crackStart >= crackHours * 3_600_000L) {
             crackPending = true
             triggerBurst(ZONE_ALL)
-            burstT = r(1.4f, 2.2f)
+            burstT = r(1.2f, 1.6f)
             burstPow = 1.5f
         }
         if (crackPending && burstT <= 0f) {
@@ -1526,59 +1542,67 @@ class GlitchRenderer(private val density: Float) {
     }
 
     // ---------- Bruchstücke leuchten beim Berühren ----------
-    // Das Stück unter dem Finger und ein, zwei weitere flackern grauweiß wie ein gedrücktes, kaputtes Display – nie zwei,
-    // die nebeneinander liegen. Solange der Finger liegt, wechseln die Stücke ab und zu.
+    // Das Stück unter dem Finger und ein, zwei weitere blitzen grauweiß flackernd auf wie ein gedrücktes, kaputtes
+    // Display – nie zwei, die nebeneinander liegen. Jedes Aufblitzen ist nach 0,3 bis 0,7 Sekunden vorbei; bleibt der
+    // Finger liegen, blitzt es nach einer kurzen Pause wieder auf, kommt er auf ein anderes Stück, sofort.
 
     private class RegFlash(val i: Int) {
         var a = 0f
         var next = 0f
+        var life = 0f
         var col = Color.rgb(220, 225, 232)
     }
 
     private val regFlash = ArrayList<RegFlash>()
-    private var flashPick = 0f
+    private var flashWait = 0f
     private var flashTouched = IntArray(0)
     private val flashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     private fun updateFlash() {
-        if (!touchFlash || cs == null || presses.isEmpty()) {
-            val k = exp(-dt * 18f)
-            val it = regFlash.iterator()
-            while (it.hasNext()) {
-                val f = it.next()
-                f.a *= k
+        // laufendes Aufblitzen: flackert bis zum Ende seiner Zeit, dann schnell aus
+        val fade = exp(-dt * 40f)
+        val it = regFlash.iterator()
+        while (it.hasNext()) {
+            val f = it.next()
+            f.life -= dt
+            if (f.life <= 0f) {
+                f.a *= fade
                 if (f.a <= 0.01f) it.remove()
+                continue
             }
-            flashTouched = IntArray(0)
-            return
-        }
-        val touched = presses.map { it.ri }.filter { it in 0 until nR }.distinct().sorted().toIntArray()
-        flashPick -= dt
-        if (flashPick <= 0f || !touched.contentEquals(flashTouched)) {
-            flashPick = r(0.35f, 0.9f)
-            flashTouched = touched
-            val set = ArrayList<Int>()
-            for (i in touched) set.add(i)
-            val others = (0 until nR).filter { it !in set }.shuffled(rnd)
-            var extra = rnd.nextInt(3)
-            for (i in others) {
-                if (extra <= 0) break
-                if (set.any { j -> j == i || regNb[j].contains(i) }) continue
-                set.add(i)
-                extra--
-            }
-            val old = HashMap<Int, RegFlash>()
-            for (f in regFlash) old[f.i] = f
-            regFlash.clear()
-            for (i in set) regFlash.add(old[i] ?: RegFlash(i))
-        }
-        for (f in regFlash) {
             f.next -= dt
             if (f.next <= 0f) {
                 f.next = r(0.03f, 0.09f)
                 f.a = if (chance(0.18f)) 0f else r(0.08f, 0.5f)
                 f.col = Color.rgb(200 + rnd.nextInt(36), 206 + rnd.nextInt(35), 214 + rnd.nextInt(37))
             }
+        }
+        flashWait -= dt
+        if (cs == null) return
+        val touched = if (touchFlash) presses.filter { it.down && it.ri in 0 until nR }.map { it.ri }.distinct().sorted().toIntArray() else IntArray(0)
+        if (touched.isEmpty()) {
+            flashTouched = touched
+            return
+        }
+        if (touched.contentEquals(flashTouched) && flashWait > 0f) return
+        // neues Aufblitzen: die berührten Stücke und 0–2 weitere, die weder an ihnen noch an noch leuchtenden liegen
+        flashTouched = touched
+        flashWait = r(1.0f, 2.2f)
+        val set = ArrayList<Int>()
+        for (i in touched) set.add(i)
+        val busy = regFlash.filter { f -> f.life > 0f }.map { f -> f.i }
+        val others = (0 until nR).filter { i -> i !in set && i !in busy }.shuffled(rnd)
+        var extra = rnd.nextInt(3)
+        for (i in others) {
+            if (extra <= 0) break
+            if (set.any { j -> regNb[j].contains(i) } || busy.any { j -> j < nR && regNb[j].contains(i) }) continue
+            set.add(i)
+            extra--
+        }
+        for (i in set) {
+            val f = regFlash.firstOrNull { o -> o.i == i } ?: RegFlash(i).also { regFlash.add(it) }
+            f.life = r(0.27f, 0.65f)   // mit dem schnellen Ausklingen zusammen 0,3 bis 0,7 Sekunden
+            f.next = 0f
         }
     }
 
