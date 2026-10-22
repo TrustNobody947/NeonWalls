@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">apagado</string>
+    <string name="l_low">suave</string>
+    <string name="l_mid">medio</string>
+    <string name="l_high">fuerte</string>
+    <string name="on">Activado</string>
+    <string name="off">Desactivado</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Nuevo patrón</string>
+    <string name="b_glitch">Glitch ahora</string>
+    <string name="b_impact">Tocar el impacto</string>
+    <string name="b_fullscreen">Pantalla completa</string>
+    <string name="b_set">Establecer como fondo</string>
+    <string name="err_picker_any">Elige el fondo en los ajustes de tu móvil, en Fondo de pantalla → Fondos animados.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Toca la vista previa para mostrar u ocultar los ajustes. Mantén el dedo pulsado para ver toda la imagen mientras lo dejes ahí.</string>
+    <string name="s_cracks">Número de grietas (desde)</string>
+    <string name="s_cracks_max">Número de grietas hasta</string>
+    <string name="s_crack_grow">Más grietas con el tiempo</string>
+    <string name="ci_now">Ahora %d grietas</string>
+    <string name="ci_flat">«Hasta» no es mayor que «desde»: las grietas se quedan en %d.</string>
+    <string name="s_impacts">Impactos</string>
+    <string name="cracks_none">ninguna</string>
+    <string name="s_impact">Punto de impacto</string>
+    <string name="impact_random">Aleatorio</string>
+    <string name="impact_tap">Tocado por ti</string>
+    <string name="s_hshare">Grietas horizontales a lo ancho de la pantalla</string>
+    <string name="s_splinter">Astillas en el impacto</string>
+    <string name="spl_0">Ninguna</string>
+    <string name="spl_1">Pocas</string>
+    <string name="spl_2">Muchas</string>
+    <string name="s_glint">Destellos al inclinar</string>
+    <string name="s_auto">Las grietas cambian solas</string>
+    <string name="auto_0">Nunca</string>
+    <string name="auto_1">Con glitches</string>
+    <string name="auto_2">Tras horas</string>
+    <string name="s_hours">Cambio tras horas: cada</string>
+    <string name="hours_1">1 hora</string>
+    <string name="hours_n">%d horas</string>
+    <string name="s_shear">Desplazamiento en la grieta</string>
+    <string name="s_dark">Zonas negras entre las grietas (desde 9 grietas)</string>
+    <string name="dark_min">Las zonas negras solo aparecen desde %d grietas.</string>
+    <string name="dark_s">aprox. %d s</string>
+    <string name="dark_m">aprox. %s min</string>
+    <string name="show_hint">Toca para volver a mostrar los ajustes.</string>
+    <string name="s_calm">Parpadeo base</string>
+    <string name="s_burst">Ráfagas de glitch</string>
+    <string name="s_count">Número de franjas (desde)</string>
+    <string name="s_count_max">Número de franjas hasta</string>
+    <string name="s_grow_time">Más franjas con el tiempo</string>
+    <string name="s_grow_hours">De «desde» a «hasta» en</string>
+    <string name="s_grow_batt">Más franjas al bajar la batería</string>
+    <string name="grow_note">Cuando se acaba el tiempo, llega un gran glitch y todo vuelve a empezar con pocas franjas. Con la batería: llena = «desde», casi vacía = «hasta». Si ambos están activados, cuenta el valor más alto.</string>
+    <string name="gi_now">Ahora %d franjas</string>
+    <string name="gi_restart">Reinicio en %s</string>
+    <string name="gi_batt">Batería %d %%</string>
+    <string name="gi_lapse">Cámara rápida</string>
+    <string name="dur_h">%1$d h %2$d min</string>
+    <string name="dur_m">%1$d min %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Cámara rápida para probar</string>
+    <string name="b_lapse_off">Detener cámara rápida</string>
+    <string name="lapse_on">Cámara rápida activada: 1 hora pasa en 3 segundos (también para el fondo). «Nuevo patrón» reinicia el tiempo.</string>
+    <string name="lapse_off">Cámara rápida desactivada.</string>
+    <string name="s_touch">Glitch bajo el dedo</string>
+    <string name="s_touch_flash">Glitch de zona al tocar (desde 5 grietas)</string>
+    <string name="touch_note">En la pantalla de inicio. Si también funciona en la pantalla de bloqueo depende del móvil.</string>
+    <string name="s_random">Nuevo patrón cada vez que se enciende la pantalla</string>
+    <string name="s_mutate">Los glitches cambian el patrón</string>
+    <string name="tap_1">Toca el punto donde el móvil recibió el golpe.</string>
+    <string name="tap_2">Ahora toca hacia dónde debe ir la grieta.</string>
+    <string name="tap_1n">Toca el punto del impacto %1$d (de %2$d).</string>
+    <string name="tap_2n">Ahora toca hacia dónde debe ir la grieta del impacto %d.</string>
+    <string name="tap_done">¡Listo! «Nuevo patrón» muestra otro recorrido; en «Punto de impacto» vuelves a aleatorio.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Imagen propia</string>
+    <string name="bg_note_none">Tu imagen queda bajo las franjas y grietas y se rompe con el cristal. Ahora no hay ninguna elegida.</string>
+    <string name="bg_note_set">Tu imagen queda bajo las franjas y grietas y se rompe con el cristal.</string>
+    <string name="b_bg_pick">Elegir imagen</string>
+    <string name="b_bg_clear">Quitar imagen</string>
+    <string name="s_bg_dim">Oscurecer imagen propia</string>
+    <string name="bg_loading">Cargando imagen …</string>
+    <string name="bg_set">Imagen puesta. Con «Oscurecer imagen propia» ajustas su brillo.</string>
+    <string name="bg_cleared">Imagen propia quitada.</string>
+    <string name="bg_err">No se pudo cargar la imagen. Prueba con otra.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Reloj</string>
+    <string name="c_note">Los ajustes del reloj valen para todos los fondos; dónde aparece se elige en cada fondo. El reloj y la fecha del propio móvil no se pueden ocultar desde una app: con «Altura del reloj» puedes poner este reloj, por ejemplo, debajo de la fecha.</string>
+    <string name="c_where">Mostrar reloj</string>
+    <string name="mode_lock">Bloqueo</string>
+    <string name="mode_home">Inicio</string>
+    <string name="mode_both">Ambos</string>
+    <string name="mode_note_lock">En la vista previa el reloj siempre se ve. Como fondo solo aparece en la pantalla de bloqueo.</string>
+    <string name="mode_note_home">En la vista previa el reloj siempre se ve. Como fondo solo aparece en la pantalla de inicio.</string>
+    <string name="c_3d">Efecto 3D del reloj (al inclinar)</string>
+    <string name="c_3d_none">El reflejo metálico y el efecto 3D no funcionan en este móvil (requieren Android 13); el reloj se queda plano.</string>
+    <string name="c_cy">Altura del reloj (15 = como el original)</string>
+    <string name="c_finish">Acabado</string>
+    <string name="f_chrome">Cromo</string>
+    <string name="f_gold">Oro</string>
+    <string name="f_steel">Azul acero</string>
+    <string name="f_rose">Oro rosa</string>
+    <string name="f_black">Cromo negro</string>
+    <string name="f_copper">Cobre</string>
+    <string name="f_neon">Neón</string>
+    <string name="f_white">Blanco (original)</string>
+    <string name="c_size">Tamaño del reloj (5 = como el original)</string>
+    <string name="c_date">Fecha</string>
+    <string name="c_date_orig">Como el original</string>
+    <string name="c_date_de">Alemán</string>
+    <string name="c_crack">Grieta a través del reloj</string>
+    <string name="bg_note_locked">Tu imagen está guardada y vuelve con la compra.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Idioma</string>
+    <string name="lang_auto">Automático (como el móvil)</string>
+    <string name="lang_auto_short">Automático</string>
+    <string name="u_cancel">Cancelar</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 h</string>
+    <string name="lock_buy">Compra</string>
+    <string name="u_free">Versión gratuita · extras bloqueados</string>
+    <string name="u_day">Extras desbloqueados hasta las %s · imagen propia solo con la compra</string>
+    <string name="u_full">Versión completa · todo desbloqueado, sin anuncios</string>
+    <string name="u_btn">Desbloquear</string>
+    <string name="u_privacy">Privacidad (anuncios)</string>
+    <string name="u_title_day">Desbloquear extra</string>
+    <string name="u_title_buy">Solo con la compra</string>
+    <string name="u_text_day">Mira un breve vídeo publicitario y tendrás todos los extras durante 24 horas. O compra una vez y todo queda desbloqueado para siempre y sin anuncios.</string>
+    <string name="u_text_buy">La imagen propia viene con la compra. Desbloquea todo para siempre y quita los anuncios.</string>
+    <string name="u_ad">Ver vídeo · 24 horas gratis</string>
+    <string name="u_buy">Desbloquear para siempre · %s</string>
+    <string name="u_buy_np">Desbloquear para siempre</string>
+    <string name="u_ad_loading">Cargando el vídeo …</string>
+    <string name="u_ad_none">Ahora mismo no hay ningún vídeo disponible. Inténtalo de nuevo en un momento.</string>
+    <string name="u_ad_done">Todos los extras están desbloqueados hasta mañana a las %s.</string>
+    <string name="u_ad_skip">El vídeo se cerró antes del final; los extras siguen bloqueados.</string>
+    <string name="u_buy_none">La compra no es posible ahora: no se puede conectar con Google Play o la compra aún no está configurada.</string>
+    <string name="u_buy_done">¡Gracias! Todo está desbloqueado para siempre, sin anuncios.</string>
+    <string name="u_buy_pending">La compra aún se está procesando. En cuanto se confirme, todo quedará desbloqueado.</string>
+    <string name="u_expired">Las 24 horas han terminado; los extras vuelven a estar bloqueados.</string>
+    <string name="u_test_buy">Versión de prueba: compra solo simulada. La compra real se hace con Google Play cuando la app esté configurada allí.</string>
+    <string name="u_test_reset">Restablecer (prueba)</string>
+    <string name="u_test_reset_done">Restablecido: versión gratuita.</string>
+</resources>

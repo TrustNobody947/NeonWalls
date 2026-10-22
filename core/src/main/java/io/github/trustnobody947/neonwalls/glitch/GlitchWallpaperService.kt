@@ -41,6 +41,9 @@ class GlitchWallpaperService : WallpaperService() {
         private var lastDraw = 0L
         private var lastLockCheck = 0L
         private var lastAutoCheck = 0L
+        private var lastUnlockCheck = 0L
+        private var lastExtras = true
+        private val unlockPrefs = Unlock.prefs(ctx)
         private var useHw = true
         private var mode = ClockPrefs.MODE_OFF
         private var battOn = false
@@ -51,7 +54,7 @@ class GlitchWallpaperService : WallpaperService() {
                 when (intent?.action) {
                     Intent.ACTION_SCREEN_ON -> {
                         // neues Aussehen beim Einschalten; „Mehr Streifen mit der Zeit“ läuft dabei weiter
-                        if (!isPreview && prefs.getBoolean(GlitchPrefs.RANDOM_ON_WAKE, false)) GlitchPrefs.newPattern(ctx, false)
+                        if (!isPreview && GlitchPrefs.randomOnWake(ctx)) GlitchPrefs.newPattern(ctx, false)
                     }
                 }
                 updateClockShown()
@@ -85,7 +88,7 @@ class GlitchWallpaperService : WallpaperService() {
             mode = ClockPrefs.mode(clockPrefs, ClockPrefs.ON_GLITCH)
             // Risse wechseln mit großen Glitch-Ausbrüchen (nur der echte Hintergrund, nicht die Vorschau der Auswahl)
             renderer.onBigBurst = {
-                if (!isPreview && prefs.getInt(GlitchPrefs.AUTO, 0) == 1) GlitchPrefs.newCracks(ctx)
+                if (!isPreview && GlitchPrefs.auto(ctx) == 1) GlitchPrefs.newCracks(ctx)
             }
             // „Mehr Streifen mit der Zeit“ ist durch: neues Muster, wieder mit wenigen Streifen
             renderer.onGrowRestart = {
@@ -99,6 +102,9 @@ class GlitchWallpaperService : WallpaperService() {
             }
             prefs.registerOnSharedPreferenceChangeListener(this)
             clockPrefs.registerOnSharedPreferenceChangeListener(this)
+            // Freischaltung geändert (Werbevideo, Kauf): gleich die freigeschalteten Einstellungen nutzen
+            unlockPrefs.registerOnSharedPreferenceChangeListener(this)
+            lastExtras = GlitchPrefs.extras(ctx)
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
                 addAction(Intent.ACTION_SCREEN_OFF)
@@ -115,11 +121,13 @@ class GlitchWallpaperService : WallpaperService() {
             }
             prefs.unregisterOnSharedPreferenceChangeListener(this)
             clockPrefs.unregisterOnSharedPreferenceChangeListener(this)
+            unlockPrefs.unregisterOnSharedPreferenceChangeListener(this)
             stop()
             super.onDestroy()
         }
 
         override fun onSharedPreferenceChanged(p: SharedPreferences?, key: String?) {
+            lastExtras = GlitchPrefs.extras(ctx)
             GlitchPrefs.applyTo(ctx, renderer)
             mode = ClockPrefs.mode(clockPrefs, ClockPrefs.ON_GLITCH)
             updateClockShown()
@@ -166,7 +174,7 @@ class GlitchWallpaperService : WallpaperService() {
         }
 
         private fun checkAuto() {
-            if (!isPreview && GlitchPrefs.autoDue(prefs)) GlitchPrefs.newCracks(ctx)
+            if (!isPreview && GlitchPrefs.autoDue(ctx)) GlitchPrefs.newCracks(ctx)
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
@@ -239,6 +247,16 @@ class GlitchWallpaperService : WallpaperService() {
             if (frameTimeNanos - lastAutoCheck > 60_000_000_000L) {
                 lastAutoCheck = frameTimeNanos
                 checkAuto()
+            }
+            // alle 15 Sekunden: sind die 24 Stunden nach dem Werbevideo um? Dann gelten wieder die freien Werte
+            if (frameTimeNanos - lastUnlockCheck > 15_000_000_000L) {
+                lastUnlockCheck = frameTimeNanos
+                val ex = GlitchPrefs.extras(ctx)
+                if (ex != lastExtras) {
+                    lastExtras = ex
+                    GlitchPrefs.applyTo(ctx, renderer)
+                    updateSensors()
+                }
             }
             val holder = surfaceHolder
             var canvas: Canvas? = null

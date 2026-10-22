@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Des bandes de couleur qui scintillent comme sur un écran cassé, derrière de vraies fissures dans le verre, avec des rafales de glitch aléatoires.</string>
+    <string name="hint_tap">Touchez l\'aperçu pour afficher ou masquer les réglages. Maintenez le doigt sur un endroit libre pour voir toute l\'image tant qu\'il reste posé.</string>
+    <string name="wp_pegel_name">VU-mètre</string>
+    <string name="wp_pegel_desc">Des barres LED comme sur une vieille chaîne hi-fi. Elles réagissent à la musique du téléphone ou au micro ; sinon, un rythme de démo tourne.</string>
+    <string name="p_source">Source</string>
+    <string name="p_src_music">Musique</string>
+    <string name="p_src_mic">Micro</string>
+    <string name="p_src_demo">Rythme démo</string>
+    <string name="p_style">Affichage</string>
+    <string name="p_bars">Barres</string>
+    <string name="p_mirror_style">Miroir</string>
+    <string name="p_color">Couleur</string>
+    <string name="p_col_classic">Classique</string>
+    <string name="p_col_cyan">Cyan</string>
+    <string name="p_col_pink">Rose</string>
+    <string name="p_col_amber">Ambre</string>
+    <string name="p_col_rainbow">Arc-en-ciel</string>
+    <string name="p_gain">Sensibilité</string>
+    <string name="p_bands">Bandes</string>
+    <string name="p_after">Rémanence</string>
+    <string name="p_peaks">Crêtes</string>
+    <string name="p_reflect">Reflet</string>
+    <string name="p_pos">Position</string>
+    <string name="p_mid">Milieu</string>
+    <string name="p_bottom">Bas</string>
+    <string name="b_test">Autotest</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Rythme démo en cours, pas de vraie musique.</string>
+    <string name="st_music">Réagit à la musique jouée sur le téléphone.</string>
+    <string name="st_mic">Réagit au micro.</string>
+    <string name="st_perm">Autorisation du micro manquante. Touchez ici pour l\'autoriser. En attendant, le rythme démo tourne.</string>
+    <string name="st_fail_music">Ce téléphone ne partage pas sa musique. Essayez « Micro ». En attendant, le rythme démo tourne.</string>
+    <string name="st_fail_mic">Micro indisponible. En attendant, le rythme démo tourne.</string>
+    <string name="st_wait">Démarrage …</string>
+</resources>

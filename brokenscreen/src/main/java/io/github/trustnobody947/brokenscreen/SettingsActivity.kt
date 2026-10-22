@@ -3,6 +3,7 @@ package io.github.trustnobody947.brokenscreen
 import android.app.Activity
 import android.app.WallpaperManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -23,6 +24,7 @@ import io.github.trustnobody947.neonwalls.glitch.GlitchSettings
 import io.github.trustnobody947.neonwalls.glitch.GlitchView
 import io.github.trustnobody947.neonwalls.glitch.GlitchWallpaperService
 import io.github.trustnobody947.neonwalls.ui.HoldPeek
+import io.github.trustnobody947.neonwalls.ui.Lang
 import io.github.trustnobody947.neonwalls.ui.Sheet
 import io.github.trustnobody947.neonwalls.core.R as CoreR
 
@@ -30,6 +32,7 @@ import io.github.trustnobody947.neonwalls.core.R as CoreR
  * Broken Screen als eigene App: hinten die Live-Vorschau, unten die Einstellungen (gleich wie in Neon Walls).
  * Antippen der Vorschau blendet die Einstellungen ein oder aus; beim Wählen der Aufschlagstelle zählt das Antippen dafür.
  * Finger gedrückt halten (auf der Vorschau oder einer freien Stelle der Einstellungen) blendet sie aus, solange er liegt.
+ * Werbung, Datenschutz-Abfrage und Kauf über [BsShop]; die Sprache ist oben umschaltbar ([Lang]).
  */
 class SettingsActivity : Activity() {
 
@@ -39,14 +42,21 @@ class SettingsActivity : Activity() {
     private lateinit var view: GlitchView
     private lateinit var settings: GlitchSettings
     private lateinit var peek: HoldPeek
+    private lateinit var shop: BsShop
 
     private val accent = Color.rgb(25, 230, 25)
 
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
     private fun dpi(v: Int) = dp(v.toFloat()).toInt()
 
+    /** Gewählte Sprache (vor Android 13 stellt die App sie selbst ein). */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        shop = BsShop(this)
         root = FrameLayout(this)
         root.setBackgroundColor(Color.BLACK)
 
@@ -89,19 +99,43 @@ class SettingsActivity : Activity() {
         }
         edgeToEdge()
 
-        settings = GlitchSettings(this, Sheet(this, panel, accent), view, hint, { showPanel(it) }, { openPicker() })
+        settings = GlitchSettings(this, Sheet(this, panel, accent), view, hint, { showPanel(it) }, { openPicker() }, shop)
         settings.build(getString(R.string.app_name))
         view.setOnClickListener {
             if (!settings.handleTap()) showPanel(sheet.visibility != View.VISIBLE)
         }
         view.onHold = { peek.hold(it) }
         setContentView(root)
+        // Kauf prüfen, Datenschutz-Abfrage, Anzeigen laden
+        shop.start()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // App geöffnet oder zurückgekommen: Werbung, wenn die letzte mindestens 10 Minuten her ist
+        shop.onStart()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        shop.onResume()
     }
 
     override fun onPause() {
         // falls ein Finger gerade die Einstellungen ausgeblendet hat: wieder zeigen
         peek.reset()
+        shop.onPause()
         super.onPause()
+    }
+
+    override fun onStop() {
+        shop.onStop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        shop.destroy()
+        super.onDestroy()
     }
 
     /** Ergebnis der Bildauswahl (eigenes Hintergrundbild). */
@@ -150,6 +184,8 @@ class SettingsActivity : Activity() {
     }
 
     private fun openPicker() {
+        // die Rückkehr aus der Hintergrund-Auswahl zählt nicht als erneutes Öffnen der App
+        shop.leaving()
         val component = ComponentName(this, GlitchWallpaperService::class.java)
         val direct = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER)
             .putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, component)

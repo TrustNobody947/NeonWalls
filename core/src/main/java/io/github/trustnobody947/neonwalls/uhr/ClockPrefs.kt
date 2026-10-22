@@ -2,6 +2,7 @@ package io.github.trustnobody947.neonwalls.uhr
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.github.trustnobody947.neonwalls.glitch.Unlock
 
 /** Einstellungen der Uhr, gemeinsam für alle Hintergründe. Wo die Uhr erscheint, gilt je Hintergrund. */
 object ClockPrefs {
@@ -54,18 +55,25 @@ object ClockPrefs {
 
     fun cyAim(p: SharedPreferences): Int = if (p.contains(CY_AIM)) p.getInt(CY_AIM, 15) else cy(p)
 
-    fun d3(ctx: Context): Int = prefs(ctx).getInt(D3, 5).coerceIn(0, 10)
+    /** 3D-Effekt (gehört zu den Extras: gesperrt 0). */
+    fun d3(ctx: Context): Int = if (Unlock.ok(ctx, Unlock.DAY_OR_BUY)) prefs(ctx).getInt(D3, 5).coerceIn(0, 10) else 0
+
+    /** Oberflächen, die immer frei sind: Chrom und Weiß (die anderen gehören zu den Extras). */
+    fun finishFree(f: Int) = f == ClockFace.CHROME || f == ClockFace.WHITE
 
     /** Uhr für einen Hintergrund: eingeschaltet → (wiederverwendetes) Zifferblatt mit aktuellen Einstellungen, sonst null. */
     fun face(ctx: Context, onKey: String, old: ClockFace?): ClockFace? {
         val p = prefs(ctx)
         if (mode(p, onKey) == MODE_OFF) return null
         val f = old ?: ClockFace()
-        f.configure(cy(p), p.getInt(SIZE, 5), p.getInt(DATE, 0), p.getInt(FINISH, ClockFace.WHITE))
+        val fin = p.getInt(FINISH, ClockFace.WHITE)
+        f.configure(cy(p), p.getInt(SIZE, 5), p.getInt(DATE, 0),
+            if (finishFree(fin) || Unlock.ok(ctx, Unlock.DAY_OR_BUY)) fin else ClockFace.WHITE)
         return f
     }
 
-    fun crack(ctx: Context): Int = prefs(ctx).getInt(CRACK, 5)
+    /** „Riss durch die Uhr“ (gehört zu den Extras: gesperrt 0). */
+    fun crack(ctx: Context): Int = if (Unlock.ok(ctx, Unlock.DAY_OR_BUY)) prefs(ctx).getInt(CRACK, 5) else 0
 
     /** Soll die Uhr gerade zu sehen sein? locked = der Sperrbildschirm ist gerade zu sehen. */
     fun shown(mode: Int, locked: Boolean): Boolean = when (mode) {

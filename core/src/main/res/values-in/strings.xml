@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">mati</string>
+    <string name="l_low">ringan</string>
+    <string name="l_mid">sedang</string>
+    <string name="l_high">kuat</string>
+    <string name="on">Aktif</string>
+    <string name="off">Mati</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Pola baru</string>
+    <string name="b_glitch">Glitch sekarang</string>
+    <string name="b_impact">Ketuk titik benturan</string>
+    <string name="b_fullscreen">Layar penuh</string>
+    <string name="b_set">Jadikan wallpaper</string>
+    <string name="err_picker_any">Silakan pilih wallpaper di pengaturan ponsel pada Wallpaper → Wallpaper animasi.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Ketuk pratinjau untuk menampilkan atau menyembunyikan pengaturan. Tahan jari untuk melihat seluruh gambar selama jari masih menempel.</string>
+    <string name="s_cracks">Jumlah retakan (dari)</string>
+    <string name="s_cracks_max">Jumlah retakan sampai</string>
+    <string name="s_crack_grow">Retakan bertambah seiring waktu</string>
+    <string name="ci_now">Sekarang %d retakan</string>
+    <string name="ci_flat">“Sampai” tidak lebih besar dari “dari”: retakan tetap %d.</string>
+    <string name="s_impacts">Benturan</string>
+    <string name="cracks_none">tidak ada</string>
+    <string name="s_impact">Titik benturan</string>
+    <string name="impact_random">Acak</string>
+    <string name="impact_tap">Ketukanmu</string>
+    <string name="s_hshare">Retakan mendatar melintasi layar</string>
+    <string name="s_splinter">Serpihan di titik benturan</string>
+    <string name="spl_0">Tidak ada</string>
+    <string name="spl_1">Sedikit</string>
+    <string name="spl_2">Banyak</string>
+    <string name="s_glint">Kilau saat dimiringkan</string>
+    <string name="s_auto">Retakan berganti sendiri</string>
+    <string name="auto_0">Tidak</string>
+    <string name="auto_1">Saat glitch</string>
+    <string name="auto_2">Setelah jam</string>
+    <string name="s_hours">Ganti setelah jam: setiap</string>
+    <string name="hours_1">1 jam</string>
+    <string name="hours_n">%d jam</string>
+    <string name="s_shear">Pergeseran di retakan</string>
+    <string name="s_dark">Area hitam di antara retakan (mulai 9 retakan)</string>
+    <string name="dark_min">Area hitam baru muncul mulai %d retakan.</string>
+    <string name="dark_s">sekitar %d dtk</string>
+    <string name="dark_m">sekitar %s mnt</string>
+    <string name="show_hint">Ketuk untuk memunculkan pengaturan lagi.</string>
+    <string name="s_calm">Kedipan dasar</string>
+    <string name="s_burst">Ledakan glitch</string>
+    <string name="s_count">Jumlah garis (dari)</string>
+    <string name="s_count_max">Jumlah garis sampai</string>
+    <string name="s_grow_time">Garis bertambah seiring waktu</string>
+    <string name="s_grow_hours">Dari “dari” ke “sampai” dalam</string>
+    <string name="s_grow_batt">Garis bertambah saat baterai turun</string>
+    <string name="grow_note">Saat waktunya habis, muncul glitch besar dan semuanya mulai lagi dengan sedikit garis. Untuk baterai: penuh = “dari”, hampir habis = “sampai”. Jika keduanya aktif, nilai yang lebih tinggi yang berlaku.</string>
+    <string name="gi_now">Sekarang %d garis</string>
+    <string name="gi_restart">Mulai ulang dalam %s</string>
+    <string name="gi_batt">Baterai %d %%</string>
+    <string name="gi_lapse">Percepatan waktu</string>
+    <string name="dur_h">%1$d j %2$d mnt</string>
+    <string name="dur_m">%1$d mnt %2$d dtk</string>
+    <string name="dur_s">%d dtk</string>
+    <string name="b_lapse">Percepatan waktu untuk tes</string>
+    <string name="b_lapse_off">Matikan percepatan</string>
+    <string name="lapse_on">Percepatan aktif: 1 jam berlalu dalam 3 detik (juga untuk wallpaper). “Pola baru” mengatur ulang waktunya.</string>
+    <string name="lapse_off">Percepatan mati.</string>
+    <string name="s_touch">Glitch di bawah jari</string>
+    <string name="s_touch_flash">Glitch area saat disentuh (mulai 5 retakan)</string>
+    <string name="touch_note">Di layar utama. Apakah juga berfungsi di layar kunci tergantung ponselnya.</string>
+    <string name="s_random">Pola baru setiap layar menyala</string>
+    <string name="s_mutate">Glitch mengubah pola</string>
+    <string name="tap_1">Ketuk titik tempat ponsel terbentur.</string>
+    <string name="tap_2">Sekarang ketuk ke arah mana retakan harus menjalar.</string>
+    <string name="tap_1n">Ketuk titik benturan ke-%1$d (dari %2$d).</string>
+    <string name="tap_2n">Sekarang ketuk ke arah mana retakan dari benturan ke-%d harus menjalar.</string>
+    <string name="tap_done">Selesai! “Pola baru” menampilkan jalur lain; di “Titik benturan” kamu bisa kembali ke acak.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Gambar sendiri</string>
+    <string name="bg_note_none">Gambarmu ada di bawah garis dan retakan dan ikut pecah bersama kaca. Saat ini belum ada yang dipilih.</string>
+    <string name="bg_note_set">Gambarmu ada di bawah garis dan retakan dan ikut pecah bersama kaca.</string>
+    <string name="b_bg_pick">Pilih gambar</string>
+    <string name="b_bg_clear">Hapus gambar</string>
+    <string name="s_bg_dim">Gelapkan gambar sendiri</string>
+    <string name="bg_loading">Memuat gambar …</string>
+    <string name="bg_set">Gambar dipasang. Dengan “Gelapkan gambar sendiri” kamu mengatur kecerahannya.</string>
+    <string name="bg_cleared">Gambar sendiri dihapus.</string>
+    <string name="bg_err">Gambar tidak bisa dimuat. Coba gambar lain.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Jam</string>
+    <string name="c_note">Pengaturan jam berlaku untuk semua wallpaper; di mana jam muncul kamu atur per wallpaper. Jam dan tanggal bawaan ponsel tidak bisa disembunyikan oleh aplikasi – dengan “Tinggi jam” kamu bisa, misalnya, menaruh jam ini di bawah tanggal.</string>
+    <string name="c_where">Tampilkan jam</string>
+    <string name="mode_lock">Kunci</string>
+    <string name="mode_home">Utama</string>
+    <string name="mode_both">Keduanya</string>
+    <string name="mode_note_lock">Di pratinjau jam selalu terlihat. Sebagai wallpaper, jam hanya muncul di layar kunci.</string>
+    <string name="mode_note_home">Di pratinjau jam selalu terlihat. Sebagai wallpaper, jam hanya muncul di layar utama.</string>
+    <string name="c_3d">Efek 3D jam (saat dimiringkan)</string>
+    <string name="c_3d_none">Pantulan logam dan efek 3D tidak berjalan di ponsel ini (perlu Android 13); jam tetap datar.</string>
+    <string name="c_cy">Tinggi jam (15 = seperti aslinya)</string>
+    <string name="c_finish">Permukaan</string>
+    <string name="f_chrome">Krom</string>
+    <string name="f_gold">Emas</string>
+    <string name="f_steel">Biru baja</string>
+    <string name="f_rose">Emas mawar</string>
+    <string name="f_black">Krom hitam</string>
+    <string name="f_copper">Tembaga</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Putih (asli)</string>
+    <string name="c_size">Ukuran jam (5 = seperti aslinya)</string>
+    <string name="c_date">Tanggal</string>
+    <string name="c_date_orig">Seperti aslinya</string>
+    <string name="c_date_de">Jerman</string>
+    <string name="c_crack">Retakan menembus jam</string>
+    <string name="bg_note_locked">Gambarmu tersimpan dan muncul lagi setelah pembelian.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Bahasa</string>
+    <string name="lang_auto">Otomatis (seperti ponsel)</string>
+    <string name="lang_auto_short">Otomatis</string>
+    <string name="u_cancel">Batal</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 jam</string>
+    <string name="lock_buy">Beli</string>
+    <string name="u_free">Versi gratis · ekstra terkunci</string>
+    <string name="u_day">Ekstra terbuka sampai %s · gambar sendiri hanya dengan pembelian</string>
+    <string name="u_full">Versi lengkap · semua terbuka, tanpa iklan</string>
+    <string name="u_btn">Buka kunci</string>
+    <string name="u_privacy">Privasi (iklan)</string>
+    <string name="u_title_day">Buka ekstra</string>
+    <string name="u_title_buy">Hanya dengan pembelian</string>
+    <string name="u_text_day">Tonton video iklan singkat, lalu semua ekstra terbuka selama 24 jam. Atau beli sekali, maka semuanya terbuka selamanya dan tanpa iklan.</string>
+    <string name="u_text_buy">Gambar sendiri tersedia dengan pembelian. Pembelian membuka semuanya selamanya dan menghilangkan iklan.</string>
+    <string name="u_ad">Tonton iklan · gratis 24 jam</string>
+    <string name="u_buy">Buka selamanya · %s</string>
+    <string name="u_buy_np">Buka selamanya</string>
+    <string name="u_ad_loading">Memuat video iklan …</string>
+    <string name="u_ad_none">Saat ini tidak ada video iklan. Coba lagi sebentar lagi.</string>
+    <string name="u_ad_done">Semua ekstra terbuka sampai besok pukul %s.</string>
+    <string name="u_ad_skip">Video ditutup sebelum selesai; ekstra tetap terkunci.</string>
+    <string name="u_buy_none">Pembelian belum bisa dilakukan: Google Play tidak terjangkau atau pembelian belum disiapkan.</string>
+    <string name="u_buy_done">Terima kasih! Semuanya terbuka selamanya, tanpa iklan.</string>
+    <string name="u_buy_pending">Pembelian masih diproses. Begitu dikonfirmasi, semuanya akan terbuka.</string>
+    <string name="u_expired">24 jam sudah habis; ekstra terkunci lagi.</string>
+    <string name="u_test_buy">Versi uji: pembelian hanya disimulasikan. Pembelian sungguhan berjalan lewat Google Play setelah aplikasi disiapkan di sana.</string>
+    <string name="u_test_reset">Atur ulang (uji)</string>
+    <string name="u_test_reset_done">Diatur ulang: versi gratis.</string>
+</resources>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Мерцающие цветные полосы, как на разбитом дисплее, за настоящими трещинами стекла от удара, со случайными всплесками глитчей.</string>
+    <string name="hint_tap">Нажмите на предпросмотр, чтобы показать или скрыть настройки. Удерживайте палец на свободном месте, чтобы видеть всю картинку, пока он лежит на экране.</string>
+    <string name="wp_pegel_name">Индикатор уровня</string>
+    <string name="wp_pegel_desc">Светодиодные столбики, как на старом музыкальном центре. Реагируют на музыку в телефоне или на микрофон, иначе играет демо-ритм.</string>
+    <string name="p_source">Источник</string>
+    <string name="p_src_music">Музыка</string>
+    <string name="p_src_mic">Микрофон</string>
+    <string name="p_src_demo">Демо-ритм</string>
+    <string name="p_style">Вид</string>
+    <string name="p_bars">Столбики</string>
+    <string name="p_mirror_style">Зеркало</string>
+    <string name="p_color">Цвет</string>
+    <string name="p_col_classic">Классика</string>
+    <string name="p_col_cyan">Циан</string>
+    <string name="p_col_pink">Розовый</string>
+    <string name="p_col_amber">Янтарь</string>
+    <string name="p_col_rainbow">Радуга</string>
+    <string name="p_gain">Чувствительность</string>
+    <string name="p_bands">Полосы</string>
+    <string name="p_after">Послесвечение</string>
+    <string name="p_peaks">Пики</string>
+    <string name="p_reflect">Отражение</string>
+    <string name="p_pos">Положение</string>
+    <string name="p_mid">Центр</string>
+    <string name="p_bottom">Внизу</string>
+    <string name="b_test">Самотест</string>
+    <string name="b_drop">Бас-дроп</string>
+    <string name="st_demo">Играет демо-ритм, не настоящая музыка.</string>
+    <string name="st_music">Реагирует на музыку, которая играет в телефоне.</string>
+    <string name="st_mic">Реагирует на микрофон.</string>
+    <string name="st_perm">Нет разрешения на микрофон. Нажмите здесь, чтобы разрешить. А пока играет демо-ритм.</string>
+    <string name="st_fail_music">Этот телефон не даёт доступ к музыке. Попробуйте «Микрофон». А пока играет демо-ритм.</string>
+    <string name="st_fail_mic">Микрофон недоступен. А пока играет демо-ритм.</string>
+    <string name="st_wait">Запуск …</string>
+</resources>

@@ -9,17 +9,22 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.MediaStore
+import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import io.github.trustnobody947.neonwalls.core.R
+import io.github.trustnobody947.neonwalls.ui.Lang
 import io.github.trustnobody947.neonwalls.ui.Sheet
 import io.github.trustnobody947.neonwalls.uhr.ClockFace
 import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
+import java.text.NumberFormat
+import java.util.Date
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -28,7 +33,9 @@ import kotlin.math.roundToInt
  * Baut die Regler, verbindet sie mit der Vorschau und führt durch „Aufschlag antippen“ (je Aufschlag erst die Stelle,
  * dann die Richtung des Risses). Statuszeilen für wachsende Streifen und Risse und ein Zeitraffer zum Ausprobieren
  * (1 Stunde in 3 Sekunden). Eigenes Hintergrundbild über die Bildauswahl des Handys (die Activity reicht das Ergebnis
- * mit [onActivityResult] weiter).
+ * mit [onActivityResult] weiter). Sprache der App oben umschaltbar ([Lang]).
+ * Mit [shop] (nur Broken Screen als eigene App) sind Extras gesperrt: frei 24 Stunden nach einem Werbevideo oder für
+ * immer mit dem Kauf, das eigene Bild nur mit dem Kauf ([Unlock]); oben steht der Stand mit „Freischalten“.
  */
 class GlitchSettings(
     private val act: Activity,
@@ -36,7 +43,8 @@ class GlitchSettings(
     private val view: GlitchView,
     private val hint: TextView,
     private val showPanel: (Boolean) -> Unit,
-    private val onSetWallpaper: () -> Unit
+    private val onSetWallpaper: () -> Unit,
+    private val shop: Shop? = null
 ) {
     private val p = GlitchPrefs.prefs(act)
     /** Antippen: 0 = aus, sonst Nummer des nächsten Tipps (1 = erster Aufschlag, 2 = seine Richtung, 3 = zweiter …) */
@@ -70,28 +78,112 @@ class GlitchSettings(
         }
     }
 
-    /** „Schwarze Stellen“: statt der Stufe die typische Dauer (aus, ca. 4 s … ca. 20 Min.) */
+    /** „Schwarze Stellen“: statt der Stufe die typische Dauer (aus, ca. 4 s … ca. 20 Min.), Zahlen in der Schreibweise der Sprache */
     private fun darkLabel(v: Int): String {
         if (v <= 0) return s(R.string.l_off)
         val sec = GlitchRenderer.darkMid(v)
+        val nf = NumberFormat.getNumberInstance(act.resources.configuration.locales.get(0)).apply { maximumFractionDigits = 1 }
         return when {
             sec < 59.5f -> act.getString(R.string.dark_s, sec.roundToInt())
-            sec < 600f -> act.getString(R.string.dark_m, ((sec / 30f).roundToInt() / 2f).toString().replace('.', ',').removeSuffix(",0"))
-            else -> act.getString(R.string.dark_m, (sec / 60f).roundToInt().toString())
+            sec < 600f -> act.getString(R.string.dark_m, nf.format((sec / 30f).roundToInt() / 2.0))
+            else -> act.getString(R.string.dark_m, nf.format((sec / 60f).roundToInt().toLong()))
         }
     }
+
+    // ---------- Freischaltung (nur mit Shop) ----------
+
+    private var entNote: TextView? = null
+    private var entBtn: Button? = null
+    private var privBtn: Button? = null
+    private var privRow: View? = null
+    private var lastEx = true
+    private var lastBought = false
+
+    /** Zeile oben: kostenlose Version / Extras frei bis … / Vollversion, dazu die Knöpfe. */
+    private fun updateEnt() {
+        val sh = shop ?: return
+        val bought = Unlock.bought(act)
+        val until = Unlock.until(act)
+        entNote?.text = when {
+            bought -> s(R.string.u_full)
+            until > 0L -> act.getString(R.string.u_day, DateFormat.getTimeFormat(act).format(Date(until)))
+            else -> s(R.string.u_free)
+        }
+        entBtn?.visibility = if (bought) View.GONE else View.VISIBLE
+        // Datenschutz-Knopf nur, wo die Werbung ihn verlangt (EU); im Testbetrieb daneben „Zurücksetzen“
+        val priv = sh.privacyRequired()
+        privBtn?.visibility = if (priv) View.VISIBLE else View.GONE
+        privRow?.visibility = if (priv || sh.test) View.VISIBLE else View.GONE
+        updateBgNote()
+    }
+
+    /** Freischaltung hat sich geändert: Sperren nachziehen, Vorschau neu einstellen. */
+    private fun entChanged() {
+        lastEx = GlitchPrefs.extras(act)
+        lastBought = Unlock.bought(act)
+        ui.refreshLocks()
+        updateEnt()
+        reapply()
+    }
+
+    /** Oben: Stand der Freischaltung, „Freischalten“ und die Sprache. */
+    private fun addEnt(sh: Shop) {
+        val note = ui.addNote("", 8)
+        note.setTextColor(ui.fg)
+        note.textSize = 13f
+        entNote = note
+        val row = LinearLayout(act).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, ui.dpi(4), 0, 0)
+        }
+        val unlock = ui.makeButton(s(R.string.u_btn), true) { sh.ask(Unlock.DAY_OR_BUY) }
+        row.addView(unlock, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = ui.dpi(8) })
+        row.addView(Lang.button(act, ui), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        ui.panel.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        entBtn = unlock
+        sh.onChange = { entChanged() }
+        lastEx = GlitchPrefs.extras(act)
+        lastBought = Unlock.bought(act)
+    }
+
+    /** Ganz unten: Datenschutz der Werbung (wo nötig) und im Testbetrieb „Zurücksetzen“. */
+    private fun addPrivacy(sh: Shop) {
+        val items = ArrayList<Pair<String, () -> Unit>>()
+        items.add(s(R.string.u_privacy) to { sh.showPrivacy() })
+        if (sh.test) items.add(s(R.string.u_test_reset) to {
+            sh.testReset()
+            Toast.makeText(act, R.string.u_test_reset_done, Toast.LENGTH_SHORT).show()
+            Unit
+        })
+        val btns = ui.addButtonRow(*items.toTypedArray())
+        privBtn = btns[0]
+        privRow = btns[0].parent as? View
+        updateEnt()
+    }
+
+    /** Antippen eingeschaltet (gehört zu den Extras: gesperrt zufällig)? */
+    private fun tappedMode() = GlitchPrefs.extras(act) && p.getInt(GlitchPrefs.IMPACT, 0) == 1
 
     /** Neue Einstellungen an die Vorschau geben (der Hintergrund liest sie selbst aus den gespeicherten Werten). */
     fun reapply() {
         GlitchPrefs.applyTo(act, view.renderer)
     }
 
-    fun build(title: String) {
+    /**
+     * Einstellungen aufbauen. langRow: Knopf für die Sprache (Neon Walls hat ihn schon oben neben den Hintergründen).
+     * Gesperrte Einträge (nur mit [shop]): 24 h = Werbevideo oder Kauf, Kauf = nur mit Kauf.
+     */
+    fun build(title: String, langRow: Boolean = true) {
+        val sh = shop
+        ui.gate = sh
         ui.addTitle(title, s(R.string.bs_hint))
+        if (sh != null) addEnt(sh)
+        else if (langRow) ui.panel.addView(Lang.button(act, ui), LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { topMargin = ui.dpi(8) })
         reapply()
         // Risse wechseln bei großen Glitch-Ausbrüchen auch in der Vorschau
         view.renderer.onBigBurst = {
-            if (p.getInt(GlitchPrefs.AUTO, 0) == 1) {
+            if (GlitchPrefs.auto(act) == 1) {
                 GlitchPrefs.newCracks(act)
                 reapply()
             }
@@ -109,23 +201,27 @@ class GlitchSettings(
         view.onFrame = { tick() }
         val re = { reapply() }
         val offOn = listOf(s(R.string.off), s(R.string.on))
+        val day = Unlock.DAY_OR_BUY
+        val buy = Unlock.BUY
 
         // Glasrisse: Anzahl von – bis, mehr mit der Zeit
         ui.addFocusSlider(s(R.string.s_cracks), p, GlitchPrefs.CRACKS, 3, 0, Cracks.MAX, 1,
             { if (it == 0) s(R.string.cracks_none) else it.toString() }, re)
-        ui.addFocusSlider(s(R.string.s_cracks_max), p, GlitchPrefs.CRACKS_MAX, 10, 0, Cracks.MAX, 1, { it.toString() }, re)
-        ui.addChoice(s(R.string.s_crack_grow), p, GlitchPrefs.CRACK_GROW, 0, offOn) { idx ->
+        ui.addLockedSlider(s(R.string.s_cracks_max), p, GlitchPrefs.CRACKS_MAX, 10, 0, Cracks.MAX, 1, { it.toString() },
+            day, 10, onChange = re)
+        ui.addChoice(s(R.string.s_crack_grow), p, GlitchPrefs.CRACK_GROW, 0, offOn, lock = day, free = 0) { idx ->
             // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
             GlitchPrefs.setCrackGrow(act, idx == 1)
             reapply()
             show()
         }
-        ui.addFocusSlider(s(R.string.s_grow_hours), p, GlitchPrefs.CRACK_HOURS, 6, 1, 24, 1, this::hours, re)
+        ui.addLockedSlider(s(R.string.s_grow_hours), p, GlitchPrefs.CRACK_HOURS, 6, 1, 24, 1, this::hours, day, 6, onChange = re)
         crackInfo = ui.addInfo()
-        // Aufschläge: wie viele, zufällig oder selbst angetippt
-        ui.addChoice(s(R.string.s_impacts), p, GlitchPrefs.IMPACTS, 0, listOf("1", "2", "3")) {
+        // Aufschläge: wie viele, zufällig oder selbst angetippt (2 und 3 und Antippen gehören zu den Extras)
+        ui.addChoice(s(R.string.s_impacts), p, GlitchPrefs.IMPACTS, 0, listOf("1", "2", "3"),
+            lockOpts = intArrayOf(0, day, day), free = 0) {
             // „Selbst angetippt“ und für einen Aufschlag fehlt noch die Stelle: gleich antippen lassen
-            if (p.getInt(GlitchPrefs.IMPACT, 0) == 1 && !GlitchPrefs.allTapped(p)) startTap()
+            if (tappedMode() && !GlitchPrefs.allTapped(p)) startTap()
             else {
                 cancelTap()
                 reapply()
@@ -133,7 +229,7 @@ class GlitchSettings(
             }
         }
         setImpactChoice = ui.addChoice(s(R.string.s_impact), p, GlitchPrefs.IMPACT, 0,
-            listOf(s(R.string.impact_random), s(R.string.impact_tap))) { idx ->
+            listOf(s(R.string.impact_random), s(R.string.impact_tap)), lockOpts = intArrayOf(0, day), free = 0) { idx ->
             if (idx == 1 && !GlitchPrefs.allTapped(p)) startTap()
             else {
                 cancelTap()
@@ -142,14 +238,16 @@ class GlitchSettings(
                 show()
             }
         }
-        ui.addFocusSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 5, { "$it %" }, re)
+        ui.addLockedSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 5, { "$it %" }, day, 30, onChange = re)
         ui.addChoice(s(R.string.s_splinter), p, GlitchPrefs.SPLINTER, 1,
             listOf(s(R.string.spl_0), s(R.string.spl_1), s(R.string.spl_2))) { reapply(); show() }
         // Glitzern der Risse beim Neigen (braucht den Neigungssensor, solange der Hintergrund zu sehen ist)
-        ui.addChoice(s(R.string.s_glint), p, GlitchPrefs.GLINT, 1, offOn) { reapply(); show() }
+        ui.addChoice(s(R.string.s_glint), p, GlitchPrefs.GLINT, 1, offOn, lock = day, free = 0) { reapply(); show() }
         ui.addChoice(s(R.string.s_auto), p, GlitchPrefs.AUTO, 0,
-            listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2))) { restartAutoClock(); show() }
-        ui.addFocusSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, { restartAutoClock() })
+            listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2)), lockOpts = intArrayOf(0, day, day), free = 0) {
+            restartAutoClock(); show()
+        }
+        ui.addLockedSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, day, 6) { restartAutoClock() }
         ui.addFocusSlider(s(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ui::level, re)
         // „Schwarze Stellen“: der Regler stellt vor allem ein, wie lange ein Stück schwarz bleibt (die Anzeige sagt es);
         // sie kommen erst ab 9 Rissen
@@ -164,33 +262,33 @@ class GlitchSettings(
         ui.addFocusSlider(s(R.string.s_burst), p, GlitchPrefs.BURST, 5, 0, 10, 1, ui::level, re)
         ui.addFocusSlider(s(R.string.s_count), p, GlitchPrefs.COUNT_POS, 59, 0, 100, 1,
             { GlitchPrefs.countFromPos(it).toString() }, re)
-        ui.addFocusSlider(s(R.string.s_count_max), p, GlitchPrefs.COUNT_MAX, 85, 0, 100, 1,
-            { GlitchPrefs.countFromPos(it).toString() }, re)
-        ui.addChoice(s(R.string.s_grow_time), p, GlitchPrefs.GROW_TIME, 0, offOn) { idx ->
+        ui.addLockedSlider(s(R.string.s_count_max), p, GlitchPrefs.COUNT_MAX, 85, 0, 100, 1,
+            { GlitchPrefs.countFromPos(it).toString() }, day, 85, onChange = re)
+        ui.addChoice(s(R.string.s_grow_time), p, GlitchPrefs.GROW_TIME, 0, offOn, lock = day, free = 0) { idx ->
             // ein- oder ausgeschaltet: der Durchgang beginnt jetzt
             GlitchPrefs.setGrowTime(act, idx == 1)
             reapply()
             show()
         }
-        ui.addFocusSlider(s(R.string.s_grow_hours), p, GlitchPrefs.GROW_HOURS, 6, 1, 24, 1, this::hours, re)
-        ui.addChoice(s(R.string.s_grow_batt), p, GlitchPrefs.GROW_BATT, 0, offOn) { reapply(); show() }
+        ui.addLockedSlider(s(R.string.s_grow_hours), p, GlitchPrefs.GROW_HOURS, 6, 1, 24, 1, this::hours, day, 6, onChange = re)
+        ui.addChoice(s(R.string.s_grow_batt), p, GlitchPrefs.GROW_BATT, 0, offOn, lock = day, free = 0) { reapply(); show() }
         ui.addNote(s(R.string.grow_note))
         info = ui.addInfo()
         lapseBtn = ui.addButtonRow(s(R.string.b_lapse) to { toggleLapse(); show(false) }).firstOrNull()
-        ui.addChoice(s(R.string.s_touch), p, GlitchPrefs.TOUCH_FX, 1, offOn) { reapply(); show() }
-        ui.addChoice(s(R.string.s_touch_flash), p, GlitchPrefs.TOUCH_FLASH, 1, offOn) { reapply(); show() }
+        ui.addChoice(s(R.string.s_touch), p, GlitchPrefs.TOUCH_FX, 1, offOn, lock = day, free = 0) { reapply(); show() }
+        ui.addChoice(s(R.string.s_touch_flash), p, GlitchPrefs.TOUCH_FLASH, 1, offOn, lock = day, free = 0) { reapply(); show() }
         ui.addNote(s(R.string.touch_note))
-        ui.addSwitch(s(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, false) { reapply(); show() }
-        ui.addSwitch(s(R.string.s_mutate), p, GlitchPrefs.MUTATE, false) { reapply(); show() }
+        ui.addSwitch(s(R.string.s_random), p, GlitchPrefs.RANDOM_ON_WAKE, false, day) { reapply(); show() }
+        ui.addSwitch(s(R.string.s_mutate), p, GlitchPrefs.MUTATE, false, day) { reapply(); show() }
 
-        // Eigenes Bild
+        // Eigenes Bild (nur mit dem Kauf)
         ui.addTitle(s(R.string.bg_title), null, ui.dpi(22))
         bgNote = ui.addNote("")
         ui.addButtonRow(
-            s(R.string.b_bg_pick) to { pickImage() },
-            s(R.string.b_bg_clear) to { clearImage(); show(false) }
-        )
-        ui.addFocusSlider(s(R.string.s_bg_dim), p, GlitchPrefs.BG_DIM, 40, 0, 90, 5, { "$it %" }, re)
+            s(R.string.b_bg_pick) to { if (ui.allowed(buy)) pickImage() },
+            s(R.string.b_bg_clear) to { if (ui.allowed(buy)) { clearImage(); show(false) } }
+        ).forEach { ui.lockButton(it, buy) }
+        ui.addLockedSlider(s(R.string.s_bg_dim), p, GlitchPrefs.BG_DIM, 40, 0, 90, 5, { "$it %" }, buy, 40, onChange = re)
         updateBgNote()
 
         addClockSection(act, ui, ClockPrefs.ON_GLITCH, true, view.renderer.metal != null, re) { show() }
@@ -202,18 +300,20 @@ class GlitchSettings(
                 show()
             },
             s(R.string.b_glitch) to {
-                if (view.renderer.triggerBurst() && p.getInt(GlitchPrefs.AUTO, 0) == 1) {
+                if (view.renderer.triggerBurst() && GlitchPrefs.auto(act) == 1) {
                     GlitchPrefs.newCracks(act)
                     reapply()
                 }
                 show()
             }
         )
-        ui.addButtonRow(
-            s(R.string.b_impact) to { startTap() },
+        val tapBtns = ui.addButtonRow(
+            s(R.string.b_impact) to { if (ui.allowed(day)) startTap() },
             s(R.string.b_fullscreen) to { showPanel(false) }
         )
+        ui.lockButton(tapBtns[0], day)
         ui.addPrimaryButton(s(R.string.b_set)) { onSetWallpaper() }
+        if (sh != null) addPrivacy(sh)
         updateInfo()
     }
 
@@ -230,9 +330,18 @@ class GlitchSettings(
         // Zeitraffer: die Zeit läuft 1200-mal so schnell (1 Stunde in 3 Sekunden)
         if (lapse && dt in 1L..2000L) shiftTime(dt * 1199L)
         // „Risse wechseln nach Stunden“ auch in der Vorschau
-        if (GlitchPrefs.autoDue(p)) {
+        if (GlitchPrefs.autoDue(act)) {
             GlitchPrefs.newCracks(act)
             reapply()
+        }
+        // Freischaltung geändert (24 Stunden um, Werbevideo angesehen, gekauft)?
+        if (shop != null) {
+            val ex = GlitchPrefs.extras(act)
+            if (ex != lastEx || Unlock.bought(act) != lastBought) {
+                val expired = lastEx && !ex
+                entChanged()
+                if (expired) showHint(s(R.string.u_expired), 4000)
+            }
         }
         updateInfo()
     }
@@ -250,7 +359,7 @@ class GlitchSettings(
             e.putLong(GlitchPrefs.CRACK_START, p.getLong(GlitchPrefs.CRACK_START, now) - ms)
             any = true
         }
-        if (p.getInt(GlitchPrefs.AUTO, 0) == 2) {
+        if (GlitchPrefs.auto(act) == 2) {
             e.putLong(GlitchPrefs.CRACK_TIME, p.getLong(GlitchPrefs.CRACK_TIME, now) - ms)
             any = true
         }
@@ -294,8 +403,10 @@ class GlitchSettings(
         if (ui.inFocus) return
         val r = view.renderer
         val now = System.currentTimeMillis()
-        val gt = p.getInt(GlitchPrefs.GROW_TIME, 0) == 1
-        val gb = p.getInt(GlitchPrefs.GROW_BATT, 0) == 1
+        // gesperrt gelten die freien Werte (aus)
+        val ex = GlitchPrefs.extras(act)
+        val gt = ex && p.getInt(GlitchPrefs.GROW_TIME, 0) == 1
+        val gb = ex && p.getInt(GlitchPrefs.GROW_BATT, 0) == 1
         if (gt || gb) {
             val sb = StringBuilder(act.getString(R.string.gi_now, r.shownCount))
             if (gt) sb.append(" · ").append(act.getString(R.string.gi_restart, dur(max(0L, r.growRemainingMs(now)))))
@@ -303,7 +414,7 @@ class GlitchSettings(
             if (lapse) sb.append(" · ").append(s(R.string.gi_lapse))
             setInfo(info, sb.toString())
         } else setInfo(info, "")
-        if (p.getInt(GlitchPrefs.CRACK_GROW, 0) == 1) {
+        if (ex && p.getInt(GlitchPrefs.CRACK_GROW, 0) == 1) {
             val a = p.getInt(GlitchPrefs.CRACKS, 3)
             val b = p.getInt(GlitchPrefs.CRACKS_MAX, 10)
             if (b <= a) setInfo(crackInfo, act.getString(R.string.ci_flat, a))
@@ -324,10 +435,16 @@ class GlitchSettings(
     // ---------- Eigenes Bild ----------
 
     private fun updateBgNote() {
-        bgNote?.text = s(if (p.getLong(GlitchPrefs.BG_STAMP, 0L) > 0L) R.string.bg_note_set else R.string.bg_note_none)
+        val has = p.getLong(GlitchPrefs.BG_STAMP, 0L) > 0L
+        bgNote?.text = s(when {
+            !has -> R.string.bg_note_none
+            Unlock.ok(act, Unlock.BUY) -> R.string.bg_note_set
+            else -> R.string.bg_note_locked
+        })
     }
 
     private fun pickImage() {
+        shop?.leaving()
         // Android 13 und neuer: die Fotoauswahl des Systems (braucht keine Berechtigung), sonst die Dateiauswahl
         val i = if (Build.VERSION.SDK_INT >= 33) Intent(MediaStore.ACTION_PICK_IMAGES).setType("image/*")
         else Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*")
@@ -467,14 +584,17 @@ class GlitchSettings(
          * Uhr-Einstellungen (für alle Hintergründe gleich; wo die Uhr erscheint, gilt je Hintergrund).
          * broken: Broken Screen (Riss durch die Uhr, 3D); has3d: Metall-Uhr in 3D läuft auf diesem Handy.
          * onUse: nach dem Tippen auf einen Knopf (z. B. das Bild zeigen); damit treten auch beim Schieben der Regler die
-         * Einstellungen zurück.
+         * Einstellungen zurück. Mit Freischaltung (ui.gate) gehören 3D, Riss durch die Uhr und die Oberflächen außer
+         * Chrom und Weiß zu den Extras.
          */
         fun addClockSection(act: Activity, ui: Sheet, onKey: String, broken: Boolean, has3d: Boolean, reapply: () -> Unit,
                             onUse: (() -> Unit)? = null) {
             val cp = ClockPrefs.prefs(act)
             val focus = onUse != null
-            fun slider(label: String, key: String, def: Int, min: Int, max: Int, fmt: (Int) -> String) =
-                if (focus) ui.addFocusSlider(label, cp, key, def, min, max, 1, fmt, reapply)
+            val day = Unlock.DAY_OR_BUY
+            fun slider(label: String, key: String, def: Int, min: Int, max: Int, fmt: (Int) -> String, lock: Int = 0) =
+                if (lock > 0) ui.addLockedSlider(label, cp, key, def, min, max, 1, fmt, lock, 0, focus, reapply)
+                else if (focus) ui.addFocusSlider(label, cp, key, def, min, max, 1, fmt, reapply)
                 else ui.addSlider(label, cp, key, def, min, max, 1, fmt, reapply)
             fun s(id: Int) = act.getString(id)
             ui.addTitle(s(R.string.c_title), s(R.string.c_note), ui.dpi(22))
@@ -499,7 +619,7 @@ class GlitchSettings(
             note = ui.addNote("")
             showNote(mode)
             if (broken) {
-                if (has3d) slider(s(R.string.c_3d), ClockPrefs.D3, 5, 0, 10, ui::level)
+                if (has3d) slider(s(R.string.c_3d), ClockPrefs.D3, 5, 0, 10, ui::level, day)
                 else ui.addNote(s(R.string.c_3d_none))
             }
             // Höhe: die Uhr wandert gleich mit, der Riss durch die Uhr wird erst beim Loslassen neu gelegt
@@ -509,14 +629,16 @@ class GlitchSettings(
             }
             if (focus) ui.addFocusSlider(s(R.string.c_cy), cp, ClockPrefs.CY, ClockPrefs.cy(cp), 0, 100, 1, { "$it %" }, reapply, cyRelease)
             else ui.addSlider(s(R.string.c_cy), cp, ClockPrefs.CY, ClockPrefs.cy(cp), 0, 100, 1, { "$it %" }, reapply, cyRelease)
-            if (broken) slider(s(R.string.c_crack), ClockPrefs.CRACK, 5, 0, 10, ui::level)
-            slider(s(R.string.c_size), ClockPrefs.SIZE, 5, 1, 10) { it.toString() }
+            if (broken) slider(s(R.string.c_crack), ClockPrefs.CRACK, 5, 0, 10, ui::level, day)
+            slider(s(R.string.c_size), ClockPrefs.SIZE, 5, 1, 10, { it.toString() })
             ui.addChoice(s(R.string.c_date), cp, ClockPrefs.DATE, 0,
                 listOf(s(R.string.c_date_orig), s(R.string.c_date_de), s(R.string.off))) { reapply(); onUse?.invoke() }
+            // Chrom und Weiß sind frei, die anderen Oberflächen gehören zu den Extras
+            val finLock = IntArray(8) { if (ClockPrefs.finishFree(it)) 0 else day }
             ui.addChoice(s(R.string.c_finish), cp, ClockPrefs.FINISH, ClockFace.WHITE, listOf(
                 s(R.string.f_chrome), s(R.string.f_gold), s(R.string.f_steel),
                 s(R.string.f_rose), s(R.string.f_black), s(R.string.f_copper),
-                s(R.string.f_neon), s(R.string.f_white))) { reapply(); onUse?.invoke() }
+                s(R.string.f_neon), s(R.string.f_white)), lockOpts = finLock, free = ClockFace.WHITE) { reapply(); onUse?.invoke() }
         }
     }
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Garis warna yang berkedip seperti di layar rusak, di balik retakan kaca sungguhan akibat benturan, dengan ledakan glitch acak.</string>
+    <string name="hint_tap">Ketuk pratinjau untuk menampilkan atau menyembunyikan pengaturan. Tahan jari di tempat kosong untuk melihat seluruh gambar selama jari masih menempel.</string>
+    <string name="wp_pegel_name">Indikator level</string>
+    <string name="wp_pegel_desc">Batang LED seperti di tape stereo lama. Bereaksi terhadap musik di ponsel atau mikrofon; jika tidak, diputar irama demo.</string>
+    <string name="p_source">Sumber</string>
+    <string name="p_src_music">Musik</string>
+    <string name="p_src_mic">Mikrofon</string>
+    <string name="p_src_demo">Irama demo</string>
+    <string name="p_style">Tampilan</string>
+    <string name="p_bars">Batang</string>
+    <string name="p_mirror_style">Cermin</string>
+    <string name="p_color">Warna</string>
+    <string name="p_col_classic">Klasik</string>
+    <string name="p_col_cyan">Sian</string>
+    <string name="p_col_pink">Merah muda</string>
+    <string name="p_col_amber">Amber</string>
+    <string name="p_col_rainbow">Pelangi</string>
+    <string name="p_gain">Sensitivitas</string>
+    <string name="p_bands">Pita</string>
+    <string name="p_after">Sisa cahaya</string>
+    <string name="p_peaks">Puncak</string>
+    <string name="p_reflect">Pantulan</string>
+    <string name="p_pos">Posisi</string>
+    <string name="p_mid">Tengah</string>
+    <string name="p_bottom">Bawah</string>
+    <string name="b_test">Uji mandiri</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Irama demo diputar, bukan musik sungguhan.</string>
+    <string name="st_music">Bereaksi terhadap musik yang diputar di ponsel.</string>
+    <string name="st_mic">Bereaksi terhadap mikrofon.</string>
+    <string name="st_perm">Izin mikrofon belum ada. Ketuk di sini untuk mengizinkan. Sampai saat itu irama demo diputar.</string>
+    <string name="st_fail_music">Ponsel ini tidak membagikan musiknya. Coba “Mikrofon”. Sampai saat itu irama demo diputar.</string>
+    <string name="st_fail_mic">Mikrofon tidak tersedia. Sampai saat itu irama demo diputar.</string>
+    <string name="st_wait">Memulai …</string>
+</resources>

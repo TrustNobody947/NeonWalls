@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">wyłączone</string>
+    <string name="l_low">słabo</string>
+    <string name="l_mid">średnio</string>
+    <string name="l_high">mocno</string>
+    <string name="on">Włączone</string>
+    <string name="off">Wyłączone</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Nowy wzór</string>
+    <string name="b_glitch">Glitch teraz</string>
+    <string name="b_impact">Wskaż uderzenie</string>
+    <string name="b_fullscreen">Pełny ekran</string>
+    <string name="b_set">Ustaw jako tapetę</string>
+    <string name="err_picker_any">Wybierz tapetę w ustawieniach telefonu w sekcji Tapeta → Tapety animowane.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Dotknij podglądu, aby pokazać lub ukryć ustawienia. Przytrzymaj palec, aby widzieć cały obraz, dopóki go trzymasz.</string>
+    <string name="s_cracks">Liczba pęknięć (od)</string>
+    <string name="s_cracks_max">Liczba pęknięć do</string>
+    <string name="s_crack_grow">Więcej pęknięć z czasem</string>
+    <string name="ci_now">Teraz pęknięć: %d</string>
+    <string name="ci_flat">„Do” nie jest większe niż „od”: liczba pęknięć zostaje na %d.</string>
+    <string name="s_impacts">Uderzenia</string>
+    <string name="cracks_none">brak</string>
+    <string name="s_impact">Miejsce uderzenia</string>
+    <string name="impact_random">Losowo</string>
+    <string name="impact_tap">Wskazane przez ciebie</string>
+    <string name="s_hshare">Poziome pęknięcia przez ekran</string>
+    <string name="s_splinter">Odłamki przy uderzeniu</string>
+    <string name="spl_0">Brak</string>
+    <string name="spl_1">Mało</string>
+    <string name="spl_2">Dużo</string>
+    <string name="s_glint">Błyski przy przechylaniu</string>
+    <string name="s_auto">Pęknięcia zmieniają się same</string>
+    <string name="auto_0">Nigdy</string>
+    <string name="auto_1">Przy glitchach</string>
+    <string name="auto_2">Po godzinach</string>
+    <string name="s_hours">Zmiana po godzinach: co</string>
+    <string name="hours_1">1 godz.</string>
+    <string name="hours_n">%d godz.</string>
+    <string name="s_shear">Przesunięcie na pęknięciu</string>
+    <string name="s_dark">Czarne plamy między pęknięciami (od 9 pęknięć)</string>
+    <string name="dark_min">Czarne plamy pojawiają się dopiero od %d pęknięć.</string>
+    <string name="dark_s">ok. %d s</string>
+    <string name="dark_m">ok. %s min</string>
+    <string name="show_hint">Dotknij, aby przywrócić ustawienia.</string>
+    <string name="s_calm">Podstawowe migotanie</string>
+    <string name="s_burst">Wybuchy glitchy</string>
+    <string name="s_count">Liczba pasków (od)</string>
+    <string name="s_count_max">Liczba pasków do</string>
+    <string name="s_grow_time">Więcej pasków z czasem</string>
+    <string name="s_grow_hours">Od „od” do „do” w ciągu</string>
+    <string name="s_grow_batt">Więcej pasków przy spadku baterii</string>
+    <string name="grow_note">Gdy czas minie, pojawia się duży glitch i wszystko zaczyna się od nowa z kilkoma paskami. Dla baterii: pełna = „od”, prawie pusta = „do”. Jeśli oba są włączone, liczy się wyższa wartość.</string>
+    <string name="gi_now">Teraz pasków: %d</string>
+    <string name="gi_restart">Restart za %s</string>
+    <string name="gi_batt">Bateria %d %%</string>
+    <string name="gi_lapse">Przyspieszenie</string>
+    <string name="dur_h">%1$d godz. %2$d min</string>
+    <string name="dur_m">%1$d min %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Przyspieszenie do testów</string>
+    <string name="b_lapse_off">Wyłącz przyspieszenie</string>
+    <string name="lapse_on">Przyspieszenie włączone: 1 godzina mija w 3 sekundy (także dla tapety). „Nowy wzór” zeruje czas.</string>
+    <string name="lapse_off">Przyspieszenie wyłączone.</string>
+    <string name="s_touch">Glitch pod palcem</string>
+    <string name="s_touch_flash">Glitch obszaru przy dotyku (od 5 pęknięć)</string>
+    <string name="touch_note">Na ekranie głównym. Czy działa też na ekranie blokady, zależy od telefonu.</string>
+    <string name="s_random">Nowy wzór przy każdym włączeniu ekranu</string>
+    <string name="s_mutate">Glitche zmieniają wzór</string>
+    <string name="tap_1">Dotknij miejsca, w które uderzył telefon.</string>
+    <string name="tap_2">Teraz dotknij miejsca, do którego ma biec pęknięcie.</string>
+    <string name="tap_1n">Dotknij miejsca uderzenia %1$d (z %2$d).</string>
+    <string name="tap_2n">Teraz dotknij miejsca, do którego ma biec pęknięcie od uderzenia %d.</string>
+    <string name="tap_done">Gotowe! „Nowy wzór” pokazuje inny przebieg, a w „Miejsce uderzenia” wrócisz do losowego.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Własny obraz</string>
+    <string name="bg_note_none">Twój obraz leży pod paskami i pęknięciami i pęka razem ze szkłem. Teraz żaden nie jest wybrany.</string>
+    <string name="bg_note_set">Twój obraz leży pod paskami i pęknięciami i pęka razem ze szkłem.</string>
+    <string name="b_bg_pick">Wybierz obraz</string>
+    <string name="b_bg_clear">Usuń obraz</string>
+    <string name="s_bg_dim">Przyciemnij własny obraz</string>
+    <string name="bg_loading">Wczytywanie obrazu …</string>
+    <string name="bg_set">Obraz ustawiony. Suwakiem „Przyciemnij własny obraz” ustawisz jego jasność.</string>
+    <string name="bg_cleared">Własny obraz usunięty.</string>
+    <string name="bg_err">Nie udało się wczytać obrazu. Spróbuj innego.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Zegar</string>
+    <string name="c_note">Ustawienia zegara obowiązują dla wszystkich tapet, a miejsce jego wyświetlania ustawiasz dla każdej tapety osobno. Zegara i daty samego telefonu aplikacja nie może ukryć – suwakiem „Wysokość zegara” możesz np. umieścić ten zegar pod datą.</string>
+    <string name="c_where">Pokaż zegar</string>
+    <string name="mode_lock">Blokada</string>
+    <string name="mode_home">Główny</string>
+    <string name="mode_both">Oba</string>
+    <string name="mode_note_lock">W podglądzie zegar jest zawsze widoczny. Jako tapeta pojawia się tylko na ekranie blokady.</string>
+    <string name="mode_note_home">W podglądzie zegar jest zawsze widoczny. Jako tapeta pojawia się tylko na ekranie głównym.</string>
+    <string name="c_3d">Efekt 3D zegara (przy przechylaniu)</string>
+    <string name="c_3d_none">Metaliczne odbicia i efekt 3D nie działają na tym telefonie (wymagany Android 13); zegar pozostaje płaski.</string>
+    <string name="c_cy">Wysokość zegara (15 = jak oryginał)</string>
+    <string name="c_finish">Wykończenie</string>
+    <string name="f_chrome">Chrom</string>
+    <string name="f_gold">Złoto</string>
+    <string name="f_steel">Stalowy błękit</string>
+    <string name="f_rose">Różowe złoto</string>
+    <string name="f_black">Czarny chrom</string>
+    <string name="f_copper">Miedź</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Biały (oryginał)</string>
+    <string name="c_size">Rozmiar zegara (5 = jak oryginał)</string>
+    <string name="c_date">Data</string>
+    <string name="c_date_orig">Jak oryginał</string>
+    <string name="c_date_de">Niemiecki</string>
+    <string name="c_crack">Pęknięcie przez zegar</string>
+    <string name="bg_note_locked">Twój obraz jest zapisany i wróci po zakupie.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Język</string>
+    <string name="lang_auto">Automatycznie (jak telefon)</string>
+    <string name="lang_auto_short">Automatycznie</string>
+    <string name="u_cancel">Anuluj</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 h</string>
+    <string name="lock_buy">Zakup</string>
+    <string name="u_free">Wersja darmowa · dodatki zablokowane</string>
+    <string name="u_day">Dodatki odblokowane do %s · własny obraz tylko po zakupie</string>
+    <string name="u_full">Pełna wersja · wszystko odblokowane, bez reklam</string>
+    <string name="u_btn">Odblokuj</string>
+    <string name="u_privacy">Prywatność (reklamy)</string>
+    <string name="u_title_day">Odblokuj dodatek</string>
+    <string name="u_title_buy">Tylko po zakupie</string>
+    <string name="u_text_day">Obejrzyj krótką reklamę wideo, a wszystkie dodatki będą odblokowane przez 24 godziny. Albo kup raz, a wszystko będzie odblokowane na zawsze i bez reklam.</string>
+    <string name="u_text_buy">Własny obraz jest dostępny po zakupie. Zakup odblokowuje wszystko na zawsze i usuwa reklamy.</string>
+    <string name="u_ad">Obejrzyj reklamę · 24 godziny za darmo</string>
+    <string name="u_buy">Odblokuj na zawsze · %s</string>
+    <string name="u_buy_np">Odblokuj na zawsze</string>
+    <string name="u_ad_loading">Wczytywanie reklamy wideo …</string>
+    <string name="u_ad_none">Teraz nie ma dostępnej reklamy wideo. Spróbuj ponownie za chwilę.</string>
+    <string name="u_ad_done">Wszystkie dodatki są odblokowane do jutra, do %s.</string>
+    <string name="u_ad_skip">Wideo zostało zamknięte przed końcem, dodatki pozostają zablokowane.</string>
+    <string name="u_buy_none">Zakup nie jest teraz możliwy: brak połączenia z Google Play albo zakup nie jest jeszcze skonfigurowany.</string>
+    <string name="u_buy_done">Dziękujemy! Wszystko jest odblokowane na zawsze, bez reklam.</string>
+    <string name="u_buy_pending">Zakup jest jeszcze przetwarzany. Gdy zostanie potwierdzony, wszystko zostanie odblokowane.</string>
+    <string name="u_expired">24 godziny minęły, dodatki są znowu zablokowane.</string>
+    <string name="u_test_buy">Wersja testowa: zakup tylko symulowany. Prawdziwy zakup działa przez Google Play, gdy aplikacja zostanie tam skonfigurowana.</string>
+    <string name="u_test_reset">Resetuj (test)</string>
+    <string name="u_test_reset_done">Zresetowano: wersja darmowa.</string>
+</resources>

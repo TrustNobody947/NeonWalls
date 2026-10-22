@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Flackernde Farbstreifen wie bei einem kaputten Display, hinter echten Glasrissen vom Aufschlag, mit zufälligen Glitch-Ausbrüchen.</string>
+    <string name="hint_tap">Vorschau antippen blendet die Einstellungen ein oder aus. Finger auf einer freien Stelle gedrückt halten zeigt das ganze Bild, solange er liegt.</string>
+    <string name="wp_pegel_name">Pegelanzeige</string>
+    <string name="wp_pegel_desc">LED-Balken wie an einer alten Stereoanlage. Reagieren auf Musik vom Handy oder auf das Mikrofon, sonst läuft ein Demo-Beat.</string>
+    <string name="p_source">Quelle</string>
+    <string name="p_src_music">Musik</string>
+    <string name="p_src_mic">Mikrofon</string>
+    <string name="p_src_demo">Demo-Beat</string>
+    <string name="p_style">Anzeige</string>
+    <string name="p_bars">Balken</string>
+    <string name="p_mirror_style">Spiegel</string>
+    <string name="p_color">Farbe</string>
+    <string name="p_col_classic">Klassisch</string>
+    <string name="p_col_cyan">Cyan</string>
+    <string name="p_col_pink">Pink</string>
+    <string name="p_col_amber">Bernstein</string>
+    <string name="p_col_rainbow">Bunt</string>
+    <string name="p_gain">Empfindlichkeit</string>
+    <string name="p_bands">Bänder</string>
+    <string name="p_after">Nachleuchten</string>
+    <string name="p_peaks">Spitzenwerte</string>
+    <string name="p_reflect">Spiegelung</string>
+    <string name="p_pos">Position</string>
+    <string name="p_mid">Mitte</string>
+    <string name="p_bottom">Unten</string>
+    <string name="b_test">Selbsttest</string>
+    <string name="b_drop">Bass-Drop</string>
+    <string name="st_demo">Demo-Beat läuft, keine echte Musik.</string>
+    <string name="st_music">Reagiert auf Musik, die auf dem Handy läuft.</string>
+    <string name="st_mic">Reagiert auf das Mikrofon.</string>
+    <string name="st_perm">Mikrofon-Berechtigung fehlt. Hier antippen zum Erlauben. Bis dahin läuft der Demo-Beat.</string>
+    <string name="st_fail_music">Dieses Handy gibt die Musik nicht frei. Probiere „Mikrofon“. Bis dahin läuft der Demo-Beat.</string>
+    <string name="st_fail_mic">Mikrofon nicht verfügbar. Bis dahin läuft der Demo-Beat.</string>
+    <string name="st_wait">Starte …</string>
+</resources>

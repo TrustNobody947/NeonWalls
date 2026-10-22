@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Broken Screen</string>
-    <string name="wp_desc">Flackernde Farbstreifen wie bei einem kaputten Display, hinter echten Glasrissen vom Aufschlag, mit zufälligen Glitch-Ausbrüchen.</string>
+    <string name="app_name" translatable="false">Broken Screen</string>
+    <string name="wp_desc">Flickering color stripes like on a broken display, behind real glass cracks from the impact, with random glitch bursts.</string>
 </resources>

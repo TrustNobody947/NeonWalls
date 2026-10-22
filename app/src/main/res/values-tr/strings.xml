@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Bozuk bir ekrandaki gibi titreyen renkli şeritler, darbeden kalma gerçek cam çatlaklarının arkasında, rastgele glitch patlamalarıyla.</string>
+    <string name="hint_tap">Ayarları göstermek veya gizlemek için önizlemeye dokun. Parmağını boş bir yerde basılı tutarsan, tuttuğun sürece resmin tamamını görürsün.</string>
+    <string name="wp_pegel_name">Seviye göstergesi</string>
+    <string name="wp_pegel_desc">Eski bir müzik setindeki gibi LED çubuklar. Telefondaki müziğe veya mikrofona tepki verir, yoksa bir demo ritmi çalar.</string>
+    <string name="p_source">Kaynak</string>
+    <string name="p_src_music">Müzik</string>
+    <string name="p_src_mic">Mikrofon</string>
+    <string name="p_src_demo">Demo ritmi</string>
+    <string name="p_style">Görünüm</string>
+    <string name="p_bars">Çubuklar</string>
+    <string name="p_mirror_style">Ayna</string>
+    <string name="p_color">Renk</string>
+    <string name="p_col_classic">Klasik</string>
+    <string name="p_col_cyan">Camgöbeği</string>
+    <string name="p_col_pink">Pembe</string>
+    <string name="p_col_amber">Kehribar</string>
+    <string name="p_col_rainbow">Gökkuşağı</string>
+    <string name="p_gain">Hassasiyet</string>
+    <string name="p_bands">Bantlar</string>
+    <string name="p_after">Art ışıma</string>
+    <string name="p_peaks">Tepe değerler</string>
+    <string name="p_reflect">Yansıma</string>
+    <string name="p_pos">Konum</string>
+    <string name="p_mid">Orta</string>
+    <string name="p_bottom">Alt</string>
+    <string name="b_test">Kendini test et</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Demo ritmi çalıyor, gerçek müzik yok.</string>
+    <string name="st_music">Telefonda çalan müziğe tepki verir.</string>
+    <string name="st_mic">Mikrofona tepki verir.</string>
+    <string name="st_perm">Mikrofon izni yok. İzin vermek için buraya dokun. O zamana kadar demo ritmi çalar.</string>
+    <string name="st_fail_music">Bu telefon müziğini paylaşmıyor. “Mikrofon” seçeneğini dene. O zamana kadar demo ritmi çalar.</string>
+    <string name="st_fail_mic">Mikrofon kullanılamıyor. O zamana kadar demo ritmi çalar.</string>
+    <string name="st_wait">Başlatılıyor …</string>
+</resources>

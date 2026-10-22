@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Migoczące kolorowe paski jak na zepsutym wyświetlaczu, za prawdziwymi pęknięciami szkła od uderzenia, z losowymi wybuchami glitchy.</string>
+    <string name="hint_tap">Dotknij podglądu, aby pokazać lub ukryć ustawienia. Przytrzymaj palec w wolnym miejscu, aby widzieć cały obraz, dopóki go trzymasz.</string>
+    <string name="wp_pegel_name">Wskaźnik poziomu</string>
+    <string name="wp_pegel_desc">Paski LED jak na starej wieży stereo. Reagują na muzykę z telefonu lub na mikrofon, w przeciwnym razie gra rytm demo.</string>
+    <string name="p_source">Źródło</string>
+    <string name="p_src_music">Muzyka</string>
+    <string name="p_src_mic">Mikrofon</string>
+    <string name="p_src_demo">Rytm demo</string>
+    <string name="p_style">Wygląd</string>
+    <string name="p_bars">Słupki</string>
+    <string name="p_mirror_style">Lustro</string>
+    <string name="p_color">Kolor</string>
+    <string name="p_col_classic">Klasyczny</string>
+    <string name="p_col_cyan">Cyjan</string>
+    <string name="p_col_pink">Różowy</string>
+    <string name="p_col_amber">Bursztyn</string>
+    <string name="p_col_rainbow">Tęcza</string>
+    <string name="p_gain">Czułość</string>
+    <string name="p_bands">Pasma</string>
+    <string name="p_after">Poświata</string>
+    <string name="p_peaks">Szczyty</string>
+    <string name="p_reflect">Odbicie</string>
+    <string name="p_pos">Pozycja</string>
+    <string name="p_mid">Środek</string>
+    <string name="p_bottom">Dół</string>
+    <string name="b_test">Autotest</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Gra rytm demo, bez prawdziwej muzyki.</string>
+    <string name="st_music">Reaguje na muzykę odtwarzaną na telefonie.</string>
+    <string name="st_mic">Reaguje na mikrofon.</string>
+    <string name="st_perm">Brak uprawnienia do mikrofonu. Dotknij tutaj, aby zezwolić. Do tego czasu gra rytm demo.</string>
+    <string name="st_fail_music">Ten telefon nie udostępnia muzyki. Spróbuj „Mikrofon”. Do tego czasu gra rytm demo.</string>
+    <string name="st_fail_mic">Mikrofon niedostępny. Do tego czasu gra rytm demo.</string>
+    <string name="st_wait">Uruchamianie …</string>
+</resources>

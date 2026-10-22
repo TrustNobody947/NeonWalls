@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gesperrte Extras mit Werbung und Kauf? Nur Broken Screen als eigene App setzt das auf true (in Neon Walls ist alles frei). -->
+    <bool name="monetized">false</bool>
+</resources>

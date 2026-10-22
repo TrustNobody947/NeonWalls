@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">désactivé</string>
+    <string name="l_low">léger</string>
+    <string name="l_mid">moyen</string>
+    <string name="l_high">fort</string>
+    <string name="on">Activé</string>
+    <string name="off">Désactivé</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Nouveau motif</string>
+    <string name="b_glitch">Glitch maintenant</string>
+    <string name="b_impact">Toucher l\'impact</string>
+    <string name="b_fullscreen">Plein écran</string>
+    <string name="b_set">Définir comme fond d\'écran</string>
+    <string name="err_picker_any">Veuillez choisir le fond d\'écran dans les paramètres du téléphone, sous Fond d\'écran → Fonds d\'écran animés.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Touchez l\'aperçu pour afficher ou masquer les réglages. Maintenez le doigt appuyé pour voir toute l\'image tant qu\'il reste posé.</string>
+    <string name="s_cracks">Nombre de fissures (de)</string>
+    <string name="s_cracks_max">Nombre de fissures jusqu\'à</string>
+    <string name="s_crack_grow">Plus de fissures avec le temps</string>
+    <string name="ci_now">Maintenant %d fissures</string>
+    <string name="ci_flat">« Jusqu\'à » n\'est pas plus grand que « de » : les fissures restent à %d.</string>
+    <string name="s_impacts">Impacts</string>
+    <string name="cracks_none">aucune</string>
+    <string name="s_impact">Point d\'impact</string>
+    <string name="impact_random">Aléatoire</string>
+    <string name="impact_tap">Touché par vous</string>
+    <string name="s_hshare">Fissures horizontales à travers l\'écran</string>
+    <string name="s_splinter">Éclats à l\'impact</string>
+    <string name="spl_0">Aucun</string>
+    <string name="spl_1">Peu</string>
+    <string name="spl_2">Beaucoup</string>
+    <string name="s_glint">Scintillement en inclinant</string>
+    <string name="s_auto">Les fissures changent d\'elles-mêmes</string>
+    <string name="auto_0">Jamais</string>
+    <string name="auto_1">Aux glitches</string>
+    <string name="auto_2">Après des heures</string>
+    <string name="s_hours">Changement après des heures : toutes les</string>
+    <string name="hours_1">1 heure</string>
+    <string name="hours_n">%d heures</string>
+    <string name="s_shear">Décalage à la fissure</string>
+    <string name="s_dark">Zones noires entre les fissures (dès 9 fissures)</string>
+    <string name="dark_min">Les zones noires n\'apparaissent qu\'à partir de %d fissures.</string>
+    <string name="dark_s">env. %d s</string>
+    <string name="dark_m">env. %s min</string>
+    <string name="show_hint">Touchez pour faire revenir les réglages.</string>
+    <string name="s_calm">Scintillement de base</string>
+    <string name="s_burst">Rafales de glitch</string>
+    <string name="s_count">Nombre de bandes (de)</string>
+    <string name="s_count_max">Nombre de bandes jusqu\'à</string>
+    <string name="s_grow_time">Plus de bandes avec le temps</string>
+    <string name="s_grow_hours">De « de » à « jusqu\'à » en</string>
+    <string name="s_grow_batt">Plus de bandes quand la batterie baisse</string>
+    <string name="grow_note">Quand le temps est écoulé, un grand glitch se produit et tout recommence avec peu de bandes. Pour la batterie : pleine = « de », presque vide = « jusqu\'à ». Si les deux sont activés, la valeur la plus haute compte.</string>
+    <string name="gi_now">Maintenant %d bandes</string>
+    <string name="gi_restart">Redémarrage dans %s</string>
+    <string name="gi_batt">Batterie %d %%</string>
+    <string name="gi_lapse">Accéléré</string>
+    <string name="dur_h">%1$d h %2$d min</string>
+    <string name="dur_m">%1$d min %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Accéléré pour tester</string>
+    <string name="b_lapse_off">Arrêter l\'accéléré</string>
+    <string name="lapse_on">Accéléré activé : 1 heure passe en 3 secondes (aussi pour le fond d\'écran). « Nouveau motif » remet le temps à zéro.</string>
+    <string name="lapse_off">Accéléré désactivé.</string>
+    <string name="s_touch">Glitch sous le doigt</string>
+    <string name="s_touch_flash">Glitch de zone au toucher (dès 5 fissures)</string>
+    <string name="touch_note">Sur l\'écran d\'accueil. Le fonctionnement sur l\'écran de verrouillage dépend du téléphone.</string>
+    <string name="s_random">Nouveau motif à chaque allumage de l\'écran</string>
+    <string name="s_mutate">Les glitches modifient le motif</string>
+    <string name="tap_1">Touchez l\'endroit où le téléphone a subi le choc.</string>
+    <string name="tap_2">Puis touchez l\'endroit vers lequel la fissure doit aller.</string>
+    <string name="tap_1n">Touchez l\'endroit de l\'impact %1$d (sur %2$d).</string>
+    <string name="tap_2n">Puis touchez l\'endroit vers lequel doit aller la fissure de l\'impact %d.</string>
+    <string name="tap_done">Terminé ! « Nouveau motif » montre un autre tracé ; sous « Point d\'impact », vous revenez à l\'aléatoire.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Image perso</string>
+    <string name="bg_note_none">Votre image se trouve sous les bandes et les fissures et se brise avec le verre. Aucune n\'est choisie pour l\'instant.</string>
+    <string name="bg_note_set">Votre image se trouve sous les bandes et les fissures et se brise avec le verre.</string>
+    <string name="b_bg_pick">Choisir une image</string>
+    <string name="b_bg_clear">Retirer l\'image</string>
+    <string name="s_bg_dim">Assombrir l\'image perso</string>
+    <string name="bg_loading">Chargement de l\'image …</string>
+    <string name="bg_set">Image définie. Avec « Assombrir l\'image perso », vous réglez sa luminosité.</string>
+    <string name="bg_cleared">Image perso retirée.</string>
+    <string name="bg_err">Impossible de charger l\'image. Essayez-en une autre.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Horloge</string>
+    <string name="c_note">Les réglages de l\'horloge valent pour tous les fonds d\'écran ; l\'endroit où elle apparaît se règle pour chaque fond. L\'horloge et la date du téléphone lui-même ne peuvent pas être masquées par une app – avec « Hauteur de l\'horloge », vous pouvez par exemple placer cette horloge sous la date.</string>
+    <string name="c_where">Afficher l\'horloge</string>
+    <string name="mode_lock">Verrouillage</string>
+    <string name="mode_home">Accueil</string>
+    <string name="mode_both">Les deux</string>
+    <string name="mode_note_lock">Dans l\'aperçu, l\'horloge est toujours visible. En fond d\'écran, elle n\'apparaît que sur l\'écran de verrouillage.</string>
+    <string name="mode_note_home">Dans l\'aperçu, l\'horloge est toujours visible. En fond d\'écran, elle n\'apparaît que sur l\'écran d\'accueil.</string>
+    <string name="c_3d">Effet 3D de l\'horloge (en inclinant)</string>
+    <string name="c_3d_none">Le reflet métallique et l\'effet 3D ne fonctionnent pas sur ce téléphone (Android 13 minimum) ; l\'horloge reste plate.</string>
+    <string name="c_cy">Hauteur de l\'horloge (15 = comme l\'original)</string>
+    <string name="c_finish">Finition</string>
+    <string name="f_chrome">Chrome</string>
+    <string name="f_gold">Or</string>
+    <string name="f_steel">Bleu acier</string>
+    <string name="f_rose">Or rose</string>
+    <string name="f_black">Chrome noir</string>
+    <string name="f_copper">Cuivre</string>
+    <string name="f_neon">Néon</string>
+    <string name="f_white">Blanc (original)</string>
+    <string name="c_size">Taille de l\'horloge (5 = comme l\'original)</string>
+    <string name="c_date">Date</string>
+    <string name="c_date_orig">Comme l\'original</string>
+    <string name="c_date_de">Allemand</string>
+    <string name="c_crack">Fissure à travers l\'horloge</string>
+    <string name="bg_note_locked">Votre image est enregistrée et revient avec l\'achat.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Langue</string>
+    <string name="lang_auto">Automatique (comme le téléphone)</string>
+    <string name="lang_auto_short">Automatique</string>
+    <string name="u_cancel">Annuler</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 h</string>
+    <string name="lock_buy">Achat</string>
+    <string name="u_free">Version gratuite · extras verrouillés</string>
+    <string name="u_day">Extras débloqués jusqu\'à %s · image perso seulement avec l\'achat</string>
+    <string name="u_full">Version complète · tout débloqué, sans publicité</string>
+    <string name="u_btn">Débloquer</string>
+    <string name="u_privacy">Confidentialité (pub)</string>
+    <string name="u_title_day">Débloquer l\'extra</string>
+    <string name="u_title_buy">Seulement avec l\'achat</string>
+    <string name="u_text_day">Regardez une courte vidéo publicitaire et tous les extras sont débloqués pendant 24 heures. Ou achetez une fois et tout est débloqué pour toujours, sans publicité.</string>
+    <string name="u_text_buy">L\'image perso est incluse dans l\'achat. Il débloque tout pour toujours et supprime la publicité.</string>
+    <string name="u_ad">Regarder la vidéo · 24 heures offertes</string>
+    <string name="u_buy">Débloquer pour toujours · %s</string>
+    <string name="u_buy_np">Débloquer pour toujours</string>
+    <string name="u_ad_loading">Chargement de la vidéo …</string>
+    <string name="u_ad_none">Aucune vidéo n\'est disponible pour le moment. Réessayez dans un instant.</string>
+    <string name="u_ad_done">Tous les extras sont débloqués jusqu\'à demain %s.</string>
+    <string name="u_ad_skip">La vidéo a été fermée avant la fin ; les extras restent verrouillés.</string>
+    <string name="u_buy_none">L\'achat n\'est pas possible pour le moment : Google Play est inaccessible ou l\'achat n\'est pas encore configuré.</string>
+    <string name="u_buy_done">Merci ! Tout est débloqué pour toujours, sans publicité.</string>
+    <string name="u_buy_pending">L\'achat est encore en cours de traitement. Dès qu\'il sera confirmé, tout sera débloqué.</string>
+    <string name="u_expired">Les 24 heures sont écoulées ; les extras sont de nouveau verrouillés.</string>
+    <string name="u_test_buy">Version de test : achat seulement simulé. Le vrai achat passe par Google Play dès que l\'app y est configurée.</string>
+    <string name="u_test_reset">Réinitialiser (test)</string>
+    <string name="u_test_reset_done">Réinitialisé : version gratuite.</string>
+</resources>

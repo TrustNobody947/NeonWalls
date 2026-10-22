@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">spento</string>
+    <string name="l_low">leggero</string>
+    <string name="l_mid">medio</string>
+    <string name="l_high">forte</string>
+    <string name="on">Attivo</string>
+    <string name="off">Spento</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Nuovo motivo</string>
+    <string name="b_glitch">Glitch ora</string>
+    <string name="b_impact">Tocca l\'impatto</string>
+    <string name="b_fullscreen">Schermo intero</string>
+    <string name="b_set">Imposta come sfondo</string>
+    <string name="err_picker_any">Scegli lo sfondo nelle impostazioni del telefono, in Sfondo → Sfondi animati.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Tocca l\'anteprima per mostrare o nascondere le impostazioni. Tieni premuto il dito per vedere tutta l\'immagine finché resta lì.</string>
+    <string name="s_cracks">Numero di crepe (da)</string>
+    <string name="s_cracks_max">Numero di crepe fino a</string>
+    <string name="s_crack_grow">Più crepe col tempo</string>
+    <string name="ci_now">Ora %d crepe</string>
+    <string name="ci_flat">«Fino a» non è maggiore di «da»: le crepe restano a %d.</string>
+    <string name="s_impacts">Impatti</string>
+    <string name="cracks_none">nessuna</string>
+    <string name="s_impact">Punto d\'impatto</string>
+    <string name="impact_random">Casuale</string>
+    <string name="impact_tap">Toccato da te</string>
+    <string name="s_hshare">Crepe orizzontali attraverso lo schermo</string>
+    <string name="s_splinter">Schegge all\'impatto</string>
+    <string name="spl_0">Nessuna</string>
+    <string name="spl_1">Poche</string>
+    <string name="spl_2">Molte</string>
+    <string name="s_glint">Scintillio inclinando</string>
+    <string name="s_auto">Le crepe cambiano da sole</string>
+    <string name="auto_0">Mai</string>
+    <string name="auto_1">Con i glitch</string>
+    <string name="auto_2">Dopo ore</string>
+    <string name="s_hours">Cambio dopo ore: ogni</string>
+    <string name="hours_1">1 ora</string>
+    <string name="hours_n">%d ore</string>
+    <string name="s_shear">Spostamento alla crepa</string>
+    <string name="s_dark">Zone nere tra le crepe (da 9 crepe)</string>
+    <string name="dark_min">Le zone nere compaiono solo da %d crepe.</string>
+    <string name="dark_s">circa %d s</string>
+    <string name="dark_m">circa %s min</string>
+    <string name="show_hint">Tocca per far tornare le impostazioni.</string>
+    <string name="s_calm">Sfarfallio di base</string>
+    <string name="s_burst">Raffiche di glitch</string>
+    <string name="s_count">Numero di strisce (da)</string>
+    <string name="s_count_max">Numero di strisce fino a</string>
+    <string name="s_grow_time">Più strisce col tempo</string>
+    <string name="s_grow_hours">Da «da» a «fino a» in</string>
+    <string name="s_grow_batt">Più strisce con la batteria che cala</string>
+    <string name="grow_note">Allo scadere del tempo arriva un grande glitch e si ricomincia con poche strisce. Per la batteria: carica = «da», quasi scarica = «fino a». Se sono attivi entrambi, conta il valore più alto.</string>
+    <string name="gi_now">Ora %d strisce</string>
+    <string name="gi_restart">Riavvio tra %s</string>
+    <string name="gi_batt">Batteria %d %%</string>
+    <string name="gi_lapse">Time-lapse</string>
+    <string name="dur_h">%1$d h %2$d min</string>
+    <string name="dur_m">%1$d min %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Time-lapse per provare</string>
+    <string name="b_lapse_off">Ferma il time-lapse</string>
+    <string name="lapse_on">Time-lapse attivo: 1 ora passa in 3 secondi (anche per lo sfondo). «Nuovo motivo» azzera il tempo.</string>
+    <string name="lapse_off">Time-lapse disattivato.</string>
+    <string name="s_touch">Glitch sotto il dito</string>
+    <string name="s_touch_flash">Glitch d\'area al tocco (da 5 crepe)</string>
+    <string name="touch_note">Nella schermata Home. Se funziona anche nella schermata di blocco dipende dal telefono.</string>
+    <string name="s_random">Nuovo motivo a ogni accensione dello schermo</string>
+    <string name="s_mutate">I glitch cambiano il motivo</string>
+    <string name="tap_1">Tocca il punto in cui il telefono ha preso il colpo.</string>
+    <string name="tap_2">Ora tocca il punto verso cui deve andare la crepa.</string>
+    <string name="tap_1n">Tocca il punto dell\'impatto %1$d (di %2$d).</string>
+    <string name="tap_2n">Ora tocca il punto verso cui deve andare la crepa dell\'impatto %d.</string>
+    <string name="tap_done">Fatto! «Nuovo motivo» mostra un altro percorso; in «Punto d\'impatto» torni a casuale.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Immagine tua</string>
+    <string name="bg_note_none">La tua immagine sta sotto strisce e crepe e si rompe con il vetro. Al momento non ne hai scelta nessuna.</string>
+    <string name="bg_note_set">La tua immagine sta sotto strisce e crepe e si rompe con il vetro.</string>
+    <string name="b_bg_pick">Scegli immagine</string>
+    <string name="b_bg_clear">Rimuovi immagine</string>
+    <string name="s_bg_dim">Scurisci la tua immagine</string>
+    <string name="bg_loading">Caricamento immagine …</string>
+    <string name="bg_set">Immagine impostata. Con «Scurisci la tua immagine» regoli quanto è luminosa.</string>
+    <string name="bg_cleared">Immagine rimossa.</string>
+    <string name="bg_err">Impossibile caricare l\'immagine. Provane un\'altra.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Orologio</string>
+    <string name="c_note">Le impostazioni dell\'orologio valgono per tutti gli sfondi; dove compare lo scegli per ogni sfondo. Ora e data del telefono stesso non si possono nascondere da un\'app: con «Altezza dell\'orologio» puoi, per esempio, mettere questo orologio sotto la data.</string>
+    <string name="c_where">Mostra orologio</string>
+    <string name="mode_lock">Blocco</string>
+    <string name="mode_home">Home</string>
+    <string name="mode_both">Entrambi</string>
+    <string name="mode_note_lock">Nell\'anteprima l\'orologio si vede sempre. Come sfondo compare solo nella schermata di blocco.</string>
+    <string name="mode_note_home">Nell\'anteprima l\'orologio si vede sempre. Come sfondo compare solo nella schermata Home.</string>
+    <string name="c_3d">Effetto 3D dell\'orologio (inclinando)</string>
+    <string name="c_3d_none">Riflesso metallico ed effetto 3D non funzionano su questo telefono (serve Android 13); l\'orologio resta piatto.</string>
+    <string name="c_cy">Altezza dell\'orologio (15 = come l\'originale)</string>
+    <string name="c_finish">Finitura</string>
+    <string name="f_chrome">Cromo</string>
+    <string name="f_gold">Oro</string>
+    <string name="f_steel">Blu acciaio</string>
+    <string name="f_rose">Oro rosa</string>
+    <string name="f_black">Cromo nero</string>
+    <string name="f_copper">Rame</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Bianco (originale)</string>
+    <string name="c_size">Dimensione dell\'orologio (5 = come l\'originale)</string>
+    <string name="c_date">Data</string>
+    <string name="c_date_orig">Come l\'originale</string>
+    <string name="c_date_de">Tedesco</string>
+    <string name="c_crack">Crepa attraverso l\'orologio</string>
+    <string name="bg_note_locked">La tua immagine è salvata e torna con l\'acquisto.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Lingua</string>
+    <string name="lang_auto">Automatica (come il telefono)</string>
+    <string name="lang_auto_short">Automatica</string>
+    <string name="u_cancel">Annulla</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 h</string>
+    <string name="lock_buy">Acquisto</string>
+    <string name="u_free">Versione gratuita · extra bloccati</string>
+    <string name="u_day">Extra sbloccati fino alle %s · immagine tua solo con l\'acquisto</string>
+    <string name="u_full">Versione completa · tutto sbloccato, senza pubblicità</string>
+    <string name="u_btn">Sblocca</string>
+    <string name="u_privacy">Privacy (pubblicità)</string>
+    <string name="u_title_day">Sblocca l\'extra</string>
+    <string name="u_title_buy">Solo con l\'acquisto</string>
+    <string name="u_text_day">Guarda un breve video pubblicitario e tutti gli extra sono sbloccati per 24 ore. Oppure acquista una volta e tutto è sbloccato per sempre, senza pubblicità.</string>
+    <string name="u_text_buy">L\'immagine tua è inclusa nell\'acquisto. Sblocca tutto per sempre e toglie la pubblicità.</string>
+    <string name="u_ad">Guarda il video · 24 ore gratis</string>
+    <string name="u_buy">Sblocca per sempre · %s</string>
+    <string name="u_buy_np">Sblocca per sempre</string>
+    <string name="u_ad_loading">Caricamento del video …</string>
+    <string name="u_ad_none">Al momento non c\'è nessun video disponibile. Riprova tra poco.</string>
+    <string name="u_ad_done">Tutti gli extra sono sbloccati fino a domani alle %s.</string>
+    <string name="u_ad_skip">Il video è stato chiuso prima della fine; gli extra restano bloccati.</string>
+    <string name="u_buy_none">L\'acquisto al momento non è possibile: Google Play non è raggiungibile o l\'acquisto non è ancora configurato.</string>
+    <string name="u_buy_done">Grazie! Tutto è sbloccato per sempre, senza pubblicità.</string>
+    <string name="u_buy_pending">L\'acquisto è ancora in elaborazione. Appena confermato, tutto sarà sbloccato.</string>
+    <string name="u_expired">Le 24 ore sono finite; gli extra sono di nuovo bloccati.</string>
+    <string name="u_test_buy">Versione di prova: acquisto solo simulato. L\'acquisto vero passa da Google Play non appena l\'app è configurata lì.</string>
+    <string name="u_test_reset">Ripristina (test)</string>
+    <string name="u_test_reset_done">Ripristinato: versione gratuita.</string>
+</resources>

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">выкл.</string>
+    <string name="l_low">слабо</string>
+    <string name="l_mid">средне</string>
+    <string name="l_high">сильно</string>
+    <string name="on">Вкл.</string>
+    <string name="off">Выкл.</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Новый узор</string>
+    <string name="b_glitch">Глитч сейчас</string>
+    <string name="b_impact">Указать удар</string>
+    <string name="b_fullscreen">Во весь экран</string>
+    <string name="b_set">Установить как обои</string>
+    <string name="err_picker_any">Выберите обои в настройках телефона: Обои → Живые обои.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Нажмите на предпросмотр, чтобы показать или скрыть настройки. Удерживайте палец, чтобы видеть всю картинку, пока он лежит на экране.</string>
+    <string name="s_cracks">Число трещин (от)</string>
+    <string name="s_cracks_max">Число трещин до</string>
+    <string name="s_crack_grow">Больше трещин со временем</string>
+    <string name="ci_now">Сейчас трещин: %d</string>
+    <string name="ci_flat">«До» не больше, чем «от»: число трещин остаётся %d.</string>
+    <string name="s_impacts">Удары</string>
+    <string name="cracks_none">нет</string>
+    <string name="s_impact">Место удара</string>
+    <string name="impact_random">Случайно</string>
+    <string name="impact_tap">Указано вами</string>
+    <string name="s_hshare">Горизонтальные трещины через экран</string>
+    <string name="s_splinter">Осколки в месте удара</string>
+    <string name="spl_0">Нет</string>
+    <string name="spl_1">Мало</string>
+    <string name="spl_2">Много</string>
+    <string name="s_glint">Блеск при наклоне</string>
+    <string name="s_auto">Трещины меняются сами</string>
+    <string name="auto_0">Никогда</string>
+    <string name="auto_1">При глитчах</string>
+    <string name="auto_2">Через часы</string>
+    <string name="s_hours">Смена через часы: каждые</string>
+    <string name="hours_1">1 ч</string>
+    <string name="hours_n">%d ч</string>
+    <string name="s_shear">Сдвиг на трещине</string>
+    <string name="s_dark">Чёрные области между трещинами (от 9 трещин)</string>
+    <string name="dark_min">Чёрные области появляются только от %d трещин.</string>
+    <string name="dark_s">ок. %d с</string>
+    <string name="dark_m">ок. %s мин</string>
+    <string name="show_hint">Нажмите, чтобы вернуть настройки.</string>
+    <string name="s_calm">Базовое мерцание</string>
+    <string name="s_burst">Всплески глитчей</string>
+    <string name="s_count">Число полос (от)</string>
+    <string name="s_count_max">Число полос до</string>
+    <string name="s_grow_time">Больше полос со временем</string>
+    <string name="s_grow_hours">От «от» до «до» за</string>
+    <string name="s_grow_batt">Больше полос при разряде батареи</string>
+    <string name="grow_note">Когда время выходит, происходит большой глитч, и всё начинается заново с небольшим числом полос. Для батареи: полная = «от», почти пустая = «до». Если включено и то и другое, действует большее значение.</string>
+    <string name="gi_now">Сейчас полос: %d</string>
+    <string name="gi_restart">Перезапуск через %s</string>
+    <string name="gi_batt">Батарея %d %%</string>
+    <string name="gi_lapse">Ускорение</string>
+    <string name="dur_h">%1$d ч %2$d мин</string>
+    <string name="dur_m">%1$d мин %2$d с</string>
+    <string name="dur_s">%d с</string>
+    <string name="b_lapse">Ускорение для теста</string>
+    <string name="b_lapse_off">Выключить ускорение</string>
+    <string name="lapse_on">Ускорение включено: 1 час проходит за 3 секунды (и для обоев тоже). «Новый узор» сбрасывает время.</string>
+    <string name="lapse_off">Ускорение выключено.</string>
+    <string name="s_touch">Глитч под пальцем</string>
+    <string name="s_touch_flash">Глитч области при касании (от 5 трещин)</string>
+    <string name="touch_note">На главном экране. Работает ли это на экране блокировки, зависит от телефона.</string>
+    <string name="s_random">Новый узор при каждом включении экрана</string>
+    <string name="s_mutate">Глитчи меняют узор</string>
+    <string name="tap_1">Нажмите на место, куда пришёлся удар.</string>
+    <string name="tap_2">Теперь нажмите туда, куда должна пойти трещина.</string>
+    <string name="tap_1n">Нажмите на место удара %1$d (из %2$d).</string>
+    <string name="tap_2n">Теперь нажмите туда, куда должна пойти трещина от удара %d.</string>
+    <string name="tap_done">Готово! «Новый узор» покажет другой рисунок трещин, а в «Место удара» можно вернуть случайный выбор.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Своё изображение</string>
+    <string name="bg_note_none">Ваше изображение лежит под полосами и трещинами и разбивается вместе со стеклом. Сейчас ничего не выбрано.</string>
+    <string name="bg_note_set">Ваше изображение лежит под полосами и трещинами и разбивается вместе со стеклом.</string>
+    <string name="b_bg_pick">Выбрать изображение</string>
+    <string name="b_bg_clear">Удалить изображение</string>
+    <string name="s_bg_dim">Затемнить своё изображение</string>
+    <string name="bg_loading">Загрузка изображения …</string>
+    <string name="bg_set">Изображение установлено. Яркость настраивается в пункте «Затемнить своё изображение».</string>
+    <string name="bg_cleared">Своё изображение удалено.</string>
+    <string name="bg_err">Не удалось загрузить изображение. Попробуйте другое.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Часы</string>
+    <string name="c_note">Настройки часов действуют для всех обоев, а где они появляются, задаётся для каждых обоев отдельно. Часы и дату самого телефона приложение скрыть не может – с помощью «Высота часов» можно, например, поместить эти часы под датой.</string>
+    <string name="c_where">Показывать часы</string>
+    <string name="mode_lock">Блокировка</string>
+    <string name="mode_home">Главный</string>
+    <string name="mode_both">Оба</string>
+    <string name="mode_note_lock">В предпросмотре часы видны всегда. На обоях они появляются только на экране блокировки.</string>
+    <string name="mode_note_home">В предпросмотре часы видны всегда. На обоях они появляются только на главном экране.</string>
+    <string name="c_3d">3D-эффект часов (при наклоне)</string>
+    <string name="c_3d_none">Металлический блеск и 3D-эффект на этом телефоне не работают (нужен Android 13); часы остаются плоскими.</string>
+    <string name="c_cy">Высота часов (15 = как в оригинале)</string>
+    <string name="c_finish">Покрытие</string>
+    <string name="f_chrome">Хром</string>
+    <string name="f_gold">Золото</string>
+    <string name="f_steel">Синяя сталь</string>
+    <string name="f_rose">Розовое золото</string>
+    <string name="f_black">Чёрный хром</string>
+    <string name="f_copper">Медь</string>
+    <string name="f_neon">Неон</string>
+    <string name="f_white">Белый (оригинал)</string>
+    <string name="c_size">Размер часов (5 = как в оригинале)</string>
+    <string name="c_date">Дата</string>
+    <string name="c_date_orig">Как в оригинале</string>
+    <string name="c_date_de">Немецкий</string>
+    <string name="c_crack">Трещина через часы</string>
+    <string name="bg_note_locked">Ваше изображение сохранено и вернётся после покупки.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Язык</string>
+    <string name="lang_auto">Автоматически (как в телефоне)</string>
+    <string name="lang_auto_short">Автоматически</string>
+    <string name="u_cancel">Отмена</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 ч</string>
+    <string name="lock_buy">Покупка</string>
+    <string name="u_free">Бесплатная версия · дополнения заблокированы</string>
+    <string name="u_day">Дополнения открыты до %s · своё изображение только после покупки</string>
+    <string name="u_full">Полная версия · всё открыто, без рекламы</string>
+    <string name="u_btn">Разблокировать</string>
+    <string name="u_privacy">Конфиденциальность (реклама)</string>
+    <string name="u_title_day">Открыть дополнение</string>
+    <string name="u_title_buy">Только после покупки</string>
+    <string name="u_text_day">Посмотрите короткое рекламное видео — и все дополнения будут открыты на 24 часа. Или купите один раз — и всё будет открыто навсегда и без рекламы.</string>
+    <string name="u_text_buy">Своё изображение доступно после покупки. Покупка открывает всё навсегда и убирает рекламу.</string>
+    <string name="u_ad">Смотреть рекламу · 24 часа бесплатно</string>
+    <string name="u_buy">Открыть навсегда · %s</string>
+    <string name="u_buy_np">Открыть навсегда</string>
+    <string name="u_ad_loading">Загрузка рекламного видео …</string>
+    <string name="u_ad_none">Сейчас нет доступного рекламного видео. Попробуйте ещё раз чуть позже.</string>
+    <string name="u_ad_done">Все дополнения открыты до завтра, до %s.</string>
+    <string name="u_ad_skip">Видео закрыто до конца, дополнения остаются заблокированными.</string>
+    <string name="u_buy_none">Покупка сейчас невозможна: Google Play недоступен или покупка ещё не настроена.</string>
+    <string name="u_buy_done">Спасибо! Всё открыто навсегда, без рекламы.</string>
+    <string name="u_buy_pending">Покупка ещё обрабатывается. Как только она будет подтверждена, всё откроется.</string>
+    <string name="u_expired">24 часа истекли, дополнения снова заблокированы.</string>
+    <string name="u_test_buy">Тестовая версия: покупка только имитирована. Настоящая покупка пройдёт через Google Play, когда приложение будет там настроено.</string>
+    <string name="u_test_reset">Сбросить (тест)</string>
+    <string name="u_test_reset_done">Сброшено: бесплатная версия.</string>
+</resources>

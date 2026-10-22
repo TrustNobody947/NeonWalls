@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">desligado</string>
+    <string name="l_low">leve</string>
+    <string name="l_mid">médio</string>
+    <string name="l_high">forte</string>
+    <string name="on">Ligado</string>
+    <string name="off">Desligado</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Novo padrão</string>
+    <string name="b_glitch">Glitch agora</string>
+    <string name="b_impact">Tocar o impacto</string>
+    <string name="b_fullscreen">Tela cheia</string>
+    <string name="b_set">Definir como plano de fundo</string>
+    <string name="err_picker_any">Escolha o plano de fundo nas configurações do celular, em Plano de fundo → Planos de fundo animados.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Toque na prévia para mostrar ou ocultar as configurações. Mantenha o dedo pressionado para ver a imagem inteira enquanto ele ficar ali.</string>
+    <string name="s_cracks">Número de rachaduras (de)</string>
+    <string name="s_cracks_max">Número de rachaduras até</string>
+    <string name="s_crack_grow">Mais rachaduras com o tempo</string>
+    <string name="ci_now">Agora %d rachaduras</string>
+    <string name="ci_flat">“Até” não é maior que “de”: as rachaduras ficam em %d.</string>
+    <string name="s_impacts">Impactos</string>
+    <string name="cracks_none">nenhuma</string>
+    <string name="s_impact">Ponto de impacto</string>
+    <string name="impact_random">Aleatório</string>
+    <string name="impact_tap">Tocado por você</string>
+    <string name="s_hshare">Rachaduras horizontais pela tela</string>
+    <string name="s_splinter">Estilhaços no impacto</string>
+    <string name="spl_0">Nenhum</string>
+    <string name="spl_1">Poucos</string>
+    <string name="spl_2">Muitos</string>
+    <string name="s_glint">Brilho ao inclinar</string>
+    <string name="s_auto">As rachaduras mudam sozinhas</string>
+    <string name="auto_0">Nunca</string>
+    <string name="auto_1">Com glitches</string>
+    <string name="auto_2">Após horas</string>
+    <string name="s_hours">Troca após horas: a cada</string>
+    <string name="hours_1">1 hora</string>
+    <string name="hours_n">%d horas</string>
+    <string name="s_shear">Deslocamento na rachadura</string>
+    <string name="s_dark">Áreas pretas entre as rachaduras (a partir de 9 rachaduras)</string>
+    <string name="dark_min">As áreas pretas só aparecem a partir de %d rachaduras.</string>
+    <string name="dark_s">aprox. %d s</string>
+    <string name="dark_m">aprox. %s min</string>
+    <string name="show_hint">Toque para trazer as configurações de volta.</string>
+    <string name="s_calm">Cintilação básica</string>
+    <string name="s_burst">Explosões de glitch</string>
+    <string name="s_count">Número de faixas (de)</string>
+    <string name="s_count_max">Número de faixas até</string>
+    <string name="s_grow_time">Mais faixas com o tempo</string>
+    <string name="s_grow_hours">Do “de” ao “até” em</string>
+    <string name="s_grow_batt">Mais faixas com a bateria baixando</string>
+    <string name="grow_note">Quando o tempo acaba, vem um grande glitch e tudo recomeça com poucas faixas. Na bateria: cheia = “de”, quase vazia = “até”. Se os dois estiverem ligados, vale o valor mais alto.</string>
+    <string name="gi_now">Agora %d faixas</string>
+    <string name="gi_restart">Reinício em %s</string>
+    <string name="gi_batt">Bateria %d %%</string>
+    <string name="gi_lapse">Timelapse</string>
+    <string name="dur_h">%1$d h %2$d min</string>
+    <string name="dur_m">%1$d min %2$d s</string>
+    <string name="dur_s">%d s</string>
+    <string name="b_lapse">Timelapse para testar</string>
+    <string name="b_lapse_off">Desligar timelapse</string>
+    <string name="lapse_on">Timelapse ligado: 1 hora passa em 3 segundos (também no plano de fundo). “Novo padrão” reinicia o tempo.</string>
+    <string name="lapse_off">Timelapse desligado.</string>
+    <string name="s_touch">Glitch sob o dedo</string>
+    <string name="s_touch_flash">Glitch de área ao tocar (a partir de 5 rachaduras)</string>
+    <string name="touch_note">Na tela inicial. Se também funciona na tela de bloqueio depende do celular.</string>
+    <string name="s_random">Novo padrão sempre que a tela ligar</string>
+    <string name="s_mutate">Glitches mudam o padrão</string>
+    <string name="tap_1">Toque no ponto onde o celular sofreu o impacto.</string>
+    <string name="tap_2">Agora toque para onde a rachadura deve seguir.</string>
+    <string name="tap_1n">Toque no ponto do impacto %1$d (de %2$d).</string>
+    <string name="tap_2n">Agora toque para onde a rachadura do impacto %d deve seguir.</string>
+    <string name="tap_done">Pronto! “Novo padrão” mostra outro trajeto; em “Ponto de impacto” você volta ao aleatório.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Imagem própria</string>
+    <string name="bg_note_none">Sua imagem fica sob as faixas e rachaduras e quebra junto com o vidro. Nenhuma está escolhida agora.</string>
+    <string name="bg_note_set">Sua imagem fica sob as faixas e rachaduras e quebra junto com o vidro.</string>
+    <string name="b_bg_pick">Escolher imagem</string>
+    <string name="b_bg_clear">Remover imagem</string>
+    <string name="s_bg_dim">Escurecer imagem própria</string>
+    <string name="bg_loading">Carregando imagem …</string>
+    <string name="bg_set">Imagem definida. Em “Escurecer imagem própria” você ajusta o brilho.</string>
+    <string name="bg_cleared">Imagem própria removida.</string>
+    <string name="bg_err">Não foi possível carregar a imagem. Tente outra.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Relógio</string>
+    <string name="c_note">As configurações do relógio valem para todos os planos de fundo; onde ele aparece você define em cada um. O relógio e a data do próprio celular não podem ser ocultados por um app – com “Altura do relógio” você pode, por exemplo, colocar este relógio abaixo da data.</string>
+    <string name="c_where">Mostrar relógio</string>
+    <string name="mode_lock">Bloqueio</string>
+    <string name="mode_home">Início</string>
+    <string name="mode_both">Ambos</string>
+    <string name="mode_note_lock">Na prévia o relógio sempre aparece. Como plano de fundo, ele só aparece na tela de bloqueio.</string>
+    <string name="mode_note_home">Na prévia o relógio sempre aparece. Como plano de fundo, ele só aparece na tela inicial.</string>
+    <string name="c_3d">Efeito 3D do relógio (ao inclinar)</string>
+    <string name="c_3d_none">O reflexo metálico e o efeito 3D não funcionam neste celular (só a partir do Android 13); o relógio fica plano.</string>
+    <string name="c_cy">Altura do relógio (15 = como o original)</string>
+    <string name="c_finish">Acabamento</string>
+    <string name="f_chrome">Cromo</string>
+    <string name="f_gold">Ouro</string>
+    <string name="f_steel">Azul aço</string>
+    <string name="f_rose">Ouro rosé</string>
+    <string name="f_black">Cromo preto</string>
+    <string name="f_copper">Cobre</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Branco (original)</string>
+    <string name="c_size">Tamanho do relógio (5 = como o original)</string>
+    <string name="c_date">Data</string>
+    <string name="c_date_orig">Como o original</string>
+    <string name="c_date_de">Alemão</string>
+    <string name="c_crack">Rachadura pelo relógio</string>
+    <string name="bg_note_locked">Sua imagem está salva e volta com a compra.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Idioma</string>
+    <string name="lang_auto">Automático (como o celular)</string>
+    <string name="lang_auto_short">Automático</string>
+    <string name="u_cancel">Cancelar</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 h</string>
+    <string name="lock_buy">Compra</string>
+    <string name="u_free">Versão gratuita · extras bloqueados</string>
+    <string name="u_day">Extras liberados até %s · imagem própria só com a compra</string>
+    <string name="u_full">Versão completa · tudo liberado, sem anúncios</string>
+    <string name="u_btn">Desbloquear</string>
+    <string name="u_privacy">Privacidade (anúncios)</string>
+    <string name="u_title_day">Desbloquear extra</string>
+    <string name="u_title_buy">Só com a compra</string>
+    <string name="u_text_day">Assista a um vídeo curto de anúncio e todos os extras ficam liberados por 24 horas. Ou compre uma vez e tudo fica liberado para sempre e sem anúncios.</string>
+    <string name="u_text_buy">A imagem própria vem com a compra. Ela libera tudo para sempre e remove os anúncios.</string>
+    <string name="u_ad">Assistir vídeo · 24 horas grátis</string>
+    <string name="u_buy">Desbloquear para sempre · %s</string>
+    <string name="u_buy_np">Desbloquear para sempre</string>
+    <string name="u_ad_loading">Carregando o vídeo …</string>
+    <string name="u_ad_none">Nenhum vídeo disponível agora. Tente de novo daqui a pouco.</string>
+    <string name="u_ad_done">Todos os extras estão liberados até amanhã às %s.</string>
+    <string name="u_ad_skip">O vídeo foi fechado antes do fim; os extras continuam bloqueados.</string>
+    <string name="u_buy_none">A compra não é possível agora: o Google Play não está acessível ou a compra ainda não foi configurada.</string>
+    <string name="u_buy_done">Obrigado! Tudo está liberado para sempre, sem anúncios.</string>
+    <string name="u_buy_pending">A compra ainda está sendo processada. Assim que for confirmada, tudo será liberado.</string>
+    <string name="u_expired">As 24 horas acabaram; os extras estão bloqueados de novo.</string>
+    <string name="u_test_buy">Versão de teste: compra apenas simulada. A compra real passa pelo Google Play quando o app estiver configurado lá.</string>
+    <string name="u_test_reset">Redefinir (teste)</string>
+    <string name="u_test_reset_done">Redefinido: versão gratuita.</string>
+</resources>

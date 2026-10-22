@@ -34,6 +34,7 @@ import io.github.trustnobody947.neonwalls.pegel.PegelPrefs
 import io.github.trustnobody947.neonwalls.pegel.PegelView
 import io.github.trustnobody947.neonwalls.pegel.PegelWallpaperService
 import io.github.trustnobody947.neonwalls.ui.HoldPeek
+import io.github.trustnobody947.neonwalls.ui.Lang
 import io.github.trustnobody947.neonwalls.ui.Sheet
 import io.github.trustnobody947.neonwalls.uhr.ClockPrefs
 import io.github.trustnobody947.neonwalls.core.R as CoreR
@@ -42,6 +43,7 @@ import io.github.trustnobody947.neonwalls.core.R as CoreR
  * Startbildschirm: oben die Auswahl der Hintergründe, dahinter die Live-Vorschau, unten die Einstellungen.
  * Antippen der Vorschau blendet die Einstellungen ein oder aus (dann echtes Vollbild). Finger gedrückt halten auf einer
  * freien Stelle der Einstellungen (bei Broken Screen auch auf der Vorschau) blendet sie aus, solange er liegt.
+ * Neben den Hintergründen der Knopf für die Sprache ([Lang]).
  */
 class MainActivity : Activity() {
 
@@ -74,6 +76,11 @@ class MainActivity : Activity() {
     private val fg = Color.rgb(232, 236, 242)
 
     private fun appPrefs(): SharedPreferences = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+
+    /** Gewählte Sprache (vor Android 13 stellt die App sie selbst ein). */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(Lang.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -193,9 +200,12 @@ class MainActivity : Activity() {
                 }
             }
             row.addView(b, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
-                if (i < names.size - 1) marginEnd = dpi(8)
+                marginEnd = dpi(8)
             })
         }
+        // Sprache: kleiner Knopf mit Weltkugel
+        val lang = ui.makeButton("\uD83C\uDF10", false) { Lang.choose(this) }
+        row.addView(lang, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         panel.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dpi(12)
         })
@@ -206,7 +216,7 @@ class MainActivity : Activity() {
         val gv = glitchView ?: return
         val gs = GlitchSettings(this, ui, gv, hint, { showPanel(it) }, { openPicker(GlitchWallpaperService::class.java) })
         glitchUi = gs
-        gs.build(getString(R.string.wp_glitch_name))
+        gs.build(getString(R.string.wp_glitch_name), langRow = false)
     }
 
     // ---------- Pegelanzeige ----------

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stufen und Schalter -->
+    <string name="l_off">kapalı</string>
+    <string name="l_low">hafif</string>
+    <string name="l_mid">orta</string>
+    <string name="l_high">güçlü</string>
+    <string name="on">Açık</string>
+    <string name="off">Kapalı</string>
+
+    <!-- Knöpfe -->
+    <string name="b_new">Yeni desen</string>
+    <string name="b_glitch">Şimdi glitch</string>
+    <string name="b_impact">Darbe noktasına dokun</string>
+    <string name="b_fullscreen">Tam ekran</string>
+    <string name="b_set">Duvar kâğıdı yap</string>
+    <string name="err_picker_any">Lütfen duvar kâğıdını telefonunun ayarlarında Duvar kâğıdı → Canlı duvar kâğıtları bölümünden seç.</string>
+
+    <!-- Broken Screen -->
+    <string name="bs_hint">Ayarları göstermek veya gizlemek için önizlemeye dokun. Parmağını basılı tutarsan, tuttuğun sürece resmin tamamını görürsün.</string>
+    <string name="s_cracks">Çatlak sayısı (en az)</string>
+    <string name="s_cracks_max">Çatlak sayısı (en çok)</string>
+    <string name="s_crack_grow">Zamanla daha fazla çatlak</string>
+    <string name="ci_now">Şu an %d çatlak</string>
+    <string name="ci_flat">“En çok” değeri “en az” değerinden büyük değil: Çatlak sayısı %d olarak kalır.</string>
+    <string name="s_impacts">Darbeler</string>
+    <string name="cracks_none">yok</string>
+    <string name="s_impact">Darbe noktası</string>
+    <string name="impact_random">Rastgele</string>
+    <string name="impact_tap">Senin seçtiğin</string>
+    <string name="s_hshare">Ekran boyunca yatay çatlaklar</string>
+    <string name="s_splinter">Darbe noktasında kırıntılar</string>
+    <string name="spl_0">Yok</string>
+    <string name="spl_1">Az</string>
+    <string name="spl_2">Çok</string>
+    <string name="s_glint">Eğince parıltı</string>
+    <string name="s_auto">Çatlaklar kendiliğinden değişir</string>
+    <string name="auto_0">Asla</string>
+    <string name="auto_1">Glitch olunca</string>
+    <string name="auto_2">Saatler sonra</string>
+    <string name="s_hours">Saatler sonra değişim: her</string>
+    <string name="hours_1">1 saat</string>
+    <string name="hours_n">%d saat</string>
+    <string name="s_shear">Çatlakta kayma</string>
+    <string name="s_dark">Çatlaklar arasında siyah alanlar (9 çatlaktan itibaren)</string>
+    <string name="dark_min">Siyah alanlar ancak %d çatlaktan itibaren çıkar.</string>
+    <string name="dark_s">yakl. %d sn</string>
+    <string name="dark_m">yakl. %s dk</string>
+    <string name="show_hint">Ayarları geri getirmek için dokun.</string>
+    <string name="s_calm">Temel titreme</string>
+    <string name="s_burst">Glitch patlamaları</string>
+    <string name="s_count">Şerit sayısı (en az)</string>
+    <string name="s_count_max">Şerit sayısı (en çok)</string>
+    <string name="s_grow_time">Zamanla daha fazla şerit</string>
+    <string name="s_grow_hours">“En az”dan “en çok”a geçiş süresi</string>
+    <string name="s_grow_batt">Pil azaldıkça daha fazla şerit</string>
+    <string name="grow_note">Süre dolunca büyük bir glitch olur ve az şeritle baştan başlar. Pil için: dolu = “en az”, neredeyse boş = “en çok”. İkisi de açıksa yüksek olan değer geçerlidir.</string>
+    <string name="gi_now">Şu an %d şerit</string>
+    <string name="gi_restart">Yeniden başlama: %s</string>
+    <string name="gi_batt">Pil %%%d</string>
+    <string name="gi_lapse">Hızlandırma</string>
+    <string name="dur_h">%1$d sa %2$d dk</string>
+    <string name="dur_m">%1$d dk %2$d sn</string>
+    <string name="dur_s">%d sn</string>
+    <string name="b_lapse">Test için hızlandırma</string>
+    <string name="b_lapse_off">Hızlandırmayı kapat</string>
+    <string name="lapse_on">Hızlandırma açık: 1 saat 3 saniyede geçer (duvar kâğıdı için de). “Yeni desen” süreyi sıfırlar.</string>
+    <string name="lapse_off">Hızlandırma kapalı.</string>
+    <string name="s_touch">Parmağın altında glitch</string>
+    <string name="s_touch_flash">Dokununca alan glitch’i (5 çatlaktan itibaren)</string>
+    <string name="touch_note">Ana ekranda. Kilit ekranında da çalışıp çalışmadığı telefona bağlıdır.</string>
+    <string name="s_random">Ekran her açıldığında yeni desen</string>
+    <string name="s_mutate">Glitch’ler deseni değiştirir</string>
+    <string name="tap_1">Telefonun darbe aldığı noktaya dokun.</string>
+    <string name="tap_2">Şimdi de çatlağın gideceği yere dokun.</string>
+    <string name="tap_1n">%1$d. darbenin noktasına dokun (toplam %2$d).</string>
+    <string name="tap_2n">Şimdi de %d. darbedeki çatlağın gideceği yere dokun.</string>
+    <string name="tap_done">Tamam! “Yeni desen” başka bir yol gösterir, “Darbe noktası” altından rastgeleye dönebilirsin.</string>
+
+    <!-- Eigenes Bild -->
+    <string name="bg_title">Kendi resmin</string>
+    <string name="bg_note_none">Kendi resmin şeritlerin ve çatlakların altında durur ve camla birlikte kırılır. Şu an seçili resim yok.</string>
+    <string name="bg_note_set">Resmin şeritlerin ve çatlakların altında durur ve camla birlikte kırılır.</string>
+    <string name="b_bg_pick">Resim seç</string>
+    <string name="b_bg_clear">Resmi kaldır</string>
+    <string name="s_bg_dim">Kendi resmini karart</string>
+    <string name="bg_loading">Resim yükleniyor …</string>
+    <string name="bg_set">Resim ayarlandı. “Kendi resmini karart” ile parlaklığını ayarlarsın.</string>
+    <string name="bg_cleared">Kendi resmin kaldırıldı.</string>
+    <string name="bg_err">Resim yüklenemedi. Başka bir resim dene.</string>
+
+    <!-- Uhr -->
+    <string name="c_title">Saat</string>
+    <string name="c_note">Saat ayarları tüm duvar kâğıtları için geçerlidir; nerede görüneceğini her duvar kâğıdı için ayrı seçersin. Telefonun kendi saati ve tarihi bir uygulama tarafından gizlenemez – “Saatin yüksekliği” ile bu saati örneğin tarihin altına koyabilirsin.</string>
+    <string name="c_where">Saati göster</string>
+    <string name="mode_lock">Kilit</string>
+    <string name="mode_home">Ana ekran</string>
+    <string name="mode_both">İkisi de</string>
+    <string name="mode_note_lock">Önizlemede saat her zaman görünür. Duvar kâğıdı olarak yalnızca kilit ekranında çıkar.</string>
+    <string name="mode_note_home">Önizlemede saat her zaman görünür. Duvar kâğıdı olarak yalnızca ana ekranda çıkar.</string>
+    <string name="c_3d">Saatin 3D efekti (eğince)</string>
+    <string name="c_3d_none">Metal yansıma ve 3D efekt bu telefonda çalışmaz (Android 13 gerekir); saat düz kalır.</string>
+    <string name="c_cy">Saatin yüksekliği (15 = orijinal gibi)</string>
+    <string name="c_finish">Yüzey</string>
+    <string name="f_chrome">Krom</string>
+    <string name="f_gold">Altın</string>
+    <string name="f_steel">Çelik mavisi</string>
+    <string name="f_rose">Pembe altın</string>
+    <string name="f_black">Siyah krom</string>
+    <string name="f_copper">Bakır</string>
+    <string name="f_neon">Neon</string>
+    <string name="f_white">Beyaz (orijinal)</string>
+    <string name="c_size">Saatin boyutu (5 = orijinal gibi)</string>
+    <string name="c_date">Tarih</string>
+    <string name="c_date_orig">Orijinal gibi</string>
+    <string name="c_date_de">Almanca</string>
+    <string name="c_crack">Saatin içinden çatlak</string>
+    <string name="bg_note_locked">Resmin kayıtlı ve satın alınca geri gelir.</string>
+
+    <!-- Sprache -->
+    <string name="s_lang">Dil</string>
+    <string name="lang_auto">Otomatik (telefon gibi)</string>
+    <string name="lang_auto_short">Otomatik</string>
+    <string name="u_cancel">İptal</string>
+
+    <!-- Freischaltung (nur Broken Screen als eigene App) -->
+    <string name="lock_day">24 sa</string>
+    <string name="lock_buy">Satın al</string>
+    <string name="u_free">Ücretsiz sürüm · ekstralar kilitli</string>
+    <string name="u_day">Ekstralar %s saatine kadar açık · kendi resmin yalnızca satın alımla</string>
+    <string name="u_full">Tam sürüm · her şey açık, reklamsız</string>
+    <string name="u_btn">Kilidi aç</string>
+    <string name="u_privacy">Gizlilik (reklamlar)</string>
+    <string name="u_title_day">Ekstrayı aç</string>
+    <string name="u_title_buy">Yalnızca satın alımla</string>
+    <string name="u_text_day">Kısa bir reklam videosu izle, tüm ekstralar 24 saat açık olsun. Ya da bir kez satın al, her şey sonsuza dek ve reklamsız açık olsun.</string>
+    <string name="u_text_buy">Kendi resim özelliği satın alımla gelir. Satın alım her şeyi sonsuza dek açar ve reklamları kaldırır.</string>
+    <string name="u_ad">Reklam izle · 24 saat ücretsiz</string>
+    <string name="u_buy">Sonsuza dek aç · %s</string>
+    <string name="u_buy_np">Sonsuza dek aç</string>
+    <string name="u_ad_loading">Reklam videosu yükleniyor …</string>
+    <string name="u_ad_none">Şu an reklam videosu yok. Birazdan tekrar dene.</string>
+    <string name="u_ad_done">Tüm ekstralar yarın %s saatine kadar açık.</string>
+    <string name="u_ad_skip">Video bitmeden kapatıldı, ekstralar kilitli kalıyor.</string>
+    <string name="u_buy_none">Satın alım şu an mümkün değil: Google Play’e ulaşılamıyor veya satın alım henüz ayarlanmadı.</string>
+    <string name="u_buy_done">Teşekkürler! Her şey sonsuza dek ve reklamsız açık.</string>
+    <string name="u_buy_pending">Satın alım hâlâ işleniyor. Onaylanır onaylanmaz her şey açılacak.</string>
+    <string name="u_expired">24 saat doldu, ekstralar yeniden kilitli.</string>
+    <string name="u_test_buy">Test sürümü: satın alım yalnızca canlandırıldı. Gerçek satın alım, uygulama Google Play’de ayarlanınca oradan yapılır.</string>
+    <string name="u_test_reset">Sıfırla (test)</string>
+    <string name="u_test_reset_done">Sıfırlandı: ücretsiz sürüm.</string>
+</resources>

@@ -569,6 +569,8 @@ class ClockFace {
     )
 
     companion object {
+        /** Index der Oberfläche „Chrom“. */
+        const val CHROME = 0
         /** Index der Oberfläche „Weiß wie das Original“ (Voreinstellung). */
         const val WHITE = 7
         /** Steilheit der Fase (1 = 45°). */

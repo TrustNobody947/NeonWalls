@@ -160,9 +160,19 @@ object GlitchPrefs {
         return true
     }
 
+    /** Sind die Extras gerade frei? (24 Stunden nach einem Werbevideo oder gekauft; in Neon Walls immer) */
+    fun extras(ctx: Context) = Unlock.ok(ctx, Unlock.DAY_OR_BUY)
+
+    /** „Risse wechseln von selbst“ (gehört zu den Extras: gesperrt aus). */
+    fun auto(ctx: Context): Int = if (extras(ctx)) prefs(ctx).getInt(AUTO, 0) else 0
+
+    /** „Neues Muster bei jedem Einschalten“ (gehört zu den Extras: gesperrt aus). */
+    fun randomOnWake(ctx: Context): Boolean = extras(ctx) && prefs(ctx).getBoolean(RANDOM_ON_WAKE, false)
+
     /** „Nach Stunden“: Ist es Zeit für neue Risse? */
-    fun autoDue(p: SharedPreferences): Boolean {
-        if (p.getInt(AUTO, 0) != 2) return false
+    fun autoDue(ctx: Context): Boolean {
+        val p = prefs(ctx)
+        if (auto(ctx) != 2) return false
         val hours = p.getInt(HOURS, 6).coerceIn(1, 24)
         val last = p.getLong(CRACK_TIME, 0L)
         val now = System.currentTimeMillis()
@@ -189,10 +199,16 @@ object GlitchPrefs {
         prefs(ctx).edit().putLong(BG_STAMP, 0L).apply()
     }
 
+    /**
+     * Einstellungen an den Renderer geben. Gesperrte Extras (siehe [Unlock]) nutzen dabei die freien Werte: ein
+     * Aufschlag, zufällig, 30 % waagerechte Risse, keine wachsenden Risse/Streifen, kein Finger-Glitch, kein Flächenglitch,
+     * kein Glitzern, kein eigenes Bild; die Uhr ohne 3D und ohne Versatz am Riss, Oberfläche Weiß (Chrom bleibt frei).
+     */
     fun applyTo(ctx: Context, r: GlitchRenderer) {
         val p = prefs(ctx)
         val now = System.currentTimeMillis()
-        r.mutate = p.getBoolean(MUTATE, false)
+        val ex = extras(ctx)
+        r.mutate = ex && p.getBoolean(MUTATE, false)
         r.clock = ClockPrefs.face(ctx, ClockPrefs.ON_GLITCH, r.clock)
         r.clockCrack = ClockPrefs.crack(ctx)
         r.d3 = ClockPrefs.d3(ctx)
@@ -205,28 +221,28 @@ object GlitchPrefs {
         // Anzahl Streifen von – bis, mehr mit der Zeit und/oder mit sinkendem Akku
         r.countFrom = countFromPos(p.getInt(COUNT_POS, 59))
         r.countTo = countFromPos(p.getInt(COUNT_MAX, 85))
-        r.growTime = p.getInt(GROW_TIME, 0) == 1
+        r.growTime = ex && p.getInt(GROW_TIME, 0) == 1
         r.growHours = p.getInt(GROW_HOURS, 6).coerceIn(1, 24)
-        r.growBatt = p.getInt(GROW_BATT, 0) == 1
+        r.growBatt = ex && p.getInt(GROW_BATT, 0) == 1
         var start = p.getLong(GROW_START, 0L)
         if (r.growTime && start <= 0L) {
             start = now
             p.edit().putLong(GROW_START, start).apply()
         }
         r.growStart = start
-        r.touchFx = p.getInt(TOUCH_FX, 1) == 1
-        r.touchFlash = p.getInt(TOUCH_FLASH, 1) == 1
-        r.glint = p.getInt(GLINT, 1) == 1
+        r.touchFx = ex && p.getInt(TOUCH_FX, 1) == 1
+        r.touchFlash = ex && p.getInt(TOUCH_FLASH, 1) == 1
+        r.glint = ex && p.getInt(GLINT, 1) == 1
         r.dark = p.getInt(DARK, 5).coerceIn(0, 10)
         // Risse: von – bis, mehr mit der Zeit, Aufschläge (zufällig oder selbst angetippt), waagerechte Risse
-        val crackGrow = p.getInt(CRACK_GROW, 0) == 1
+        val crackGrow = ex && p.getInt(CRACK_GROW, 0) == 1
         var crackStart = p.getLong(CRACK_START, 0L)
         if (crackGrow && crackStart <= 0L) {
             crackStart = now
             p.edit().putLong(CRACK_START, crackStart).apply()
         }
-        val n = impacts(p)
-        val tapped = p.getInt(IMPACT, 0) == 1
+        val n = if (ex) impacts(p) else 1
+        val tapped = ex && p.getInt(IMPACT, 0) == 1
         val manual = Array(n) { k ->
             if (tapped && hasImpact(p, k)) floatArrayOf(
                 p.getFloat(key(PX, k), 0.5f), p.getFloat(key(PY, k), 0.5f),
@@ -247,11 +263,11 @@ object GlitchPrefs {
             seed = crackSeed(p),
             impacts = n,
             manual = manual,
-            hshare = p.getInt(HSHARE, 30).coerceIn(0, 100),
+            hshare = if (ex) p.getInt(HSHARE, 30).coerceIn(0, 100) else 30,
             clockKey = clockKey
         )
-        // eigenes Bild (wird nur neu geladen, wenn ein anderes gewählt wurde)
+        // eigenes Bild (wird nur neu geladen, wenn ein anderes gewählt wurde; gibt es nur mit dem Kauf)
         r.bgDim = p.getInt(BG_DIM, 40).coerceIn(0, 90)
-        r.setBackground(p.getLong(BG_STAMP, 0L)) { loadBackground(ctx) }
+        r.setBackground(if (Unlock.ok(ctx, Unlock.BUY)) p.getLong(BG_STAMP, 0L) else 0L) { loadBackground(ctx) }
     }
 }

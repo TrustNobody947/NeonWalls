@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Faixas coloridas piscando como em uma tela quebrada, atrás de rachaduras reais no vidro, com explosões de glitch aleatórias.</string>
+    <string name="hint_tap">Toque na prévia para mostrar ou ocultar as configurações. Mantenha o dedo num espaço livre para ver a imagem inteira enquanto ele ficar ali.</string>
+    <string name="wp_pegel_name">Medidor de nível</string>
+    <string name="wp_pegel_desc">Barras de LED como em um aparelho de som antigo. Reagem à música do celular ou ao microfone; caso contrário, toca uma batida de demonstração.</string>
+    <string name="p_source">Fonte</string>
+    <string name="p_src_music">Música</string>
+    <string name="p_src_mic">Microfone</string>
+    <string name="p_src_demo">Batida demo</string>
+    <string name="p_style">Estilo</string>
+    <string name="p_bars">Barras</string>
+    <string name="p_mirror_style">Espelho</string>
+    <string name="p_color">Cor</string>
+    <string name="p_col_classic">Clássico</string>
+    <string name="p_col_cyan">Ciano</string>
+    <string name="p_col_pink">Rosa</string>
+    <string name="p_col_amber">Âmbar</string>
+    <string name="p_col_rainbow">Arco-íris</string>
+    <string name="p_gain">Sensibilidade</string>
+    <string name="p_bands">Bandas</string>
+    <string name="p_after">Brilho residual</string>
+    <string name="p_peaks">Picos</string>
+    <string name="p_reflect">Reflexo</string>
+    <string name="p_pos">Posição</string>
+    <string name="p_mid">Centro</string>
+    <string name="p_bottom">Embaixo</string>
+    <string name="b_test">Autoteste</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Batida demo tocando, sem música real.</string>
+    <string name="st_music">Reage à música tocando no celular.</string>
+    <string name="st_mic">Reage ao microfone.</string>
+    <string name="st_perm">Falta a permissão do microfone. Toque aqui para permitir. Até lá, toca a batida demo.</string>
+    <string name="st_fail_music">Este celular não libera a música. Tente “Microfone”. Até lá, toca a batida demo.</string>
+    <string name="st_fail_mic">Microfone indisponível. Até lá, toca a batida demo.</string>
+    <string name="st_wait">Iniciando …</string>
+</resources>

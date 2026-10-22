@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gemeinsame Texte (Broken Screen, Uhr, Knöpfe) stehen im Modul core -->
+    <string name="wp_glitch_desc">Strisce colorate tremolanti come su un display rotto, dietro vere crepe nel vetro, con raffiche di glitch casuali.</string>
+    <string name="hint_tap">Tocca l\'anteprima per mostrare o nascondere le impostazioni. Tieni il dito su un punto libero per vedere tutta l\'immagine finché resta lì.</string>
+    <string name="wp_pegel_name">Indicatore di livello</string>
+    <string name="wp_pegel_desc">Barre LED come su un vecchio stereo. Reagiscono alla musica del telefono o al microfono, altrimenti suona un ritmo demo.</string>
+    <string name="p_source">Sorgente</string>
+    <string name="p_src_music">Musica</string>
+    <string name="p_src_mic">Microfono</string>
+    <string name="p_src_demo">Ritmo demo</string>
+    <string name="p_style">Stile</string>
+    <string name="p_bars">Barre</string>
+    <string name="p_mirror_style">Specchio</string>
+    <string name="p_color">Colore</string>
+    <string name="p_col_classic">Classico</string>
+    <string name="p_col_cyan">Ciano</string>
+    <string name="p_col_pink">Rosa</string>
+    <string name="p_col_amber">Ambra</string>
+    <string name="p_col_rainbow">Arcobaleno</string>
+    <string name="p_gain">Sensibilità</string>
+    <string name="p_bands">Bande</string>
+    <string name="p_after">Persistenza</string>
+    <string name="p_peaks">Picchi</string>
+    <string name="p_reflect">Riflesso</string>
+    <string name="p_pos">Posizione</string>
+    <string name="p_mid">Centro</string>
+    <string name="p_bottom">In basso</string>
+    <string name="b_test">Autotest</string>
+    <string name="b_drop">Bass drop</string>
+    <string name="st_demo">Suona il ritmo demo, nessuna musica vera.</string>
+    <string name="st_music">Reagisce alla musica in riproduzione sul telefono.</string>
+    <string name="st_mic">Reagisce al microfono.</string>
+    <string name="st_perm">Manca l\'autorizzazione al microfono. Tocca qui per consentirla. Fino ad allora suona il ritmo demo.</string>
+    <string name="st_fail_music">Questo telefono non condivide la musica. Prova «Microfono». Fino ad allora suona il ritmo demo.</string>
+    <string name="st_fail_mic">Microfono non disponibile. Fino ad allora suona il ritmo demo.</string>
+    <string name="st_wait">Avvio …</string>
+</resources>
