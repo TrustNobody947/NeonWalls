@@ -142,15 +142,22 @@ class GlitchSettings(
                 show()
             }
         }
-        ui.addFocusSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 10, { "$it %" }, re)
+        ui.addFocusSlider(s(R.string.s_hshare), p, GlitchPrefs.HSHARE, 30, 0, 100, 5, { "$it %" }, re)
         ui.addChoice(s(R.string.s_splinter), p, GlitchPrefs.SPLINTER, 1,
             listOf(s(R.string.spl_0), s(R.string.spl_1), s(R.string.spl_2))) { reapply(); show() }
+        // Glitzern der Risse beim Neigen (braucht den Neigungssensor, solange der Hintergrund zu sehen ist)
+        ui.addChoice(s(R.string.s_glint), p, GlitchPrefs.GLINT, 1, offOn) { reapply(); show() }
         ui.addChoice(s(R.string.s_auto), p, GlitchPrefs.AUTO, 0,
             listOf(s(R.string.auto_0), s(R.string.auto_1), s(R.string.auto_2))) { restartAutoClock(); show() }
         ui.addFocusSlider(s(R.string.s_hours), p, GlitchPrefs.HOURS, 6, 1, 24, 1, this::hours, { restartAutoClock() })
         ui.addFocusSlider(s(R.string.s_shear), p, GlitchPrefs.SHEAR, 5, 0, 10, 1, ui::level, re)
-        // „Schwarze Stellen“: der Regler stellt vor allem ein, wie lange ein Stück schwarz bleibt (die Anzeige sagt es)
-        ui.addFocusSlider(s(R.string.s_dark), p, GlitchPrefs.DARK, 5, 0, 10, 1, this::darkLabel, re)
+        // „Schwarze Stellen“: der Regler stellt vor allem ein, wie lange ein Stück schwarz bleibt (die Anzeige sagt es);
+        // sie kommen erst ab 9 Rissen
+        ui.addFocusSlider(s(R.string.s_dark), p, GlitchPrefs.DARK, 5, 0, 10, 1, this::darkLabel) {
+            reapply()
+            if (p.getInt(GlitchPrefs.DARK, 5) > 0 && view.renderer.shownCracks < GlitchRenderer.DARK_MIN)
+                showHint(act.getString(R.string.dark_min, GlitchRenderer.DARK_MIN), 3000)
+        }
 
         // Streifen und Glitches
         ui.addFocusSlider(s(R.string.s_calm), p, GlitchPrefs.CALM, 4, 0, 10, 1, ui::level, re)

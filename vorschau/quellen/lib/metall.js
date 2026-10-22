@@ -228,12 +228,27 @@ void main() {
   // werden sauber geglättet, statt eine gemittelte Normale zu spiegeln
   vec4 f = 0.25 * (surf(l + vec2(-0.25, -0.25), v) + surf(l + vec2(0.25, -0.25), v) + surf(l + vec2(-0.25, 0.25), v) + surf(l + vec2(0.25, 0.25), v));
   if (f.a < 0.003 && wa < 0.003) { gl_FragColor = vec4(0.0); return; }
-  // Wand: senkrechte Fläche Richtung Tiefe, nach hinten dunkler
+  // Wand: senkrechte Fläche Richtung Tiefe. Sie glänzt wie das Metall: Die Normale dreht sich entlang der Tiefe ein
+  // wenig (wie eine leicht gewölbte Wand), so läuft beim Neigen ein Lichtstreifen über die Wand; an der Kante zur Fläche
+  // ein heller Saum, nach hinten etwas dunkler.
   vec3 V = viewDir(l, v);
   vec2 wd = normalize(uDepth + vec2(1e-4, 1e-4));
-  vec3 Rw = reflect(-V, normalize(vec3(wd, 0.45)));
-  vec3 wc = uKind < 1.5 ? env(Rw, uRough + 0.25) * (uKind < 0.5 ? uF0 : vec3(0.22)) * 0.6 : mix(uSide0, uSide1, wk);
-  wc *= 1.0 - 0.6 * wk;
+  vec3 nw = normalize(vec3(wd * (0.75 + 0.5 * wk), 0.6 - 0.4 * wk));
+  vec3 Rw = reflect(-V, nw);
+  float cw = clamp(dot(nw, V), 0.0, 1.0);
+  vec3 wc;
+  if (uKind < 0.5) {
+    vec3 Fw = uF0 + (vec3(1.0) - uF0) * pow(1.0 - cw, 5.0);
+    wc = env(Rw, uRough + 0.08) * Fw * 0.95;
+  } else if (uKind < 1.5) {
+    vec3 e = env(Rw, uRough + 0.06);
+    wc = e * 0.22 + max(e - vec3(1.0), 0.0) * 0.8;
+  } else {
+    vec3 e = env(Rw, 0.3);
+    wc = mix(uSide0, uSide1, wk) + 0.18 * e + 0.35 * max(e - vec3(1.0), 0.0);
+  }
+  wc *= 1.0 - 0.45 * wk;
+  wc += (1.0 - smoothstep(0.0, 0.16, wk)) * 0.28 * (uKind < 0.5 ? uF0 : vec3(0.75));
   wc = clamp(wc, 0.0, 1.0);
   float A = f.a;
   gl_FragColor = vec4(f.rgb + wc * wa * (1.0 - A), A + wa * (1.0 - A));

@@ -98,7 +98,8 @@ class GlitchView(ctx: Context) : View(ctx) {
         if (on == active) return
         active = on
         if (on) {
-            if (renderer.metal != null) tilt.start()
+            // Neigung für die 3D-Uhr und fürs Glitzern der Risse
+            tilt.start()
             try {
                 val f = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
                 val sticky = if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(battery, f, Context.RECEIVER_NOT_EXPORTED)

@@ -276,17 +276,27 @@ half4 main(float2 p) {
     float4 f = 0.25 * (surf(l + float2(-0.25, -0.25), v, tint) + surf(l + float2(0.25, -0.25), v, tint)
         + surf(l + float2(-0.25, 0.25), v, tint) + surf(l + float2(0.25, 0.25), v, tint));
     if (f.a < 0.003 && wa < 0.003) { return half4(0.0); }
+    // Wand: senkrechte Fläche Richtung Tiefe. Sie glänzt wie das Metall: Die Normale dreht sich entlang der Tiefe ein
+    // wenig (wie eine leicht gewölbte Wand), so läuft beim Neigen ein Lichtstreifen über die Wand; an der Kante zur Fläche
+    // ein heller Saum, nach hinten etwas dunkler.
     float3 V = viewDir(l, v);
     float2 wd = normalize(uDepth + float2(0.0001, 0.0001));
-    float3 Rw = reflect(-V, normalize(float3(wd, 0.45)));
+    float3 nw = normalize(float3(wd * (0.75 + 0.5 * wk), 0.6 - 0.4 * wk));
+    float3 Rw = reflect(-V, nw);
+    float cw = clamp(dot(nw, V), 0.0, 1.0);
     float3 wc;
-    if (uKind < 1.5) {
-        float3 tintW = uKind < 0.5 ? uF0 : float3(0.22);
-        wc = env(Rw, uRough + 0.25) * tintW * 0.6;
+    if (uKind < 0.5) {
+        float3 Fw = uF0 + (float3(1.0) - uF0) * pow(1.0 - cw, 5.0);
+        wc = env(Rw, uRough + 0.08) * Fw * 0.95;
+    } else if (uKind < 1.5) {
+        float3 e = env(Rw, uRough + 0.06);
+        wc = e * 0.22 + max(e - float3(1.0), float3(0.0)) * 0.8;
     } else {
-        wc = mix(uSide0, uSide1, wk);
+        float3 e = env(Rw, 0.3);
+        wc = mix(uSide0, uSide1, wk) + 0.18 * e + 0.35 * max(e - float3(1.0), float3(0.0));
     }
-    wc *= 1.0 - 0.6 * wk;
+    wc *= 1.0 - 0.45 * wk;
+    wc += (1.0 - smoothstep(0.0, 0.16, wk)) * 0.28 * (uKind < 0.5 ? uF0 : float3(0.75));
     wc = clamp(wc + tint.rgb * (tint.a * 0.5), 0.0, 1.0);
     float A = f.a;
     float al = (A + wa * (1.0 - A)) * ra;

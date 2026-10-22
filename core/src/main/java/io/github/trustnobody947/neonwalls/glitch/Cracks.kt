@@ -527,8 +527,11 @@ object Cracks {
         return out
     }
 
+    /** Zufallswert der Risse als Zahl für [hash01] (gleiche Risse = gleiche Zahl). */
+    internal fun seedHash(seed: Long): Double = ((seed xor (seed ushr 31)) and 0x7fffffffL).toDouble()
+
     /** Zahl 0..1 aus einer Stelle (gleiche Stelle = gleiche Zahl): Versatz eines Bruchstücks bleibt, wenn Risse dazukommen */
-    private fun hash01(x: Double, y: Double, s: Double): Double {
+    internal fun hash01(x: Double, y: Double, s: Double): Double {
         val v = sin(x * 127.1 + y * 311.7 + s * 0.000123) * 43758.5453
         return v - floor(v)
     }
@@ -1335,7 +1338,7 @@ object Cracks {
             if (l[0] !in nbs[l[1]]) nbs[l[1]].add(l[0])
         }
         // Versatz der Stücke: Richtung und Stärke aus der Lage (bleibt gleich, solange das Stück bleibt); das größte bleibt stehen
-        val hs = ((seed xor (seed ushr 31)) and 0x7fffffffL).toDouble()
+        val hs = seedHash(seed)
         var big = 0
         regions.forEachIndexed { i, g ->
             g.nb = nbs[i].toIntArray()

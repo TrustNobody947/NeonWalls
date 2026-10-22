@@ -22,7 +22,7 @@ object GlitchPrefs {
     const val TOUCH_FX = "touch_fx"         // Glitch unter dem Finger: 0 aus, 1 an
     const val TOUCH_FLASH = "touch_flash"   // Flächenglitch (Bruchstücke leuchten beim Berühren): 0 aus, 1 an
     const val SHEAR = "shear"
-    const val DARK = "dark"                 // schwarze Stellen zwischen den Rissen 0..10 (vor allem: wie lange)
+    const val DARK = "dark"                 // schwarze Stellen zwischen den Rissen 0..10 (vor allem: wie lange; ab 9 Rissen)
     const val SEED = "seed"                 // Streifen
     const val RANDOM_ON_WAKE = "random_on_wake"
     const val MUTATE = "mutate_on_glitch"
@@ -39,8 +39,9 @@ object GlitchPrefs {
     const val PY = "impact_y"               // … und der Höhe
     const val TX = "target_x"               // angetippte Richtung
     const val TY = "target_y"
-    const val HSHARE = "hshare"             // Anteil der Risse, die waagerecht quer übers Bild laufen (0..100 %)
+    const val HSHARE = "hshare"             // Anteil der Risse, die waagerecht quer übers Bild laufen (0..100 %, 5er-Schritte)
     const val SPLINTER = "splinter"         // 0 aus, 1 wenig, 2 viel
+    const val GLINT = "glint"               // Glitzern der Risse beim Neigen: 0 aus, 1 an
     const val AUTO = "auto"                 // Risse wechseln von selbst: 0 aus, 1 bei Glitches, 2 nach Stunden
     const val HOURS = "hours"               // 1..24
     const val CRACK_SEED = "crack_seed"
@@ -215,6 +216,7 @@ object GlitchPrefs {
         r.growStart = start
         r.touchFx = p.getInt(TOUCH_FX, 1) == 1
         r.touchFlash = p.getInt(TOUCH_FLASH, 1) == 1
+        r.glint = p.getInt(GLINT, 1) == 1
         r.dark = p.getInt(DARK, 5).coerceIn(0, 10)
         // Risse: von – bis, mehr mit der Zeit, Aufschläge (zufällig oder selbst angetippt), waagerechte Risse
         val crackGrow = p.getInt(CRACK_GROW, 0) == 1

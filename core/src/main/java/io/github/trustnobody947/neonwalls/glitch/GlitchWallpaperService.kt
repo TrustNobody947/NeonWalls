@@ -20,7 +20,8 @@ import io.github.trustnobody947.neonwalls.uhr.TiltSensor
 /**
  * Der eigentliche Live-Hintergrund „Broken Screen“ (in Neon Walls und in der eigenen App).
  * Zeichnet nur, solange er sichtbar ist, höchstens 60 Bilder pro Sekunde (spart Akku).
- * Neigungssensor (3D-Uhr) und Akkustand laufen nur, solange sie gebraucht werden und der Hintergrund zu sehen ist.
+ * Neigungssensor (3D-Uhr, Glitzern der Risse) und Akkustand laufen nur, solange sie gebraucht werden und der
+ * Hintergrund zu sehen ist.
  */
 class GlitchWallpaperService : WallpaperService() {
 
@@ -136,10 +137,15 @@ class GlitchWallpaperService : WallpaperService() {
             updateSensors()
         }
 
-        /** Neigungssensor und Akkustand nur, wenn der Hintergrund zu sehen ist und sie gebraucht werden. */
+        /**
+         * Neigungssensor (3D-Uhr, Glitzern der Risse) und Akkustand nur, wenn der Hintergrund zu sehen ist und sie
+         * gebraucht werden.
+         */
         private fun updateSensors() {
             val vis = running
-            val wantTilt = vis && renderer.clock != null && renderer.clockShown && renderer.d3 > 0 && renderer.metal != null
+            val clock3d = renderer.clock != null && renderer.clockShown && renderer.d3 > 0 && renderer.metal != null
+            val glint = renderer.glint && (renderer.crackFrom > 0 || renderer.crackTo > 0)
+            val wantTilt = vis && (clock3d || glint)
             if (wantTilt) tilt.start() else tilt.stop()
             val wantBatt = vis && prefs.getInt(GlitchPrefs.GROW_BATT, 0) == 1
             if (wantBatt && !battOn) {

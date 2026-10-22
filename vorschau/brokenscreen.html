@@ -62,6 +62,29 @@ button.primary{background:var(--accent);color:#000;border-color:transparent}
 .sheet input[type=text]{-webkit-user-select:text;user-select:text}
 .sheet.peek{opacity:0;visibility:hidden;transition:opacity .12s,visibility 0s linear .12s}
 .sheet .tip{margin:-4px 0 0;color:var(--muted);font-size:12px;text-align:center}
+/* Freischaltung (nur Effekte mit Stufen): Schild an gesperrten Einstellungen, Zeile mit dem Stand, Dialog, Werbung */
+.lock{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;font:700 10px/16px var(--mono);letter-spacing:.04em;color:#111;background:#ffd34d;vertical-align:1px;white-space:nowrap}
+.lock.buy{background:#ff9be0}
+.row.locked input[type=range]{opacity:.35;pointer-events:none}
+.row.locked .seg button,.row.locked .grid button{opacity:.5}
+.row.locked{cursor:pointer}
+.seg button.locked,.grid button.locked,.btns button.locked{opacity:.5}
+.seg button.locked::after,.grid button.locked::after,.btns button.locked::after{content:"";display:inline-block;width:10px;height:10px;margin-left:5px;vertical-align:-1px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%23fff' stroke-width='1.5' d='M3.6 5.6V4a2.4 2.4 0 0 1 4.8 0v1.6'/%3E%3Crect x='2' y='5.4' width='8' height='5.8' rx='1.3' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat}
+.ent{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:12px;color:var(--muted)}
+.ent b{color:var(--fg);font-weight:600}
+.ent button{flex:0 0 auto;padding:7px 10px;font-size:12px}
+.ent .reset{background:none;border:none;color:var(--muted);text-decoration:underline;padding:4px 0}
+.dlg{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.62)}
+.dlg .box{width:100%;max-width:360px;box-sizing:border-box;display:grid;gap:10px;padding:16px;border-radius:14px;border:1px solid var(--line);background:#12151b;color:var(--fg);font:14px/1.45 var(--font)}
+.dlg h3{margin:0;font:600 16px/1.3 var(--font)}
+.dlg p{margin:0;color:var(--muted);font-size:13px}
+.dlg .col{display:grid;gap:8px}
+.ad{position:fixed;inset:0;z-index:30;display:grid;place-items:center;padding:24px;text-align:center;background:#0b0d12;color:var(--fg);font:14px/1.5 var(--font)}
+.ad .in{display:grid;gap:12px;max-width:340px}
+.ad .t{font:600 11px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ad .big{font:700 26px/1.2 var(--font)}
+.ad .n{font:600 40px var(--mono);color:var(--accent)}
 </style>
 
 <canvas id="c" aria-label="Animierter Hintergrund: kaputtes Display mit flackernden Farbstreifen und Glasrissen"></canvas>
@@ -107,12 +130,14 @@ const E = (function () {
 // Die Risse teilen das Display in Bruchstücke: Jedes Stück ist ein wenig versetzt und flackert für sich, die Streifen
 // enden genau an der Risskante. Fällt ein Streifen in einem Stück aus, stirbt er an der Risskante (kurzes Flackern) und
 // bleibt dort 30 Sekunden bis 5 Minuten weg – sobald ein Riss da ist, fehlt bei 4 Streifen einer, bei 5 zwei, mit mehr
-// Streifen mehr. Ab und zu bleibt ein ganzes Stück schwarz, wie lange, stellt der Regler ein (ein paar Sekunden bis
-// etwa 20 Minuten); bei etwa jedem zweiten bleiben auf einer Seite ein paar Streifen stehen.
+// Streifen mehr, ab 3 Rissen deutlich mehr (aber nie alle). Ab 9 Rissen bleibt ab und zu ein kleines Stück schwarz (die kleinsten zuerst, mehr unten und in den
+// Ecken, nie oben an der Benachrichtigungsleiste, über der Uhr selten), wie lange, stellt der Regler ein (ein paar
+// Sekunden bis etwa 20 Minuten); bei etwa jedem zweiten bleiben auf einer Seite ein paar Streifen stehen.
 // Nach dem Tippen auf einen Knopf verschwindet das Menü, damit man das Bild sieht (Antippen holt es zurück); beim
 // Schieben eines Reglers tritt es zurück.
 // Der Riss selbst: feine dunkle Bruchkante mit dünnem Glanz daneben (Licht von oben). Mal feiner und glatter, mal
-// etwas kräftiger, zackiger und heller glänzend – aber immer fein.
+// etwas kräftiger, zackiger und heller glänzend – aber immer fein. Nebenrisse laufen bis zum Haarriss aus. Beim Neigen
+// glitzern an den Rissen einzelne Pixel (Schalter „Glitzern beim Neigen“).
 // Auf Wunsch werden die Streifen mit der Zeit (1–24 Stunden) oder mit sinkendem Akku mehr; ist die Zeit um, gibt es
 // einen großen Glitch und es geht von vorn los. Unter dem Finger flackern die Streifen, dazu kurze Druckstreifen.
 // Flächenglitch (ab 5 Rissen): Das Bruchstück unter dem Finger flackert grau und blitzt dazwischen weiß wie ein
@@ -122,9 +147,9 @@ const E = (function () {
 // Die Uhr ist aus Metall in 3D und liegt im Display: Beim Neigen wandert sie etwas mit, ihre Seitenwände zeigen sich
 // und die Spiegelung wandert; die kaputten Streifen laufen über sie, die Risse bleiben fest im Glas.
 // Mit Uhr läuft einer der Risse (zufällig welcher) mitten durch die Ziffern und weiter übers Bild; die Uhr zerfällt
-// dort in Stücke.
+// dort in Stücke. Jeder Riss durch die Uhr bekommt eine sichtbare Lücke (Regler „Riss durch die Uhr“).
 const settings = { cracks: 3, cracksMax: 10, crackGrow: 0, crackHours: 6, impacts: 0, impact: 0, hshare: 30,
-  splinter: 1, auto: 0, hours: 6, shear: 5, dark: 5, calm: 4, burst: 5, countPos: 59,
+  splinter: 1, glint: 1, auto: 0, hours: 6, shear: 5, dark: 5, calm: 4, burst: 5, countPos: 59,
   countMax: 85, growTime: 0, growHours: 6, growBatt: 0, battTest: 0, touchFx: 1, touchFlash: 1,
   rndWake: 0, mutate: 0, bgDim: 40, clockWhere: 2, d3: 5, cy: 15, crack: 5, size: 5, date: 0, finish: 7,
   // selbst angetippt, je Aufschlag: Stelle (px, py) und Richtung (tx, ty) als Anteil von Breite und Höhe
@@ -133,41 +158,42 @@ const countFromPos = v => Math.round(3 * Math.pow(50, v / 100));
 const hoursFmt = v => v + (v == 1 ? ' Stunde' : ' Stunden');
 const controls = [
   { type: 'range', id: 'cracks', label: 'Anzahl Risse (von)', min: 0, max: 36, fmt: v => v == 0 ? 'keine' : String(v), focus: true },
-  { type: 'range', id: 'cracksMax', label: 'Anzahl Risse bis', min: 0, max: 36, fmt: v => String(v), focus: true },
-  { type: 'choice', id: 'crackGrow', label: 'Mehr Risse mit der Zeit', options: ['Aus', 'An'] },
-  { type: 'range', id: 'crackHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
+  { type: 'range', id: 'cracksMax', lock: 1, label: 'Anzahl Risse bis', min: 0, max: 36, fmt: v => String(v), focus: true },
+  { type: 'choice', id: 'crackGrow', lock: 1, label: 'Mehr Risse mit der Zeit', options: ['Aus', 'An'] },
+  { type: 'range', id: 'crackHours', lock: 1, label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
   { type: 'info', id: 'crackInfo', text: () => crackInfo() },
-  { type: 'choice', id: 'impacts', label: 'Aufschläge', options: ['1', '2', '3'] },
-  { type: 'choice', id: 'impact', label: 'Aufschlagstelle', options: ['Zufällig', 'Selbst angetippt'] },
-  { type: 'range', id: 'hshare', label: 'Waagerechte Risse quer übers Bild', min: 0, max: 100, step: 10, fmt: v => v + ' %', focus: true },
+  { type: 'choice', id: 'impacts', lockOpts: [0, 1, 1], label: 'Aufschläge', options: ['1', '2', '3'] },
+  { type: 'choice', id: 'impact', lockOpts: [0, 1], label: 'Aufschlagstelle', options: ['Zufällig', 'Selbst angetippt'] },
+  { type: 'range', id: 'hshare', lock: 1, label: 'Waagerechte Risse quer übers Bild', min: 0, max: 100, step: 5, fmt: v => v + ' %', focus: true },
   { type: 'choice', id: 'splinter', label: 'Splitter am Aufschlag', options: ['Aus', 'Wenig', 'Viel'] },
-  { type: 'choice', id: 'auto', label: 'Risse wechseln von selbst', options: ['Aus', 'Bei Glitches', 'Nach Stunden'] },
-  { type: 'range', id: 'hours', label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: hoursFmt, focus: true },
+  { type: 'choice', id: 'glint', lock: 1, label: 'Glitzern beim Neigen', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'auto', lockOpts: [0, 1, 1], label: 'Risse wechseln von selbst', options: ['Aus', 'Bei Glitches', 'Nach Stunden'] },
+  { type: 'range', id: 'hours', lock: 1, label: 'Wechsel nach Stunden: alle', min: 1, max: 24, fmt: hoursFmt, focus: true },
   { type: 'range', id: 'shear', label: 'Versatz am Riss', min: 0, max: 10, fmt: lvl, focus: true },
-  { type: 'range', id: 'dark', label: 'Schwarze Stellen zwischen den Rissen', min: 0, max: 10, fmt: v => darkFmt(v), focus: true },
+  { type: 'range', id: 'dark', label: 'Schwarze Stellen zwischen den Rissen (ab 9 Rissen)', min: 0, max: 10, fmt: v => darkFmt(v), focus: true },
   { type: 'range', id: 'calm', label: 'Grundflackern', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'burst', label: 'Glitch-Ausbrüche', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'countPos', label: 'Anzahl Streifen (von)', min: 0, max: 100, fmt: countFromPos, focus: true },
-  { type: 'range', id: 'countMax', label: 'Anzahl Streifen bis', min: 0, max: 100, fmt: countFromPos, focus: true },
-  { type: 'choice', id: 'growTime', label: 'Mehr Streifen mit der Zeit', options: ['Aus', 'An'] },
-  { type: 'range', id: 'growHours', label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
-  { type: 'choice', id: 'growBatt', label: 'Mehr Streifen bei sinkendem Akku', options: ['Aus', 'An'] },
+  { type: 'range', id: 'countMax', lock: 1, label: 'Anzahl Streifen bis', min: 0, max: 100, fmt: countFromPos, focus: true },
+  { type: 'choice', id: 'growTime', lock: 1, label: 'Mehr Streifen mit der Zeit', options: ['Aus', 'An'] },
+  { type: 'range', id: 'growHours', lock: 1, label: 'Von „von“ bis „bis“ in', min: 1, max: 24, fmt: hoursFmt, focus: true },
+  { type: 'choice', id: 'growBatt', lock: 1, label: 'Mehr Streifen bei sinkendem Akku', options: ['Aus', 'An'] },
   { type: 'range', id: 'battTest', label: 'Akku zum Ausprobieren (nur Vorschau)', min: 0, max: 100, fmt: v => v == 0 ? 'echter Akku' : v + ' %', focus: true },
   { type: 'info', id: 'growInfo', text: growInfo },
-  { type: 'choice', id: 'touchFx', label: 'Glitch unter dem Finger', options: ['Aus', 'An'] },
-  { type: 'choice', id: 'touchFlash', label: 'Flächenglitch beim Berühren (ab 5 Rissen)', options: ['Aus', 'An'] },
-  { type: 'choice', id: 'rndWake', label: 'Neues Muster bei jedem Einschalten', options: ['Aus', 'An'] },
-  { type: 'choice', id: 'mutate', label: 'Glitches verändern das Muster', options: ['Aus', 'An'] },
-  { type: 'range', id: 'bgDim', label: 'Eigenes Bild abdunkeln', min: 0, max: 90, step: 5, fmt: v => v + ' %', focus: true },
+  { type: 'choice', id: 'touchFx', lock: 1, label: 'Glitch unter dem Finger', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'touchFlash', lock: 1, label: 'Flächenglitch beim Berühren (ab 5 Rissen)', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'rndWake', lock: 1, label: 'Neues Muster bei jedem Einschalten', options: ['Aus', 'An'] },
+  { type: 'choice', id: 'mutate', lock: 1, label: 'Glitches verändern das Muster', options: ['Aus', 'An'] },
+  { type: 'range', id: 'bgDim', lock: 2, label: 'Eigenes Bild abdunkeln', min: 0, max: 90, step: 5, fmt: v => v + ' %', focus: true },
   { type: 'info', id: 'bgNote', text: () => bgImg ? '' : 'Eigenes Bild: unten auf „Bild wählen“ tippen. Es liegt dann unter Streifen und Rissen.' },
   { type: 'choice', id: 'clockWhere', label: 'Uhr zeigen', options: ['Sperrbild', 'Start', 'Beides', 'Aus'] },
   { type: 'info', id: 'clockNote', text: () => settings.clockWhere < 2 ? 'In der Vorschau ist die Uhr immer zu sehen. Als Hintergrund erscheint sie nur ' + (settings.clockWhere === 0 ? 'auf dem Sperrbildschirm.' : 'auf dem Startbildschirm.') : '' },
-  { type: 'range', id: 'd3', label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl, focus: true },
+  { type: 'range', id: 'd3', lock: 1, label: '3D-Effekt der Uhr (beim Neigen)', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'cy', label: 'Höhe der Uhr (15 = wie Original)', min: 0, max: 100, fmt: v => v + ' %', focus: true },
-  { type: 'range', id: 'crack', label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl, focus: true },
+  { type: 'range', id: 'crack', lock: 1, label: 'Riss durch die Uhr', min: 0, max: 10, fmt: lvl, focus: true },
   { type: 'range', id: 'size', label: 'Größe der Uhr (5 = wie Original)', min: 1, max: 10, fmt: v => String(v), focus: true },
   { type: 'choice', id: 'date', label: 'Datum', options: ['Wie Original', 'Deutsch', 'Aus'] },
-  { type: 'grid', id: 'finish', label: 'Oberfläche der Uhr', options: [
+  { type: 'grid', id: 'finish', lockOpts: [0, 1, 1, 1, 1, 1, 1, 0], label: 'Oberfläche der Uhr', options: [
     { label: 'Chrom', group: 'Metall' }, { label: 'Gold', group: 'Metall' }, { label: 'Stahlblau', group: 'Metall' },
     { label: 'Roségold', group: 'Metall' }, { label: 'Schwarzchrom', group: 'Metall' }, { label: 'Kupfer', group: 'Metall' },
     { label: 'Neon leuchtend', group: 'Leuchtend' }, { label: 'Weiß', group: 'Wie Original' }] },
@@ -612,12 +638,27 @@ void main() {
   // werden sauber geglättet, statt eine gemittelte Normale zu spiegeln
   vec4 f = 0.25 * (surf(l + vec2(-0.25, -0.25), v) + surf(l + vec2(0.25, -0.25), v) + surf(l + vec2(-0.25, 0.25), v) + surf(l + vec2(0.25, 0.25), v));
   if (f.a < 0.003 && wa < 0.003) { gl_FragColor = vec4(0.0); return; }
-  // Wand: senkrechte Fläche Richtung Tiefe, nach hinten dunkler
+  // Wand: senkrechte Fläche Richtung Tiefe. Sie glänzt wie das Metall: Die Normale dreht sich entlang der Tiefe ein
+  // wenig (wie eine leicht gewölbte Wand), so läuft beim Neigen ein Lichtstreifen über die Wand; an der Kante zur Fläche
+  // ein heller Saum, nach hinten etwas dunkler.
   vec3 V = viewDir(l, v);
   vec2 wd = normalize(uDepth + vec2(1e-4, 1e-4));
-  vec3 Rw = reflect(-V, normalize(vec3(wd, 0.45)));
-  vec3 wc = uKind < 1.5 ? env(Rw, uRough + 0.25) * (uKind < 0.5 ? uF0 : vec3(0.22)) * 0.6 : mix(uSide0, uSide1, wk);
-  wc *= 1.0 - 0.6 * wk;
+  vec3 nw = normalize(vec3(wd * (0.75 + 0.5 * wk), 0.6 - 0.4 * wk));
+  vec3 Rw = reflect(-V, nw);
+  float cw = clamp(dot(nw, V), 0.0, 1.0);
+  vec3 wc;
+  if (uKind < 0.5) {
+    vec3 Fw = uF0 + (vec3(1.0) - uF0) * pow(1.0 - cw, 5.0);
+    wc = env(Rw, uRough + 0.08) * Fw * 0.95;
+  } else if (uKind < 1.5) {
+    vec3 e = env(Rw, uRough + 0.06);
+    wc = e * 0.22 + max(e - vec3(1.0), 0.0) * 0.8;
+  } else {
+    vec3 e = env(Rw, 0.3);
+    wc = mix(uSide0, uSide1, wk) + 0.18 * e + 0.35 * max(e - vec3(1.0), 0.0);
+  }
+  wc *= 1.0 - 0.45 * wk;
+  wc += (1.0 - smoothstep(0.0, 0.16, wk)) * 0.28 * (uKind < 0.5 ? uF0 : vec3(0.75));
   wc = clamp(wc, 0.0, 1.0);
   float A = f.a;
   gl_FragColor = vec4(f.rgb + wc * wa * (1.0 - A), A + wa * (1.0 - A));
@@ -1363,7 +1404,6 @@ function makeCracks() {
     g.pathC.closePath(); g.pathD.closePath();
     g.dead = 0; g.dv = false; g.keep = null;
   }
-  seedDead(regions, false);
 
   // Abzweige je Riss (eigener Zufall je Riss, damit sie bleiben, wenn Risse dazukommen): enden am Rand, nach einer
   // Weile oder an einem anderen Riss
@@ -1528,6 +1568,8 @@ function makeCracks() {
   for (const h of hairs) add(h, 0.42, 'hair', 0.35 + RL() * 0.3, 0);
   CR = { imps: imps.map(i => [i.P[0], i.P[1], i.st.boost]), styles: imps.map(i => i.st.type), A, divs, branches, twigs, hairs, rays, web, shards, regions, list, clockAim, clockIdx };
   updateClockPieces();
+  // schwarze Stücke erst jetzt verteilen (dafür muss bekannt sein, welche Stücke im Bereich der Uhr liegen)
+  seedDead(regions, false);
   renderCracks();
   buildBg();
 }
@@ -1614,17 +1656,50 @@ function buildRegions(nodes, divs, border, A) {
   return regions;
 }
 
-// Welche Bruchstücke liegen im Bereich der Uhr?
+// Welche Bruchstücke liegen im Bereich der Uhr (clockN: wie viele von 81 Prüfpunkten der Uhr im Stück liegen)?
 function updateClockPieces() {
   if (!CR) return;
+  const cl = [];
   for (const g of CR.regions) {
-    g.clock = false;
+    g.clock = false; g.clockN = 0; g.cs = 0;
     if (!layer) continue;
-    for (let yy = 0; yy <= 8 && !g.clock; yy++) for (let xx = 0; xx <= 8 && !g.clock; xx++) {
-      if (pointInPoly((lx + layer.width * xx / 8) / W, (ly + layer.height * yy / 8) / W, g.poly)) g.clock = true;
+    const x0 = lx / W, x1 = (lx + layer.width) / W, y0 = ly / W, y1 = (ly + layer.height) / W;
+    if (g.x1 < x0 || g.x0 > x1 || g.y1 < y0 || g.y0 > y1) continue;
+    for (let yy = 0; yy <= 8; yy++) for (let xx = 0; xx <= 8; xx++) {
+      if (pointInPoly((lx + layer.width * xx / 8) / W, (ly + layer.height * yy / 8) / W, g.poly)) g.clockN++;
     }
+    g.clock = g.clockN > 0;
+    if (g.clock) cl.push(g);
+  }
+  clockShifts(cl);
+  prepDark(CR.regions);
+}
+// Versatz der Uhr-Stücke („Riss durch die Uhr“): Jeder Riss durch die Ziffern soll eine sichtbare Lücke haben, deshalb
+// bekommen benachbarte Stücke der Uhr deutlich verschiedenen Versatz (meist abwechselnd nach links und rechts; stoßen
+// drei Stücke aneinander, steht eins still oder geht nur halb so weit). Richtung und Stärke kommen aus der Lage des
+// Stücks, damit es ruhig bleibt, wenn woanders Risse dazukommen. Liegt die ganze Uhr in einem Stück, bleibt sie stehen.
+function clockShifts(cl) {
+  if (cl.length < 2) return;
+  cl.sort((a, b) => a.cx - b.cx);
+  const done = new Set();
+  for (const g of cl) {
+    const pref = hash01(g.cx, g.cy, crackSeed + 3) < 0.5 ? -1 : 1, m = 0.85 + 0.3 * hash01(g.cy, g.cx, crackSeed + 5);
+    const nbs = g.nb.map(j => CR.regions[j]).filter(o => done.has(o));
+    let best = pref * m, bestD = -1;
+    for (const v of [pref, -pref, 0.5 * pref, -0.5 * pref, 0]) {
+      const d = nbs.length ? Math.min(...nbs.map(o => Math.abs(v * m - o.cs))) : 9;
+      if (d > bestD + 1e-9) { bestD = d; best = v * m; }
+      if (d >= 0.9) break;
+    }
+    g.cs = best;
+    done.add(g);
   }
 }
+// Nebenrisse (Abzweige, kleine Risse) laufen bis zum Haarriss aus: bis ein Drittel der Länge wie ihr Riss, dann immer
+// schmaler bis auf gut ein Viertel (schmaler als ein Pixel wird die Linie stattdessen blasser); der Glanz wird ab einem
+// Viertel weich schwächer und ist an der Spitze nur noch ein Hauch. u: Stelle entlang des Risses 0..1
+const nebenTaper = u => u < 0.33 ? 1 : 1 - 0.72 * Math.pow((u - 0.33) / 0.67, 0.85);
+const nebenShine = u => u < 0.25 ? 1 : 0.06 + 0.94 * Math.pow(Math.max(0, 1 - (u - 0.25) / 0.75), 1.6);
 // Die Risse ändern sich nicht: einmal in eine eigene Ebene zeichnen
 function renderCracks() {
   crackLayer = null;
@@ -1635,15 +1710,18 @@ function renderCracks() {
   // an den Aufschlägen ist das Glas zertrümmert und fängt mehr Licht (je Aufschlag verschieden stark)
   const boost = (x, y) => { let m = 0; for (const p of CR.imps) m = Math.max(m, p[2] * Math.exp(-Math.hypot(x - p[0], y - p[1]) / 0.05)); return 1 + 1.3 * m; };
   // 1) dunkle Bruchkante: fein, am Aufschlag etwas breiter, zum Ende hin schmaler (in Stücken gezeichnet); kräftige
-  //    Risse (v) etwas breiter; Haarrisse nur ein Hauch
+  //    Risse (v) etwas breiter; Haarrisse nur ein Hauch. Nebenrisse (Abzweige und kleine Risse) laufen bis zum Haarriss
+  //    aus: ab einem Drittel ihrer Länge immer schmaler und blasser (in kürzeren Stücken, damit es weich ausläuft).
   for (const c of CR.list) {
-    const total = c.cl[c.cl.length - 1] || 1, tip = c.kind === 'twig' || c.kind === 'hair';
+    const total = c.cl[c.cl.length - 1] || 1, neben = c.kind === 'twig' || c.kind === 'branch';
     g.strokeStyle = c.kind === 'hair' ? 'rgba(0,0,0,0.7)' : '#000';
     let i0 = 0;
     while (i0 < c.pts.length - 1) {
       let i1 = i0 + 1;
-      while (i1 < c.pts.length - 1 && c.cl[i1] - c.cl[i0] < 0.04) i1++;
-      const f = c.kind === 'spoke' ? 1.35 - 0.6 * Math.min(1, c.cl[i0] / Math.max(0.3, total)) : c.kind === 'ray' ? 1.2 - 0.8 * c.cl[i0] / total : tip ? 1.15 - 0.75 * c.cl[i0] / total : 1;
+      while (i1 < c.pts.length - 1 && c.cl[i1] - c.cl[i0] < (neben ? 0.008 : 0.04)) i1++;
+      const u = c.cl[i0] / total;
+      const f = c.kind === 'spoke' ? 1.35 - 0.6 * Math.min(1, c.cl[i0] / Math.max(0.3, total)) : c.kind === 'ray' ? 1.2 - 0.8 * u : neben ? (c.kind === 'twig' ? 1.15 : 1) * nebenTaper(u) : c.kind === 'hair' ? 1.15 - 0.75 * u : 1;
+      if (neben) g.strokeStyle = 'rgba(0,0,0,' + (0.55 + 0.45 * nebenTaper(u)).toFixed(3) + ')';
       g.lineWidth = Math.max(1, (0.85 + 0.27 * c.v) * dpr * c.w * f);
       g.beginPath();
       for (let k = i0; k <= i1; k++) { const p = c.pts[k]; if (k === i0) g.moveTo(p[0] * W, p[1] * W); else g.lineTo(p[0] * W, p[1] * W); }
@@ -1674,9 +1752,9 @@ function renderCracks() {
     if (open) g.stroke();
   };
   for (const c of CR.list) {
-    // kleine Risse und Haarrisse laufen zur Spitze hin aus
+    // Nebenrisse, Strahlen und Haarrisse laufen zur Spitze hin aus (Nebenrisse bis zum Hauch eines Haarrisses)
     const tot = c.cl[c.cl.length - 1] || 1;
-    shine(c, 1, c.kind === 'twig' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.7) : c.kind === 'ray' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.6) : c.kind === 'hair' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.5) : () => 1);
+    shine(c, 1, c.kind === 'twig' || c.kind === 'branch' ? s => nebenShine(s / tot) : c.kind === 'ray' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.6) : c.kind === 'hair' ? s => Math.pow(Math.max(0, 1 - s / tot), 0.5) : () => 1);
     // breite Risse am Aufschlag: auch die andere Kante fängt etwas Licht
     if (c.kind === 'spoke') shine(c, -1, s => 0.6 * Math.max(0, 1 - s / 0.18));
   }
@@ -1685,6 +1763,60 @@ function renderCracks() {
     g.beginPath(); s.tri.forEach((p, i) => i ? g.lineTo(p[0] * W, p[1] * W) : g.moveTo(p[0] * W, p[1] * W)); g.closePath();
     g.fillStyle = 'rgba(220,230,245,' + s.a.toFixed(3) + ')'; g.fill();
     g.strokeStyle = 'rgba(240,246,255,' + s.e.toFixed(3) + ')'; g.lineWidth = Math.max(1, 0.5 * dpr); g.stroke();
+  }
+  buildGlints();
+}
+
+// ---------- Glitzern der Risse beim Neigen ----------
+// An den Kanten der Risse sitzen winzige Bruchflächen, die das Licht nur in einem ganz bestimmten Winkel zurückwerfen:
+// Jede blitzt bei ihrer eigenen Neigung des Handys kurz auf, als einzelnes Pixel (am Aufschlag dichter und heller). Das
+// Fenster ist schmal und die Neigung kaum geglättet (gtilt), so blitzt es schon bei kleinen Bewegungen schnell auf und
+// wieder aus; es leuchtet immer nur etwa jede zweihundertste. Eigener Zufall je Muster.
+let glints = null, glintLit = 0;
+const GLINT_R = 0.07;   // wie genau die Neigung passen muss (Anteil der vollen Neigung)
+function buildGlints() {
+  glints = null;
+  if (!CR) return;
+  const R = rng(crackSeed ^ 0x5BD1E995), X = [], Y = [], NX = [], NY = [], B = [];
+  const boostAt = (x, y) => { let m = 0; for (const p of CR.imps) m = Math.max(m, p[2] * Math.exp(-Math.hypot(x - p[0], y - p[1]) / 0.05)); return 1 + 1.3 * m; };
+  const add = (x, y, b) => {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    const a = R() * 2 * Math.PI, r = Math.sqrt(R()) * 1.05;
+    X.push(Math.round(x)); Y.push(Math.round(y)); NX.push(Math.cos(a) * r); NY.push(Math.sin(a) * r); B.push(b);
+  };
+  for (const c of CR.list) {
+    // auf der hellen Kante des Risses, etwa alle 2 Bildpunkte (Haarrisse seltener)
+    const o = dpr * (0.38 + 0.14 * c.v + (0.32 + 0.1 * c.v) * c.w), step = c.kind === 'hair' ? 0.012 : 0.005;
+    const base = c.kind === 'hair' ? 0.55 : 0.8 + 0.2 * c.v;
+    let next = R() * step, acc = 0;
+    for (let i = 1; i < c.pts.length; i++) {
+      const a = c.pts[i - 1], b = c.pts[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      while (next <= acc + L) {
+        const f = L > 0 ? (next - acc) / L : 0, x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;
+        add(x * W + c.nx * o, y * W + c.ny * o, base * boostAt(x, y));
+        next += step * (0.5 + R());
+      }
+      acc += L;
+    }
+  }
+  for (const s of CR.shards) for (const p of s.tri) add(p[0] * W, p[1] * W, 1.3);
+  glints = { n: X.length, x: Int32Array.from(X), y: Int32Array.from(Y), nx: Float32Array.from(NX), ny: Float32Array.from(NY), b: Float32Array.from(B) };
+}
+function drawGlints(ctx) {
+  if (!glints || !CR || settings.glint !== 1) return;
+  const tx = gtilt[0], ty = gtilt[1], r2 = GLINT_R * GLINT_R, s = dpr >= 2.5 ? 2 : 1;
+  glintLit = 0;
+  for (let i = 0; i < glints.n; i++) {
+    const dx = glints.nx[i] - tx, dy = glints.ny[i] - ty, d2 = dx * dx + dy * dy;
+    if (d2 >= r2) continue;
+    // dazu ein leichtes Funkeln von Bild zu Bild
+    const k = 1 - Math.sqrt(d2) / GLINT_R, a = Math.min(1, Math.pow(k, 1.5) * glints.b[i] * (0.65 + 0.35 * Math.random()));
+    if (a < 0.03) continue;
+    // ein einzelner Bildpunkt (auf sehr feinen Bildschirmen die hellsten zwei mal zwei, sonst sieht man sie kaum)
+    const z = a > 0.55 ? s : 1;
+    glintLit++;
+    ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+    ctx.fillRect(glints.x[i], glints.y[i], z, z);
   }
 }
 
@@ -1741,21 +1873,72 @@ function updatePresses(dt) {
 }
 
 // ---------- Schwarze Bruchstücke ----------
-// Ab und zu fällt ein ganzes Bruchstück aus und bleibt schwarz (beim Ausgehen flackert es, es stirbt; beim Angehen
-// kurz). Der Regler „Schwarze Stellen zwischen den Rissen“ legt vor allem fest, wie lange: links nur ein paar Sekunden,
-// in der Mitte um eine Minute, ganz rechts sehr lange (um 20 Minuten); jedes Mal anders (halb bis doppelt so lange).
-// Mit dem Regler werden es auch etwas mehr Stücke (etwa 4 bis 18 %, mit vielen Streifen etwas mehr). Bei etwa jedem
-// zweiten bleiben auf einer Seite ein paar Streifen stehen (am linken oder rechten Rand des Stücks, 15–40 % seiner
-// Breite: dort läuft das Display noch). Bei Glitch-Ausbrüchen fallen Stücke auch kurz aus (dann ganz). Höchstens jedes
-// vierte Stück, nie zwei nebeneinander. Beim Bauen der Risse sind gleich so viele schwarz wie sonst im Schnitt, beim
-// Verstellen des Reglers mindestens eins – damit man es sofort sieht.
+// Erst ab 9 Rissen (vorher sind die Stücke zu groß). Ab und zu fällt ein Bruchstück aus und bleibt schwarz (beim
+// Ausgehen flackert es, es stirbt; beim Angehen kurz). Immer zuerst die kleinsten Stücke – je weiter der Regler rechts
+// steht, desto eher auch etwas größere, aber höchstens etwa 4 bis 8 % des Bildschirms –, mehr unten und in den Ecken,
+// nie oben an der Benachrichtigungsleiste (das Stück darf nicht bis in die obersten 5 % reichen). Über der Uhr nur
+// selten und nur, wenn das Stück höchstens die halbe Uhr abdeckt. Meist einzeln; ab und zu gehen ein bis drei Nachbarn
+// kurz nacheinander mit aus (dann liegen 2–4 schwarze Stücke nebeneinander).
+// Der Regler „Schwarze Stellen zwischen den Rissen“ legt vor allem fest, wie lange: links nur ein paar Sekunden, in der
+// Mitte um eine Minute, ganz rechts sehr lange (um 20 Minuten); jedes Mal anders (halb bis doppelt so lange). Mit dem
+// Regler werden es auch etwas mehr (etwa 4 bis 18 % der Stücke, mit vielen Streifen etwas mehr, mindestens eins). Bei
+// etwa jedem zweiten bleiben auf einer Seite ein paar Streifen stehen (am linken oder rechten Rand des Stücks, 15–40 %
+// seiner Breite: dort läuft das Display noch). Bei Glitch-Ausbrüchen fallen kleine Stücke auch kurz aus (dann ganz).
+// Beim Bauen der Risse sind gleich so viele schwarz wie sonst im Schnitt, beim Verstellen des Reglers mindestens eins –
+// damit man es sofort sieht.
+const DARK_MIN = 9;
 const darkMid = lv => 4 * Math.pow(300, (lv - 1) / 9);   // typische Dauer in Sekunden (Stufe 1: 4 s, 5: 50 s, 10: 20 min)
 const darkLen = lv => darkMid(lv) * Math.pow(4, Math.random()) / 2;
 const darkFrac = lv => (0.04 + 0.14 * (lv - 1) / 9) * (0.75 + 0.5 * clamp((baseN - 12) / 110, 0, 1));
+const darkOn = () => settings.dark > 0 && crackCount() >= DARK_MIN;
+const darkWant = regs => Math.max(1, Math.round(darkFrac(settings.dark) * regs.length));
+let deadWait = 0;
 function darkFmt(v) {
   if (v == 0) return 'aus';
   const s = darkMid(v);
   return 'ca. ' + (s < 59.5 ? Math.round(s) + ' s' : s < 600 ? String(Math.round(s / 30) / 2).replace('.', ',') + ' Min.' : Math.round(s / 60) + ' Min.');
+}
+// Welche Stücke schwarz werden dürfen (dOK) und wie gern (dW): fest je Rissmuster, Lage der Uhr und Reglerstellung.
+// Die kleinsten zuerst (ein doppelt so großes Stück kommt nur etwa halb so oft dran, bei hohem Regler etwas öfter),
+// unten viel mehr als oben, an der Unterkante, an den Seiten und vor allem in den unteren Ecken mehr, über der Uhr selten.
+function prepDark(regs) {
+  if (!CR) return;
+  const lv = Math.max(1, settings.dark), A = CR.A, fMax = 0.035 + 0.0045 * lv, ex = 1.3 - 0.05 * lv, ok = [];
+  for (const g of regs) {
+    g.dOK = false; g.dW = 0;
+    const f = g.area / A;
+    if (f < 0.002 || f > fMax || g.y0 < 0.05 * A || (g.clock && g.clockN > 40)) continue;
+    g.dOK = true; ok.push(g);
+  }
+  const minF = ok.reduce((m, g) => Math.min(m, g.area), 1e9);
+  for (const g of ok) {
+    const y = clamp(g.cy / A, 0, 1), bot = g.y1 > A - 0.01, side = g.x0 < 0.01 || g.x1 > 0.99;
+    let w = Math.pow(minF / g.area, ex) * (0.15 + 2.6 * y * y);
+    if (bot) w *= 1.6;
+    if (side) w *= 1.3;
+    if (bot && side) w *= 1.6;
+    if (g.clock) w *= 0.12;
+    g.dW = w;
+  }
+}
+// Ein Stück auswürfeln, das jetzt ausgeht (nicht neben einem schwarzen, nicht gerade erst wieder an)
+function pickDark(regs) {
+  const busy = g => g.dead > 0 || g.pend > 0;
+  const cand = regs.filter(g => g.dOK && !busy(g) && !(g.rest > 0) && !g.nb.some(j => busy(regs[j])));
+  let s = Math.random() * cand.reduce((a, g) => a + g.dW, 0);
+  for (const g of cand) { s -= g.dW; if (s <= 0) return g; }
+  return cand.length ? cand[cand.length - 1] : null;
+}
+// ab und zu gehen Nachbarn mit aus: ein bis drei, kurz nacheinander, ähnlich lange (zusammen höchstens 10 % des Bildes)
+function spreadDark(g, regs) {
+  if (Math.random() >= 0.3) return;
+  const cand = g.nb.map(j => regs[j]).filter(o => o.dOK && !(o.dead > 0) && !(o.pend > 0)).sort((a, b) => b.dW - a.dW);
+  let n = 1 + Math.floor(Math.random() * 3), area = g.area, delay = 0;
+  for (const o of cand) {
+    if (n-- <= 0 || area + o.area > 0.1 * CR.A) break;
+    area += o.area; delay += rnd(0.4, 2.5);
+    o.pend = delay; o.pendLen = g.deadT * rnd(0.7, 1.3);
+  }
 }
 function killRegion(g, len) {
   g.dead = len; g.deadT = len;
@@ -1763,41 +1946,46 @@ function killRegion(g, len) {
 }
 function updateDead(dt) {
   if (!CR) return;
-  const regs = CR.regions, lv = settings.dark;
-  const maxDead = Math.max(1, Math.floor(regs.length / 4));
+  const regs = CR.regions, lv = settings.dark, on = darkOn();
   let nd = 0;
-  for (const g of regs) if (g.dead > 0) { g.dead -= dt; if (g.dead > 0) nd++; else g.keep = null; }
-  if (regs.length >= 3 && lv > 0) {
-    const h = darkFrac(lv), rate = h / ((1 - h) * darkMid(lv) * 1.082);
-    for (const g of regs) {
-      if (g.dead > 0 || nd >= maxDead) continue;
-      const sb = curBursting && (burstZone === 'all' || burstZone === g.zone);
-      let len = 0;
-      if (Math.random() < P(rate)) len = darkLen(lv);
-      else if (sb && Math.random() < P(lv / 5 * 0.03 * burstPow)) len = rnd(0.3, 1.5);
-      if (len && !g.nb.some(j => regs[j].dead > 0)) { killRegion(g, len); nd++; }
+  for (const g of regs) {
+    if (g.dead > 0) { g.dead -= dt; if (g.dead > 0) nd++; else { g.keep = null; g.rest = g.deadT > 5 ? rnd(8, 25) : 0; } }
+    else if (g.rest > 0) g.rest -= dt;
+    if (g.pend > 0) {
+      g.pend -= dt;
+      if (g.pend <= 0) { g.pend = 0; if (on && !(g.dead > 0)) { killRegion(g, g.pendLen); nd++; } }
+    }
+  }
+  if (on) {
+    // fehlt eins, geht nach ein paar Sekunden das nächste aus
+    deadWait -= dt;
+    if (nd < darkWant(regs) && deadWait <= 0) {
+      const g = pickDark(regs);
+      if (g) { killRegion(g, darkLen(lv)); spreadDark(g, regs); }
+      deadWait = rnd(2, 8);
+    }
+    // bei Glitch-Ausbrüchen fallen kleine Stücke auch kurz aus
+    if (curBursting) for (const g of regs) {
+      if (!g.dOK || g.dead > 0 || (burstZone !== 'all' && burstZone !== g.zone)) continue;
+      if (Math.random() < P(lv / 5 * 0.03 * burstPow)) killRegion(g, rnd(0.3, 1.5));
     }
   }
   // sichtbar aus? beim Aus- und Angehen kurz flackern
   for (const g of regs) g.dv = g.dead > 0 && !((g.deadT - g.dead < (g.deadT > 5 ? 0.35 : 0.16) || g.dead < 0.14) && Math.random() < 0.5);
 }
-// Schwarze Stücke neu verteilen: so viele, wie es sonst im Schnitt sind (mit zufälliger Restzeit); one: mindestens eins,
-// das gerade erst ausgeht (beim Verstellen des Reglers)
+// Schwarze Stücke neu verteilen: so viele, wie es sonst im Schnitt sind (mit zufälliger Restzeit); one: das erste geht
+// gerade erst aus (beim Verstellen des Reglers, damit man es sieht)
 function seedDead(regs, one) {
-  const lv = settings.dark;
-  for (const g of regs) { g.dead = 0; g.dv = false; g.keep = null; }
-  if (lv <= 0 || regs.length < 3) return;
-  const maxDead = Math.max(1, Math.floor(regs.length / 4)), h = darkFrac(lv), order = regs.map((g, i) => i);
-  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-  let nd = 0;
-  for (const i of order) {
-    const g = regs[i];
-    if (nd >= maxDead || g.nb.some(j => regs[j].dead > 0)) continue;
-    const first = one && nd === 0;
-    if (!first && Math.random() >= h) continue;
-    killRegion(g, darkLen(lv));
-    if (!first) g.dead *= Math.random();
-    nd++;
+  for (const g of regs) { g.dead = 0; g.dv = false; g.keep = null; g.rest = 0; g.pend = 0; }
+  prepDark(regs);
+  deadWait = rnd(2, 6);
+  if (!darkOn()) return;
+  const n = darkWant(regs);
+  for (let k = 0; k < n; k++) {
+    const g = pickDark(regs);
+    if (!g) break;
+    killRegion(g, darkLen(settings.dark));
+    if (!(one && k === 0)) g.dead *= Math.random();
   }
 }
 // Seite eines ausgefallenen Stücks, auf der die Streifen stehen bleiben (x0..x1 als Anteil der Breite)
@@ -1882,7 +2070,8 @@ const IMG_KEY = 'nw-brokenscreen-bild';
 let bgImg = null, bgLayer = null;
 function buildBg() {
   bgLayer = null;
-  if (!bgImg || W <= 1) return;
+  // das eigene Bild gibt es nur mit Kauf
+  if (!bgImg || W <= 1 || (api && api.tierOK && !api.tierOK(2))) return;
   const c = mk(W, H), g = c.getContext('2d');
   g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
   const sc = Math.max(W / bgImg.width, H / bgImg.height), iw = bgImg.width * sc, ih = bgImg.height * sc, ix = (W - iw) / 2, iy = (H - ih) / 2;
@@ -1937,7 +2126,10 @@ function clearBg() {
 try { if (typeof localStorage !== 'undefined') { const d = localStorage.getItem(IMG_KEY); if (d) setBg(d, false); } } catch (e) {}
 
 // ---------- Neue Risse mit der Zeit ----------
-// Kommt ein Riss dazu, springt er mit einem kurzen Glitch ins Glas und blitzt hell auf.
+// Kommt ein Riss dazu, springt er mit einem kurzen Glitch ins Glas und blitzt hell auf: schnell wie ein Blitz, zweimal
+// kurz hintereinander (an 0,05 s, kurz dunkel, dann schnell verglimmend), nach 0,2 Sekunden ist es vorbei.
+const CRACK_FLASH = 0.2;
+const crackFlashAt = a => a < 0.05 ? 1 : a < 0.085 ? 0.12 : Math.pow(Math.max(0, 1 - (a - 0.085) / (CRACK_FLASH - 0.085)), 2);
 function syncCracks() {
   const n = crackCount();
   if (n === shownCracks) return;
@@ -1949,11 +2141,11 @@ function syncCracks() {
   }
 }
 function drawCrackFlash(ctx) {
-  crackFlash = crackFlash.filter(f => t - f.t0 < 0.6);
+  crackFlash = crackFlash.filter(f => t - f.t0 < CRACK_FLASH);
   for (const f of crackFlash) {
-    const k = 1 - (t - f.t0) / 0.6;
-    ctx.strokeStyle = 'rgba(240,246,255,' + (0.9 * k * k).toFixed(3) + ')';
-    ctx.lineWidth = Math.max(1, (1 + 2.5 * k) * dpr);
+    const k = crackFlashAt(t - f.t0);
+    ctx.strokeStyle = 'rgba(240,246,255,' + (0.95 * k).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(1, (1 + 1.8 * k) * dpr);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     f.pts.forEach((p, i) => i ? ctx.lineTo(p[0] * W, p[1] * W) : ctx.moveTo(p[0] * W, p[1] * W));
@@ -2041,9 +2233,12 @@ function stripeStates(dt, calm, bursting) {
   // Fällt ein Streifen in einem Bruchstück aus, stirbt er dort an der Risskante (flackert kurz) und bleibt 30 Sekunden
   // bis 5 Minuten weg (jedes Mal anders: viele kürzer, manche richtig lang), dann kommt er flackernd wieder. Wie viele
   // gerade fehlen: sobald ein Riss da ist, bei 4 Streifen einer, bei 5 zwei, danach etwa für jeden zweiten Streifen
-  // einer mehr (mit „Glitch-Ausbrüche“ etwas mehr oder weniger, höchstens 30 % der Teilstücke). Fehlt einer zu wenig,
-  // stirbt nach ein paar Sekunden der nächste. Bei Ausbrüchen fallen Teilstücke auch kurz aus.
-  const want = multi ? clamp(Math.round(0.5 * (baseN - 2) * clamp(curG / 0.343, 0, 1.6)), 0, 999) : 0;
+  // einer mehr (mit „Glitch-Ausbrüche“ etwas mehr oder weniger, höchstens 30 % der Teilstücke). Ab 3 Rissen fehlen
+  // deutlich mehr, aber nie alle: bei 3 Rissen 1,6-mal so viele, mit jedem weiteren Riss etwas mehr (2,2-mal ab 15
+  // Rissen), höchstens 45 % der Teilstücke. Fehlt einer zu wenig, stirbt nach ein paar Sekunden der nächste. Bei
+  // Ausbrüchen fallen Teilstücke auch kurz aus.
+  const nC = crackCount(), more = nC >= 3 ? 1.6 + 0.05 * Math.min(nC - 3, 12) : 1;
+  const want = multi ? clamp(Math.round(0.5 * (baseN - 2) * clamp(curG / 0.343, 0, 1.6) * more), 0, 999) : 0;
   let gone = 0, segs = 0;
   const cand = [];
   drawList = regs.map((g, ri) => {
@@ -2096,7 +2291,7 @@ function stripeStates(dt, calm, bursting) {
   });
   // fehlen zu wenige: der nächste Streifen stirbt an einer Risskante (fehlt einer, im Schnitt nach 2 Sekunden). Lange
   // Teilstücke sind eher dran als kleine Ecken, damit man den Ausfall auch sieht.
-  const lim = Math.min(want, Math.round(segs * 0.3));
+  const lim = Math.min(want, Math.round(segs * (nC >= 3 ? 0.45 : 0.3)));
   if (gone < lim && cand.length && Math.random() < P(0.5 * (lim - gone))) {
     let s = Math.random() * cand.reduce((q, z) => q + z.len, 0);
     for (const z of cand) { s -= z.len; if (s <= 0 || z === cand[cand.length - 1]) { z.die = rnd(0.15, 0.45); break; } }
@@ -2167,7 +2362,8 @@ function onLayerBuilt(L) {
   for (const g of L.dl.list) { const nm = glyphNM(g.ch, L.small * S2, true); put(nm, Math.round(L.dx0 + g.x) * S2 - nm.pad, (L.m + L.big + L.gap) * S2 - nm.pad); }
   // je Zeile: Höhe 0..1 innerhalb der Uhrzeit bzw. des Datums (dort läuft der Horizont durch) und ob es das Datum ist;
   // dazu, ob eine Ziffer in Reichweite der Seitenwände liegt (sonst rechnet der Shader dort nichts)
-  const pad = Math.ceil(L.big * 0.07 + 12 * dpr * 0.6 + 4);
+  // Rand für die Seitenwände: so weit, wie die Tiefe bei voller Neigung reicht
+  const pad = Math.ceil(L.big * (D3_DEPTH0 + D3_DEPTH + D3_WALL) + 4);
   const out = new Uint8Array(tw * th);
   for (let i = 0; i < tw * th; i++) out[i] = A[i * 4 + 3] > 0 ? 0 : 1;
   const near = edt2(out, tw, th);
@@ -2196,7 +2392,8 @@ function onLayerBuilt(L) {
   if (F.neon) glowCv = soft(Math.max(3, L.big * 0.1), 'rgb(' + F.neon + ')');
 }
 // Neigung: vom Neigungssensor (relativ zur Haltung, die sich langsam nachführt) oder ohne Sensor sanft von selbst
-let tilt = [0, 0], sens = null, rest = null, sensorAt = -1e9, tiltHintDone = false;
+// gtilt: dieselbe Neigung, aber kaum geglättet – das Glitzern der Risse folgt jeder kleinen Bewegung sofort
+let tilt = [0, 0], gtilt = [0, 0], sens = null, rest = null, sensorAt = -1e9, tiltHintDone = false;
 if (typeof addEventListener === 'function') addEventListener('deviceorientation', e => {
   if (e.beta == null || e.gamma == null) return;
   sens = [e.gamma, e.beta]; sensorAt = t;
@@ -2209,24 +2406,28 @@ function updateTilt(dt) {
     rest[0] += (sens[0] - rest[0]) * k; rest[1] += (sens[1] - rest[1]) * k;
     tx = clamp((sens[0] - rest[0]) / 22, -1, 1); ty = clamp((rest[1] - sens[1]) / 22, -1, 1);
   } else { tx = 0.75 * Math.sin(t * 0.7); ty = 0.5 * Math.sin(t * 0.5 + 1); }
-  const s = 1 - Math.exp(-dt * 9);
+  const s = 1 - Math.exp(-dt * 9), sg = 1 - Math.exp(-dt * 30);
   tilt[0] += (tx - tilt[0]) * s; tilt[1] += (ty - tilt[1]) * s;
+  gtilt[0] += (tx - gtilt[0]) * sg; gtilt[1] += (ty - gtilt[1]) * sg;
 }
 // Aktuelles Bild der Uhr (CL) und seine Lage (CLX, CLY) in Gerätepixeln
 let CL = null, CLX = 0, CLY = 0;
-function prepClock(dt) {
+// 3D der Uhr: wie weit sie beim Neigen mitwandert (dp bei voller Neigung und Regler ganz rechts) und wie tief die
+// Ziffern sind (Seitenwände beim Neigen und Tiefe nach unten, Anteil der Ziffernhöhe). Seit Runde 12 deutlich stärker:
+// Beim Neigen sieht man die Ziffern in die Tiefe gehen.
+const D3_AMP = 18, D3_WALL = 0.4, D3_DEPTH0 = 0.03, D3_DEPTH = 0.06;
+function prepClock() {
   CL = null;
   if (!layer) return;
-  updateTilt(dt);
-  const k3 = settings.d3 / 10, T = [tilt[0] * k3, tilt[1] * k3], amp = 12 * dpr;
-  // die Uhr liegt im Display, tiefer als die Streifen: sie wandert mit dem Blick (Parallax), ihr Sockel noch etwas
-  // mehr – so zeigen sich die Seitenwände der Ziffern auf der Seite, von der man schaut
+  const k3 = settings.d3 / 10, T = [tilt[0] * k3, tilt[1] * k3], amp = D3_AMP * dpr;
+  // die Uhr liegt im Display, tiefer als die Streifen: sie wandert mit dem Blick (Parallax); ihr Körper geht in die Tiefe
+  // – so zeigen sich die Seitenwände der Ziffern auf der Seite, von der man schaut
   const ox = amp * T[0] * 0.6, oy = amp * T[1] * 0.6;
   const ix = Math.floor(ox), iy = Math.floor(oy);
   if (m3dOK) {
-    const depth = Math.max(1, bigPx * (0.026 + 0.04 * k3));
+    const depth = Math.max(1, bigPx * (D3_DEPTH0 + D3_DEPTH * k3)), wall = bigPx * D3_WALL;
     M3D.sub = [ox - ix, oy - iy];
-    CL = m3dRender(settings.finish, T, [amp * T[0] * 0.4, depth + amp * T[1] * 0.4], 0.3, FIN[settings.finish] || FIN[0]);
+    CL = m3dRender(settings.finish, T, [wall * T[0], depth + wall * T[1]], 0.3, FIN[settings.finish] || FIN[0]);
     CLX = lx - M3D.pad + ix; CLY = ly - M3D.pad + iy;
   } else { CL = layer; CLX = lx + Math.round(ox); CLY = ly + Math.round(oy); }
 }
@@ -2283,10 +2484,10 @@ function drawClockPiece(ctx, g, key, calm, bands, keep) {
   ctx.save();
   if (g) ctx.clip(g.pathD);
   if (keep) { ctx.beginPath(); ctx.rect(keep.x0 * W, 0, (keep.x1 - keep.x0) * W, H); ctx.clip(); }
-  // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“ (noch einmal halb so stark:
-  // feiner einstellbar)
+  // Versatz des Stücks: zur Seite und etwas nach unten, Stärke nach „Riss durch die Uhr“ (gilt für jeden Riss durch die
+  // Uhr, siehe clockShifts)
   const k = g ? settings.crack : 0;
-  const X = CLX + (g ? Math.round(g.s * k * 0.225 * dpr * jit()) : 0), Y = CLY + (g ? Math.round(Math.abs(g.s) * k * 0.03 * dpr) : 0);
+  const X = CLX + (g ? Math.round(g.cs * k * 0.225 * dpr * jit()) : 0), Y = CLY + (g ? Math.round(Math.abs(g.cs) * k * 0.03 * dpr) : 0);
   // Bänder glitchender Streifen über der Uhr: dort wird die Uhr gleich verrutscht gezeichnet, also hier aussparen
   const bs = [];
   for (const b of bands) {
@@ -2383,7 +2584,11 @@ return {
   actionLabel: 'Glitch jetzt',
   // nach dem Tippen auf Knöpfe das Bild zeigen (Antippen holt die Einstellungen zurück)
   showOnUse: true,
-  buttons: [{ label: 'Aufschlag antippen', run: startTap }, { label: 'Bild wählen', run: pickImage, stay: true }, { label: 'Bild entfernen', run: clearBg }, { label: 'Zeitraffer', run: toggleFast }],
+  // Freischaltung (lock an den Reglern): 1 = 24 Stunden nach einem Werbevideo oder mit Kauf, 2 = nur mit Kauf. free:
+  // Wert gesperrter Einstellungen in der kostenlosen Version (Aufschläge 1, zufällig, Uhr in Weiß, ohne 3D und Extras)
+  tiers: { price: '1,40 €', free: { cracksMax: 10, crackGrow: 0, crackHours: 6, impacts: 0, impact: 0, hshare: 30, glint: 0, auto: 0, hours: 6,
+    countMax: 85, growTime: 0, growHours: 6, growBatt: 0, touchFx: 0, touchFlash: 0, rndWake: 0, mutate: 0, bgDim: 40, d3: 0, crack: 0, finish: 7 } },
+  buttons: [{ label: 'Aufschlag antippen', run: startTap, lock: 1 }, { label: 'Bild wählen', run: pickImage, stay: true, lock: 2 }, { label: 'Bild entfernen', run: clearBg, lock: 2 }, { label: 'Zeitraffer', run: toggleFast }],
   bindUI(a) { api = a; },
   // Antippen im Auswahlmodus: je Aufschlag erst die Stelle, dann die Richtung des Risses
   tap(x, y) {
@@ -2430,9 +2635,10 @@ return {
     if (id === 'crackGrow') { crackGrowT = 0; crackPending = false; }
     if (id === 'cracks' || id === 'cracksMax' || id === 'crackGrow' || id === 'crackHours' || id === 'hshare' || id === 'splinter' ||
         id === 'clockWhere' || id === 'crack' || id === 'size' || id === 'date') makeCracks();
-    if (id === 'shear' || id === 'bgDim') buildBg();
+    if (id === 'shear' || id === 'bgDim' || id === 'ent') buildBg();
     // „Schwarze Stellen“ verstellt: gleich neu verteilen (aus: alle wieder an; sonst sofort eins, das ausgeht)
     if (id === 'dark' && CR) seedDead(CR.regions, true);
+    if (id === 'dark' && settings.dark > 0 && crackCount() < DARK_MIN && api) api.toast('Schwarze Stellen kommen erst ab ' + DARK_MIN + ' Rissen.', 3000);
     // „Selbst angetippt“ ohne angetippte Stellen: gleich antippen lassen
     const tapped = () => { for (let k = 0; k < nImpacts(); k++) if (!(settings.px[k] >= 0 && settings.tx[k] >= 0)) return false; return true; };
     if (id === 'impact') { if (settings.impact === 1 && !tapped()) startTap(); else { tapStep = 0; newCracks(); } }
@@ -2450,7 +2656,7 @@ return {
     return { presses: presses.length, pressLines: pressLines.length, lines: lines.length, m3d: m3dOK, regions: CR ? CR.regions.length : 0,
       divs: CR ? CR.divs.length : 0, hairs: CR ? CR.hairs.length : 0, rays: CR ? CR.rays.length : 0, dead: CR ? CR.regions.filter(g => g.dead > 0).length : 0,
       keep: CR ? CR.regions.filter(g => g.dead > 0 && g.keep).length : 0, styles: CR ? CR.styles : [], want: stripeWant, goneNow: stripeGone,
-      flash: flashRegs.map(f => f.i + ':' + f.st), segs, gone };
+      flash: flashRegs.map(f => f.i + ':' + f.st), segs, gone, glints: glints ? glints.n : 0, glintLit };
   },
   // Entwicklung: Stück i für sec Sekunden ausfallen lassen (side: 0 ganz, -1 links bleibt, 1 rechts bleibt; f: Anteil)
   deadHold(i, side, sec, f) {
@@ -2460,7 +2666,7 @@ return {
     g.keep = !side ? null : side < 0 ? { x0: -1, x1: g.x0 + w } : { x0: g.x1 - w, x1: 2 };
   },
   // Entwicklung: feste Neigung (null = wieder Sensor/automatisch), Zeit vorspulen
-  setTilt(x, y) { if (x == null) { sens = null; sensorAt = -1e9; } else { sens = [x * 22, -y * 22]; rest = [0, 0]; sensorAt = t + 1e9; tilt = [x, y]; } },
+  setTilt(x, y) { if (x == null) { sens = null; sensorAt = -1e9; } else { sens = [x * 22, -y * 22]; rest = [0, 0]; sensorAt = t + 1e9; tilt = [x, y]; gtilt = [x, y]; } },
   skip(sec) { growT += sec; autoT += sec; crackGrowT += sec; },
   // Entwicklung: Flächenglitch auf Stück i festhalten (st: 1 grau, 2 weiß) für sec Sekunden
   fgeHold(i, st, sec) { startFlash(i, sec || 2, 0); const f = flashRegs.find(o => o.i === i); f.st = st || 2; f.a = st === 1 ? 0.45 : 1; f.c = [220, 225, 232]; f.next = sec || 2; },
@@ -2526,7 +2732,9 @@ return {
     stripeStates(dt, calm, bursting);
     // die Uhr gehört zum Bild des Displays: die kaputten Streifen laufen über sie, die Glasrisse über allem
     CV = null;
-    if (clockOn()) { prepClock(dt); drawClock(ctx, calm); }
+    // Neigung: für die 3D-Uhr und fürs Glitzern der Risse
+    if (clockOn() || settings.glint === 1) updateTilt(dt);
+    if (clockOn()) { prepClock(); drawClock(ctx, calm); }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     drawFlash(ctx, false);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2537,6 +2745,7 @@ return {
     // weiße Blitze des Flächenglitches: über Streifen und Uhr, unter den Rissen im Glas
     drawFlash(ctx, true);
     if (crackLayer) ctx.drawImage(crackLayer, 0, 0);
+    drawGlints(ctx);
     drawCrackFlash(ctx);
     // beim Antippen: Markierungen der schon gewählten Aufschlagstellen (Kreis) und Richtungen (Punkt mit Linie)
     if (tapStep > 0) {
@@ -2588,15 +2797,23 @@ const showPic = () => {
   if (!usedHint && performance.now() - lastToast > 200) { usedHint = true; toast('Antippen holt die Einstellungen zurück.', 2500); }
 };
 // Regler und Auswahlknöpfe aus der Beschreibung des Effekts bauen
-const box = document.getElementById('controls'), ui = {};
+const box = document.getElementById('controls'), ui = {}, rows = {}, optBtns = {};
 // Wert setzen und Anzeige nachziehen (auch für den Effekt selbst, z. B. automatische Schriftwahl)
 const setVal = (id, v) => { S[id] = v; if (ui[id]) ui[id](v); save(); };
+// Freischaltung (nur Effekte mit E.tiers): welche Stufe eine Einstellung (bzw. eine ihrer Möglichkeiten) braucht –
+// 0 frei, 1 frei für 24 Stunden nach einem Werbevideo (oder mit Kauf), 2 nur mit Kauf
+const TIER = E.tiers || null;
+const needTier = (c, i) => !TIER ? 0 : c.lock ? c.lock : c.lockOpts && i != null ? (c.lockOpts[i] || 0) : 0;
+let tierOK = () => true, openUnlock = () => {};
 for (const c of E.controls) {
   const row = document.createElement('div'); row.className = 'row';
+  rows[c.id] = row;
   if (c.type === 'range') {
     row.innerHTML = '<label for="' + c.id + '">' + c.label + ' <output></output></label>' +
       '<input id="' + c.id + '" type="range" min="' + c.min + '" max="' + c.max + '" step="' + (c.step || 1) + '">';
     box.appendChild(row);
+    // gesperrt: Antippen der Zeile öffnet die Freischaltung (der Regler selbst nimmt dann nichts an)
+    if (c.lock && TIER) row.addEventListener('click', () => { if (!tierOK(c.lock)) openUnlock(c.lock); });
     const el = row.querySelector('input'), out = row.querySelector('output'), fmt = c.fmt || String;
     if (c.track) { el.classList.add('track'); el.style.setProperty('--track', c.track); }
     ui[c.id] = v => { el.value = v; out.textContent = fmt(+v); if (c.swatch) el.style.setProperty('--sw', c.swatch(+v)); };
@@ -2631,9 +2848,14 @@ for (const c of E.controls) {
       const b = document.createElement('button'); b.type = 'button'; b.textContent = typeof o === 'string' ? o : o.label;
       if (o.font) b.style.fontFamily = o.font;
       if (o.weight) b.style.fontWeight = o.weight;
-      b.addEventListener('click', () => { setVal(c.id, i); if (E.change) E.change(c.id); showPic(); });
+      b.addEventListener('click', () => {
+        const nt = needTier(c, i);
+        if (nt && !tierOK(nt)) { openUnlock(nt); return; }
+        setVal(c.id, i); if (E.change) E.change(c.id); showPic();
+      });
       wrap.appendChild(b); btns.push(b);
     });
+    optBtns[c.id] = btns;
     ui[c.id] = v => btns.forEach((b, j) => b.classList.toggle('on', j === v));
     ui[c.id](S[c.id]);
   } else if (c.type === 'text') {
@@ -2645,16 +2867,115 @@ for (const c of E.controls) {
     el.addEventListener('input', () => { S[c.id] = el.value; save(); if (E.change) E.change(c.id); });
   }
 }
-// Schnittstelle für Effekte: Werte setzen, kurze Hinweise zeigen, Einstellungen ausblenden
-if (E.bindUI) E.bindUI({ set: setVal, toast: (m, ms) => toast(m, ms), hideSheet: () => { sheet.hidden = true; } });
+// Schnittstelle für Effekte: Werte setzen, kurze Hinweise zeigen, Einstellungen ausblenden, Freischaltung abfragen
+if (E.bindUI) E.bindUI({ set: setVal, toast: (m, ms) => toast(m, ms), hideSheet: () => { sheet.hidden = true; }, tierOK: t => tierOK(t) });
 // zusätzliche Knöpfe des Effekts (z. B. „Aufschlag antippen“)
+const lockBtns = [];
 if (E.buttons) {
   const row = document.querySelector('.btns'), fs = document.getElementById('fsBtn');
   for (const b of E.buttons) {
     const el = document.createElement('button'); el.type = 'button'; el.textContent = b.label;
-    el.addEventListener('click', () => { b.run(); if (!b.stay) showPic(); });
+    el.addEventListener('click', () => {
+      if (b.lock && TIER && !tierOK(b.lock)) { openUnlock(b.lock); return; }
+      b.run(); if (!b.stay) showPic();
+    });
     row.insertBefore(el, fs);
+    if (b.lock) lockBtns.push({ b, el });
   }
+}
+
+// ---------- Freischaltung: frei / 24 Stunden nach einem Werbevideo / nur mit Kauf ----------
+// Nur für Effekte mit E.tiers. In der Vorschau sind Werbung und Kauf nachgestellt (in der App laufen echte Anzeigen von
+// Google und der Kauf über Google Play). Gesperrte Einstellungen stehen auf dem freien Wert; was man vorher eingestellt
+// hatte, merkt sich die Vorschau und stellt es nach dem Freischalten wieder her.
+if (TIER) {
+  const EKEY = KEY + '-frei';
+  const ent = { until: 0, bought: false, stash: {} };
+  try { const sv = JSON.parse(localStorage.getItem(EKEY) || '{}'); if (sv && typeof sv === 'object') Object.assign(ent, sv); } catch (e) {}
+  if (!ent.stash || typeof ent.stash !== 'object') ent.stash = {};
+  const saveEnt = () => { try { localStorage.setItem(EKEY, JSON.stringify(ent)); } catch (e) {} };
+  tierOK = t => !t || ent.bought || (t === 1 && Date.now() < ent.until);
+  const hhmm = ms => { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+  // Zeile ganz oben: Stand der Freischaltung
+  const line = document.createElement('div'); line.className = 'ent';
+  box.insertBefore(line, box.firstChild);
+  const entLine = () => {
+    const st = ent.bought ? '<b>Vollversion</b> · alles frei, ohne Werbung' : Date.now() < ent.until ? '<b>Extras frei bis ' + hhmm(ent.until) + '</b> · eigenes Bild nur mit Kauf' : '<b>Kostenlose Version</b> · Extras gesperrt';
+    line.innerHTML = '<span>' + st + '</span>' + (ent.bought ? '' : '<button type="button" class="u">Freischalten</button>') + '<button type="button" class="reset">Zurücksetzen (nur Vorschau)</button>';
+    const u = line.querySelector('.u'); if (u) u.onclick = () => openUnlock(1);
+    line.querySelector('.reset').onclick = () => { ent.until = 0; ent.bought = false; applyLocks(); toast('Vorschau zurückgesetzt: kostenlose Version.', 3000); };
+  };
+  // gesperrte Einstellungen auf den freien Wert, freigeschaltete auf den eigenen; Schilder und Schlösser nachziehen
+  const applyLocks = () => {
+    const changed = [];
+    for (const c of E.controls) {
+      if (!c.lock && !c.lockOpts) continue;
+      const want = c.id in ent.stash ? ent.stash[c.id] : S[c.id];
+      const ok = tierOK(c.lock || (c.lockOpts ? c.lockOpts[want] || 0 : 0));
+      if (ok) delete ent.stash[c.id]; else ent.stash[c.id] = want;
+      const eff = ok ? want : TIER.free[c.id];
+      if (eff !== undefined && S[c.id] !== eff) { S[c.id] = eff; changed.push(c.id); }
+      const row = rows[c.id];
+      if (c.lock && row) {
+        const lk = !tierOK(c.lock);
+        row.classList.toggle('locked', lk);
+        const lab = row.querySelector('label, .lbl');
+        let tag = row.querySelector('.lock');
+        if (lk && !tag && lab) { tag = document.createElement('span'); tag.className = 'lock' + (c.lock === 2 ? ' buy' : ''); tag.textContent = c.lock === 2 ? 'Kauf' : '24 h'; lab.insertBefore(tag, lab.querySelector('output')); }
+        if (!lk && tag) tag.remove();
+      }
+      // einzelne gesperrte Möglichkeiten bekommen ein Schloss (ist die ganze Zeile gesperrt, reicht das Schild)
+      if (optBtns[c.id]) optBtns[c.id].forEach((b, i) => b.classList.toggle('locked', !!c.lockOpts && !tierOK(needTier(c, i))));
+    }
+    for (const { b, el } of lockBtns) el.classList.toggle('locked', !tierOK(b.lock));
+    saveEnt(); save();
+    for (const id of changed) { if (ui[id]) ui[id](S[id]); if (E.change) E.change(id); }
+    if (E.change) E.change('ent');
+    entLine();
+  };
+  // nachgestelltes Werbevideo: erst nach 5 Sekunden zu Ende, dann 24 Stunden alle Extras
+  const showAd = () => {
+    const ad = document.createElement('div'); ad.className = 'ad';
+    ad.innerHTML = '<div class="in"><div class="t">Werbung · Beispiel</div><div class="big">Hier läuft in der App ein Werbevideo von Google</div>' +
+      '<div class="n">5</div><p>Wer es bis zum Ende ansieht, bekommt 24 Stunden alle Extras.</p><button type="button" class="primary" disabled>Bitte warten …</button></div>';
+    document.body.appendChild(ad);
+    const n = ad.querySelector('.n'), b = ad.querySelector('button');
+    let k = 5;
+    const tick = setInterval(() => {
+      k--; n.textContent = String(Math.max(0, k));
+      if (k > 0) return;
+      clearInterval(tick);
+      b.disabled = false; b.textContent = 'Schließen und freischalten';
+      b.onclick = () => {
+        ad.remove();
+        ent.until = Date.now() + 24 * 3600 * 1000; applyLocks();
+        toast('Alle Extras sind bis morgen ' + hhmm(ent.until) + ' Uhr frei.', 4000);
+      };
+    }, 1000);
+  };
+  // Dialog: was freigeschaltet wird und wie
+  openUnlock = need => {
+    const d = document.createElement('div'); d.className = 'dlg';
+    const ad = need === 1 && !tierOK(1);
+    d.innerHTML = '<div class="box"><h3>' + (need === 2 ? 'Nur mit Kauf' : 'Extra freischalten') + '</h3>' +
+      '<p>' + (need === 2 ? 'Das eigene Bild gibt es mit dem Kauf. Er schaltet alles für immer frei und die Werbung fällt weg.' :
+      'Sieh dir ein kurzes Werbevideo an, dann sind 24 Stunden alle Extras frei. Oder kauf einmal, dann ist alles für immer frei und ohne Werbung.') + '</p>' +
+      '<div class="col">' + (ad ? '<button type="button" class="a">Werbevideo ansehen · 24 Stunden frei</button>' : '') +
+      '<button type="button" class="primary k">Für immer freischalten · ' + TIER.price + '</button><button type="button" class="x">Abbrechen</button></div>' +
+      '<p>Vorschau: Werbung und Kauf sind hier nur nachgestellt.</p></div>';
+    document.body.appendChild(d);
+    const close = () => d.remove();
+    d.addEventListener('click', e => { if (e.target === d) close(); });
+    d.querySelector('.x').onclick = close;
+    if (ad) d.querySelector('.a').onclick = () => { close(); showAd(); };
+    d.querySelector('.k').onclick = () => { close(); ent.bought = true; applyLocks(); toast('Gekauft (nur Vorschau): Alles ist für immer frei, ohne Werbung.', 4000); };
+  };
+  applyLocks();
+  // 24 Stunden um: Extras wieder sperren
+  setInterval(() => {
+    if (!ent.bought && ent.until && Date.now() >= ent.until) { ent.until = 0; applyLocks(); toast('Die 24 Stunden sind um, die Extras sind wieder gesperrt.', 4000); }
+    else if (!sheet.hidden) entLine();
+  }, 5000);
 }
 if (E.hint) hint.textContent = E.hint;
 document.getElementById('actBtn').textContent = E.actionLabel;
