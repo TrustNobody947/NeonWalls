@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Broken Screen als eigene App: Extras gesperrt, frei 24 Stunden nach einem Werbevideo oder für immer mit dem Kauf -->
+    <bool name="monetized">true</bool>
+</resources>
