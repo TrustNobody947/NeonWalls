@@ -403,12 +403,10 @@ class BsShop(private val act: Activity) : Shop, PurchasesUpdatedListener {
             }
             return
         }
-        val params = BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(
-            BillingFlowParams.ProductDetailsParams.newBuilder()
-                .setProductDetails(pd)
-                .setOfferToken(of.offerToken)
-                .build()
-        )).build()
+        val pp = BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(pd)
+        // Angebots-Kennung (fehlt bei älteren Produkten ohne mehrere Kaufoptionen)
+        of.offerToken?.let { pp.setOfferToken(it) }
+        val params = BillingFlowParams.newBuilder().setProductDetailsParamsList(listOf(pp.build())).build()
         val r = billing.launchBillingFlow(act, params)
         when (r.responseCode) {
             BillingClient.BillingResponseCode.OK, BillingClient.BillingResponseCode.USER_CANCELED -> {}
